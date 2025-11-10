@@ -8,6 +8,8 @@ export type RootStackParamList = {
   Dashboard: undefined;
   VoiceAnalysis: undefined;
   TextAnalysis: undefined;
+  SignUp: undefined;
+  Login: undefined;
 };
 
 
