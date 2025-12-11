@@ -7,8 +7,9 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../firebaseConfig";
 import { useNavigation } from "@react-navigation/native";
 
@@ -17,6 +18,29 @@ const LoginScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      return Alert.alert(
+        "Email Required",
+        "Enter your email above and then tap 'Forgot Password'."
+      );
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      Alert.alert(
+        "Password Reset Sent",
+        "Check your email for a link to reset your password."
+      );
+    } catch (error: any) {
+      if (error.code === "auth/user-not-found") {
+        Alert.alert("Error", "No account exists with that email.");
+      } else {
+        Alert.alert("Error", error.message || "Unable to send reset email.");
+      }
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -45,59 +69,72 @@ const LoginScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.headerIcon}>🔐</Text>
-      <Text style={styles.headerTitle}>Welcome Back</Text>
-      <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <View style={styles.container}>
+        <Text style={styles.headerIcon}>🔐</Text>
+        <Text style={styles.headerTitle}>Welcome Back</Text>
+        <Text style={styles.subtitle}>Sign in to continue your journey</Text>
 
-      <Text style={styles.label}>Email</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your email"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-      />
+        {/* Inputs + buttons */}
+        <View style={styles.formContainer}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your email"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
 
-      <Text style={styles.label}>Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your password"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
 
-      <Pressable
-        style={[styles.loginButton, loading && { opacity: 0.6 }]}
-        onPress={handleLogin}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.loginButtonText}>Log In</Text>
-        )}
-      </Pressable>
+          {/* Forgot password */}
+          <Pressable onPress={handleForgotPassword} style={styles.forgotPasswordButton}>
+            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+          </Pressable>
 
-      <View style={styles.signupContainer}>
-        <Text style={styles.signupText}>Don’t have an account?</Text>
-        <Pressable onPress={() => navigation.navigate("SignUp")}>
-          <Text style={styles.signupLink}> Sign Up</Text>
-        </Pressable>
+          <Pressable
+            style={[styles.loginButton, loading && { opacity: 0.6 }]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginButtonText}>Log In</Text>
+            )}
+          </Pressable>
+        </View>
+
+        <View style={styles.signupContainer}>
+          <Text style={styles.signupText}>Don’t have an account?</Text>
+          <Pressable onPress={() => navigation.navigate("SignUp")}>
+            <Text style={styles.signupLink}> Sign Up</Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    paddingTop: 150,
     paddingHorizontal: 25,
-    justifyContent: "center",
+    paddingVertical: 150,
   },
   headerIcon: {
     fontSize: 48,
@@ -116,6 +153,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 40,
   },
+  formContainer: {
+    marginBottom: 30,
+  },
   label: {
     fontSize: 16,
     fontWeight: "600",
@@ -127,15 +167,24 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     borderRadius: 10,
     paddingHorizontal: 15,
-    marginBottom: 15,
+    marginBottom: 10,
     backgroundColor: "#FAFAFA",
+  },
+  forgotPasswordButton: {
+    alignSelf: "flex-end",
+    marginBottom: 15,
+  },
+  forgotPasswordText: {
+    color: "#007AFF",
+    fontSize: 14,
+    fontWeight: "500",
   },
   loginButton: {
     backgroundColor: "#222",
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 5,
   },
   loginButtonText: {
     color: "#fff",
@@ -145,7 +194,7 @@ const styles = StyleSheet.create({
   signupContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: 10,
   },
   signupText: {
     fontSize: 14,

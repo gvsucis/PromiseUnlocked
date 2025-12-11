@@ -11,6 +11,7 @@ import {
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import { auth } from "../../firebaseConfig";
+import { Animated, Easing, Keyboard, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -24,11 +25,36 @@ const SignUpScreen: FC = () => {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const logoAnim = useState(new Animated.Value(1))[0];
 
   // inline validation flags
   const emailValid = useMemo(() => EMAIL_REGEX.test(email), [email]);
   const passwordLongEnough = useMemo(() => password.length >= 6, [password]);
   const passwordsMatch = useMemo(() => password === confirmPassword && password.length > 0, [password, confirmPassword]);
+
+  React.useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () =>
+      setKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener("keyboardDidHide", () =>
+      setKeyboardVisible(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    Animated.timing(logoAnim, {
+      toValue: keyboardVisible ? 0 : 1,
+      duration: 250,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+  }, [keyboardVisible]);
 
   // overall form valid
   const formValid = emailValid && passwordLongEnough && passwordsMatch && agreed;
@@ -81,104 +107,141 @@ const SignUpScreen: FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* header */}
-      <View style={styles.header}>
-        <Text style={styles.headerIcon}>🔒</Text>
-        <Text style={styles.headerTitle}>Promise Unlocked</Text>
-      </View>
+    <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+      contentContainerStyle={{ flexGrow: 1 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.container}>
+          {/* header */}
+          {!keyboardVisible && (
+            <Animated.View
+              style={[
+                styles.header,
+                {
+                  opacity: logoAnim,
+                  transform: [
+                    {
+                      translateY: logoAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-40, 0], // slide slightly upward when hiding
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.headerIcon}>🔒</Text>
+              <Text style={styles.headerTitle}>Promise Unlocked</Text>
+            </Animated.View>
+          )}
 
-      {/* content - note: transparent contentArea so full-screen white remains */}
-      <View style={styles.contentArea}>
-        <Text style={styles.title}>Create Your Account</Text>
-        <Text style={styles.subtitle}>Your future starts here.</Text>
+          {/* content - note: transparent contentArea so full-screen white remains */}
+          <View style={styles.contentArea}>
+            <Text style={styles.title}>Create Your Account</Text>
+            <Text style={styles.subtitle}>Your future starts here.</Text>
 
-        {/* Email */}
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
-        {!emailValid && email.length > 0 && (
-          <Text style={styles.inlineError}>Please enter a valid email address.</Text>
-        )}
+            {/* Email */}
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+            {!emailValid && email.length > 0 && (
+              <Text style={styles.inlineError}>Please enter a valid email address.</Text>
+            )}
 
-        {/* Password */}
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.passwordRow}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="Create a password"
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-          />
-          <Pressable onPress={() => setShowPassword((s) => !s)} style={styles.eyeButton}>
-            <Text style={styles.eyeText}>{showPassword ? "</>" : "<o>"}</Text>
-          </Pressable>
-        </View>
-        {!passwordLongEnough && password.length > 0 && (
-          <Text style={styles.inlineError}>Password must be at least 6 characters.</Text>
-        )}
+            {/* Password */}
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                placeholder="Create a password"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Pressable onPress={() => setShowPassword((s) => !s)} style={styles.eyeButton}>
+                <Text style={styles.eyeText}>{showPassword ? "👁️‍🗨️" : "👁️"}</Text>
+              </Pressable>
+            </View>
+            {!passwordLongEnough && password.length > 0 && (
+              <Text style={styles.inlineError}>Password must be at least 6 characters.</Text>
+            )}
 
-        {/* Confirm Password */}
-        <Text style={styles.label}>Confirm Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Re-enter your password"
-          secureTextEntry={true}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-        />
-        {!passwordsMatch && confirmPassword.length > 0 && (
-          <Text style={styles.inlineError}>Passwords do not match.</Text>
-        )}
+            {/* Confirm Password */}
+            <Text style={styles.label}>Confirm Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Re-enter your password"
+              secureTextEntry={true}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            {!passwordsMatch && confirmPassword.length > 0 && (
+              <Text style={styles.inlineError}>Passwords do not match.</Text>
+            )}
 
-        {/* Terms */}
-        <Pressable onPress={() => setAgreed(!agreed)} style={styles.checkboxContainer}>
-          <View style={[styles.checkbox, agreed && styles.checkedCheckbox]}>
-            {agreed && <Text style={styles.checkmark}>✓</Text>}
+            {/* Terms */}
+            <Pressable onPress={() => setAgreed(!agreed)} style={styles.checkboxContainer}>
+              <View style={[styles.checkbox, agreed && styles.checkedCheckbox]}>
+                {agreed && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={styles.termsText}>I agree to the Terms of Service and Privacy Policy.</Text>
+            </Pressable>
+
+            {/* Sign Up */}
+            <Pressable
+              style={[styles.signUpButton, (!formValid || loading) && { opacity: 0.6 }]}
+              onPress={handleSignUp}
+              disabled={!formValid || loading}
+            >
+              {loading ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={styles.signUpButtonText}>Signing up...</Text>
+                </View>
+              ) : (
+                <Text style={styles.signUpButtonText}>Sign Up</Text>
+              )}
+            </Pressable>
+
+            {/*
+            <Text style={styles.separatorText}>Or sign up with</Text>
+
+            <View style={styles.socialButtonsInnerContainer}>
+              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Google")}>
+                <Text style={styles.socialButtonText}>G</Text>
+              </Pressable>
+              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Apple")}>
+                <Text style={styles.socialButtonText}></Text>
+              </Pressable>
+              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Facebook")}>
+                <Text style={styles.socialButtonText}>f</Text>
+              </Pressable>
+            </View>
+            */}
+
+            <View style={styles.loginContainer}>
+              <Text style={styles.loginText}>Already have an account?</Text>
+              <Pressable onPress={navigateToLogin}>
+                <Text style={styles.loginLink}> Log in</Text>
+              </Pressable>
+            </View>
+
+            {user && <Text style={{ color: "green", marginTop: 10 }}>Signed in as: {user.email}</Text>}
           </View>
-          <Text style={styles.termsText}>I agree to the Terms of Service and Privacy Policy.</Text>
-        </Pressable>
-
-        {/* Sign Up */}
-        <Pressable
-          style={[styles.signUpButton, (!formValid || loading) && { opacity: 0.6 }]}
-          onPress={handleSignUp}
-          disabled={!formValid || loading}
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.signUpButtonText}>Sign Up</Text>}
-        </Pressable>
-
-        <Text style={styles.separatorText}>Or sign up with</Text>
-
-        <View style={styles.socialButtonsInnerContainer}>
-          <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Google")}>
-            <Text style={styles.socialButtonText}>G</Text>
-          </Pressable>
-          <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Apple")}>
-            <Text style={styles.socialButtonText}></Text>
-          </Pressable>
-          <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Facebook")}>
-            <Text style={styles.socialButtonText}>f</Text>
-          </Pressable>
         </View>
-
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Already have an account?</Text>
-          <Pressable onPress={navigateToLogin}>
-            <Text style={styles.loginLink}> Log in</Text>
-          </Pressable>
-        </View>
-
-        {user && <Text style={{ color: "green", marginTop: 10 }}>Signed in as: {user.email}</Text>}
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
