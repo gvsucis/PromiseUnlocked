@@ -15,8 +15,11 @@ import FollowUpQuestionScreen from './src/screens/FollowUpQuestionScreen';
 import SkillsDashboardScreen from './src/screens/SkillsDashboardScreen';
 import DialogueDashboardScreen from './src/screens/DialogueDashboardScreen';
 import { RootStackParamList } from './src/types/navigation';
-import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
+import LucyLoginScreen from './src/screens/LucyLoginScreen';
+import SignUpScreen from './src/screens/SignUpScreen';
+// Keeping these just in case.
+// import LoginScreen from './src/screens/LoginScreen';
+// import RegisterScreen from './src/screens/RegisterScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -26,7 +29,7 @@ export default function App() {
       <NavigationContainer>
         <StatusBar style="auto" />
         <Stack.Navigator 
-          initialRouteName="Login"
+          initialRouteName="SignUp"
           screenOptions={{
             headerStyle: {
               backgroundColor: '#2196F3',
@@ -38,6 +41,18 @@ export default function App() {
           }}
         >
           <Stack.Screen 
+            name="SignUp" 
+            component={SignUpScreen} 
+            options={{ title: 'Sign Up', headerShown: false }}
+          />
+          <Stack.Screen 
+            name="LucyLogin" 
+            component={LucyLoginScreen} 
+            options={{ title: 'Login', headerShown: false }}
+          />
+          
+          {/* Patrick's old SignUp flow
+          <Stack.Screen 
             name="Login" 
             component={LoginScreen} 
             options={{ title: 'Sign In', headerShown: false }}
@@ -47,6 +62,8 @@ export default function App() {
             component={RegisterScreen} 
             options={{ title: 'Create Account', headerShown: false }}
           />
+          */}
+          
           <Stack.Screen 
             name="Welcome" 
             component={WelcomeScreen} 
