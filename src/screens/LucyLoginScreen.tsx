@@ -9,9 +9,10 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { auth } from "../../firebaseConfig";
 import { useNavigation } from "@react-navigation/native";
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 const LoginScreen = () => {
   const navigation: any = useNavigation();
@@ -68,6 +69,34 @@ const LoginScreen = () => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
+      
+      if (!idToken) {
+        throw new Error('No ID token found');
+      }
+      
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, googleCredential);
+      
+      Alert.alert("Welcome!", `Signed in as ${userCredential.user.email}`);
+      navigation.navigate("Welcome");
+    } catch (error: any) {
+      if (error.code === 'sign_in_cancelled') {
+        Alert.alert("Cancelled", "Google sign-in was cancelled");
+      } else {
+        Alert.alert("Error", error.message || "Google sign-in failed");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
@@ -75,7 +104,6 @@ const LoginScreen = () => {
         <Text style={styles.headerTitle}>Welcome Back</Text>
         <Text style={styles.subtitle}>Sign in to continue your journey</Text>
 
-        {/* Inputs + buttons */}
         <View style={styles.formContainer}>
           <Text style={styles.label}>Email</Text>
           <TextInput
@@ -96,7 +124,6 @@ const LoginScreen = () => {
             onChangeText={setPassword}
           />
 
-          {/* Forgot password */}
           <Pressable onPress={handleForgotPassword} style={styles.forgotPasswordButton}>
             <Text style={styles.forgotPasswordText}>Forgot password?</Text>
           </Pressable>
@@ -112,10 +139,18 @@ const LoginScreen = () => {
               <Text style={styles.loginButtonText}>Log In</Text>
             )}
           </Pressable>
+
+          <Pressable
+            style={[styles.googleButton, loading && { opacity: 0.6 }]}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+          >
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          </Pressable>
         </View>
 
         <View style={styles.signupContainer}>
-          <Text style={styles.signupText}>Don’t have an account?</Text>
+          <Text style={styles.signupText}>Don't have an account?</Text>
           <Pressable onPress={() => navigation.navigate("SignUp")}>
             <Text style={styles.signupLink}> Sign Up</Text>
           </Pressable>
@@ -188,6 +223,20 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  googleButton: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 15,
+  },
+  googleButtonText: {
+    color: "#222",
     fontSize: 16,
     fontWeight: "600",
   },

@@ -8,10 +8,11 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { useNavigation } from "@react-navigation/native";
 import { auth } from "../../firebaseConfig";
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -27,7 +28,6 @@ const SignUpScreen: FC = () => {
   const [user, setUser] = useState<any>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
-  // inline validation flags
   const emailValid = useMemo(() => EMAIL_REGEX.test(email), [email]);
   const passwordLongEnough = useMemo(() => password.length >= 6, [password]);
   const passwordsMatch = useMemo(() => password === confirmPassword && password.length > 0, [password, confirmPassword]);
@@ -46,7 +46,6 @@ const SignUpScreen: FC = () => {
     };
   }, []);
 
-  // overall form valid
   const formValid = emailValid && passwordLongEnough && passwordsMatch && agreed;
 
   const handleSignUp = async () => {
@@ -73,7 +72,6 @@ const SignUpScreen: FC = () => {
       Alert.alert("Success", "Account created successfully!");
       navigation.navigate("Welcome");
     } catch (error: any) {
-      // Friendly error messages
       if (error.code === "auth/email-already-in-use") {
         Alert.alert("Error", "That email address is already in use.");
       } else if (error.code === "auth/invalid-email") {
@@ -88,26 +86,49 @@ const SignUpScreen: FC = () => {
     }
   };
 
-  const navigateToLogin = () => {
-    navigation.navigate("LucyLogin");
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
+      
+      if (!idToken) {
+        throw new Error('No ID token found');
+      }
+      
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, googleCredential);
+      
+      Alert.alert("Welcome!", `Signed in as ${userCredential.user.email}`);
+      navigation.navigate("Welcome");
+    } catch (error: any) {
+      if (error.code === 'sign_in_cancelled') {
+        Alert.alert("Cancelled", "Google sign-in was cancelled");
+      } else {
+        Alert.alert("Error", error.message || "Google sign-in failed");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    Alert.alert("Coming Soon", `${provider} login not yet implemented.`);
+  const navigateToLogin = () => {
+    navigation.navigate("Login");
   };
 
   return (
     <KeyboardAvoidingView
-    style={{ flex: 1 }}
-    behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-      contentContainerStyle={{ flexGrow: 1 }}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          {/* header */}
           {!keyboardVisible && (
             <View style={styles.header}>
               <Text style={styles.headerIcon}>🔒</Text>
@@ -115,12 +136,10 @@ const SignUpScreen: FC = () => {
             </View>
           )}
 
-          {/* content - note: transparent contentArea so full-screen white remains */}
           <View style={styles.contentArea}>
             <Text style={styles.title}>Create Your Account</Text>
             <Text style={styles.subtitle}>Your future starts here.</Text>
 
-            {/* Email */}
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
@@ -134,7 +153,6 @@ const SignUpScreen: FC = () => {
               <Text style={styles.inlineError}>Please enter a valid email address.</Text>
             )}
 
-            {/* Password */}
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordRow}>
               <TextInput
@@ -152,7 +170,6 @@ const SignUpScreen: FC = () => {
               <Text style={styles.inlineError}>Password must be at least 6 characters.</Text>
             )}
 
-            {/* Confirm Password */}
             <Text style={styles.label}>Confirm Password</Text>
             <TextInput
               style={styles.input}
@@ -165,7 +182,6 @@ const SignUpScreen: FC = () => {
               <Text style={styles.inlineError}>Passwords do not match.</Text>
             )}
 
-            {/* Terms */}
             <Pressable onPress={() => setAgreed(!agreed)} style={styles.checkboxContainer}>
               <View style={[styles.checkbox, agreed && styles.checkedCheckbox]}>
                 {agreed && <Text style={styles.checkmark}>✓</Text>}
@@ -173,7 +189,6 @@ const SignUpScreen: FC = () => {
               <Text style={styles.termsText}>I agree to the Terms of Service and Privacy Policy.</Text>
             </Pressable>
 
-            {/* Sign Up */}
             <Pressable
               style={[styles.signUpButton, (!formValid || loading) && { opacity: 0.6 }]}
               onPress={handleSignUp}
@@ -189,21 +204,15 @@ const SignUpScreen: FC = () => {
               )}
             </Pressable>
 
-            {/*
             <Text style={styles.separatorText}>Or sign up with</Text>
 
-            <View style={styles.socialButtonsInnerContainer}>
-              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Google")}>
-                <Text style={styles.socialButtonText}>G</Text>
-              </Pressable>
-              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Apple")}>
-                <Text style={styles.socialButtonText}></Text>
-              </Pressable>
-              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Facebook")}>
-                <Text style={styles.socialButtonText}>f</Text>
-              </Pressable>
-            </View>
-            */}
+            <Pressable
+              style={[styles.googleButton, loading && { opacity: 0.6 }]}
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+            >
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </Pressable>
 
             <View style={styles.loginContainer}>
               <Text style={styles.loginText}>Already have an account?</Text>
@@ -279,11 +288,22 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   signUpButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  googleButton: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  googleButtonText: {
+    color: "#222",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   inlineError: { color: "#D04545", marginBottom: 8, fontSize: 13 },
   separatorText: { textAlign: "center", color: "#888", marginBottom: 12, fontSize: 14 },
-  socialButtonsInnerContainer: { flexDirection: "row", justifyContent: "center", gap: 20, marginBottom: 18 },
-  socialButton: { backgroundColor: "#F0F0F0", width: 55, height: 55, borderRadius: 28, justifyContent: "center", alignItems: "center" },
-  socialButtonText: { color: "#333", fontSize: 22, fontWeight: "bold" },
   loginContainer: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginBottom: 40 },
   loginText: { fontSize: 14, color: "#666" },
   loginLink: { fontSize: 14, color: "#007AFF", fontWeight: "600" },
