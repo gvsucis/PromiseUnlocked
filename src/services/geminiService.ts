@@ -165,7 +165,10 @@ export class GeminiService {
       });
       return response.data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     } catch (error) {
-      return "";
+      if (error instanceof axios.AxiosError) {
+        throw new Error(`Gemini API error: ${error.message}`);
+      }
+      throw error;
     }
   }
 
