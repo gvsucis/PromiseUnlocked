@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "TranscriptAnalyzer",
-    "slug": "TranscriptAnalyzer",
+    "name": "promiseUnlocked",
+    "slug": "promiseunlocked",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -53,9 +53,12 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "924919f0-0969-4fa0-b777-536596a3dce8"
+        "projectId": "6ecf846e-45ab-42ed-b633-febe4811c82f"
       }
     },
-    "owner": "wagamama"
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/6ecf846e-45ab-42ed-b633-febe4811c82f"
+    }
   }
 }
