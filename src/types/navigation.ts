@@ -14,6 +14,3 @@ export type RootStackParamList = {
   TextAnalysis: undefined;
   FollowUpQuestion: { question: string; context?: any };
 };
-
-
-

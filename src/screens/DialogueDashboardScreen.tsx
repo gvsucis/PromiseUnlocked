@@ -844,6 +844,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         Alert.alert("Error", result.error);
       }
     } catch (error) {
+      console.error("Error selecting image:", error);
       Alert.alert("Error", "An error occurred while selecting image");
     }
   };
