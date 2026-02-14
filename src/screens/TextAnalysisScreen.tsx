@@ -1,11 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import {
   Text,
   TextInput,
@@ -30,37 +24,89 @@ interface Props {
 
 const SKILLS_TAXONOMY = {
   'Human Skills': [
-    'Communication', 'Collaboration', 'Leadership', 'Empathy', 'Active Listening',
-    'Conflict Resolution', 'Networking', 'Public Speaking', 'Team Management'
+    'Communication',
+    'Collaboration',
+    'Leadership',
+    'Empathy',
+    'Active Listening',
+    'Conflict Resolution',
+    'Networking',
+    'Public Speaking',
+    'Team Management',
   ],
   'Meta-Learning': [
-    'Critical Thinking', 'Research Skills', 'Self-Reflection', 'Learning Strategies',
-    'Information Synthesis', 'Knowledge Transfer', 'Continuous Learning', 'Adaptability'
+    'Critical Thinking',
+    'Research Skills',
+    'Self-Reflection',
+    'Learning Strategies',
+    'Information Synthesis',
+    'Knowledge Transfer',
+    'Continuous Learning',
+    'Adaptability',
   ],
   'Maker & Builder': [
-    'Prototyping', 'Design Thinking', 'Craftsmanship', 'Innovation', 'Technical Skills',
-    'Project Management', 'Problem Solving', 'Creative Construction', 'Engineering'
+    'Prototyping',
+    'Design Thinking',
+    'Craftsmanship',
+    'Innovation',
+    'Technical Skills',
+    'Project Management',
+    'Problem Solving',
+    'Creative Construction',
+    'Engineering',
   ],
   'Civic Impact': [
-    'Community Engagement', 'Social Responsibility', 'Advocacy', 'Volunteer Work',
-    'Policy Understanding', 'Cultural Awareness', 'Environmental Stewardship', 'Civic Participation'
+    'Community Engagement',
+    'Social Responsibility',
+    'Advocacy',
+    'Volunteer Work',
+    'Policy Understanding',
+    'Cultural Awareness',
+    'Environmental Stewardship',
+    'Civic Participation',
   ],
   'Creative Expression': [
-    'Artistic Creation', 'Storytelling', 'Music', 'Writing', 'Visual Arts',
-    'Performance', 'Creative Problem Solving', 'Imagination', 'Aesthetic Appreciation'
+    'Artistic Creation',
+    'Storytelling',
+    'Music',
+    'Writing',
+    'Visual Arts',
+    'Performance',
+    'Creative Problem Solving',
+    'Imagination',
+    'Aesthetic Appreciation',
   ],
   'Problem-Solving': [
-    'Analytical Thinking', 'Strategic Planning', 'Troubleshooting', 'Decision Making',
-    'Systems Thinking', 'Root Cause Analysis', 'Innovation', 'Logic', 'Pattern Recognition'
+    'Analytical Thinking',
+    'Strategic Planning',
+    'Troubleshooting',
+    'Decision Making',
+    'Systems Thinking',
+    'Root Cause Analysis',
+    'Innovation',
+    'Logic',
+    'Pattern Recognition',
   ],
   'Work Experience': [
-    'Professional Skills', 'Industry Knowledge', 'Workplace Etiquette', 'Time Management',
-    'Client Relations', 'Business Acumen', 'Career Development', 'Mentorship'
+    'Professional Skills',
+    'Industry Knowledge',
+    'Workplace Etiquette',
+    'Time Management',
+    'Client Relations',
+    'Business Acumen',
+    'Career Development',
+    'Mentorship',
   ],
   'Future Self': [
-    'Goal Setting', 'Vision Creation', 'Personal Growth', 'Skill Development',
-    'Career Planning', 'Life Balance', 'Self-Improvement', 'Aspiration Mapping'
-  ]
+    'Goal Setting',
+    'Vision Creation',
+    'Personal Growth',
+    'Skill Development',
+    'Career Planning',
+    'Life Balance',
+    'Self-Improvement',
+    'Aspiration Mapping',
+  ],
 };
 
 interface AnalysisResult {
@@ -94,9 +140,9 @@ export default function TextAnalysisScreen({ navigation }: Props) {
 Analyze the following text where someone describes an activity they do. Based on the content, analyze it using this skills taxonomy framework:
 
 SKILLS TAXONOMY:
-${Object.entries(SKILLS_TAXONOMY).map(([category, skills]) => 
-  `${category}: ${skills.join(', ')}`
-).join('\n')}
+${Object.entries(SKILLS_TAXONOMY)
+  .map(([category, skills]) => `${category}: ${skills.join(', ')}`)
+  .join('\n')}
 
 TEXT TO ANALYZE: "${inputText}"
 
@@ -114,7 +160,7 @@ Please provide a detailed analysis and return it as a JSON object with this exac
 Analyze the text carefully and provide thoughtful insights about the skills being demonstrated or developed through the described activity. Return only valid JSON.`;
 
       const response = await GeminiService.processTranscriptText(analysisPrompt);
-      
+
       if (!response) {
         throw new Error('No response received from analysis service');
       }
@@ -127,7 +173,6 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
 
       const parsedResult: AnalysisResult = JSON.parse(jsonMatch[0]);
       setAnalysisResult(parsedResult);
-
     } catch (error) {
       console.error('Error analyzing text:', error);
       setError(error instanceof Error ? error.message : 'Analysis failed. Please try again.');
@@ -148,7 +193,7 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
       const mockResult = {
         success: true,
         data: analysisResult as any, // Cast to any to bypass type checking
-        rawResponse: JSON.stringify(analysisResult)
+        rawResponse: JSON.stringify(analysisResult),
       };
       navigation.navigate('Result', { result: mockResult });
     }
@@ -189,7 +234,7 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
 
   return (
     <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
@@ -216,11 +261,11 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
                   colors: {
                     primary: '#667eea',
                     outline: '#ccc',
-                  }
+                  },
                 }}
                 autoCorrect={true}
               />
-              
+
               <View style={styles.buttonContainer}>
                 <Button
                   mode="contained"
@@ -228,11 +273,11 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
                   disabled={isAnalyzing || !inputText.trim()}
                   loading={isAnalyzing}
                   style={styles.analyzeButton}
-                  icon={isAnalyzing ? undefined : "brain"}
+                  icon={isAnalyzing ? undefined : 'brain'}
                 >
                   {isAnalyzing ? 'Analyzing...' : 'Analyze Activity'}
                 </Button>
-                
+
                 {inputText && (
                   <Button
                     mode="outlined"
@@ -275,11 +320,7 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
                   <Title style={styles.cardTitle}>🛠️ Primary Skills</Title>
                   <View style={styles.skillsContainer}>
                     {analysisResult.primary_skills?.map((skill, index) => (
-                      <Chip 
-                        key={index} 
-                        style={styles.skillChip}
-                        textStyle={styles.chipText}
-                      >
+                      <Chip key={index} style={styles.skillChip} textStyle={styles.chipText}>
                         {skill}
                       </Chip>
                     ))}
@@ -292,11 +333,7 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
                   <Title style={styles.cardTitle}>📚 Skill Categories</Title>
                   <View style={styles.categoriesContainer}>
                     {analysisResult.taxonomy_categories?.map((category, index) => (
-                      <Chip 
-                        key={index} 
-                        style={styles.categoryChip}
-                        textStyle={styles.chipText}
-                      >
+                      <Chip key={index} style={styles.categoryChip} textStyle={styles.chipText}>
                         {category}
                       </Chip>
                     ))}
@@ -337,12 +374,14 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
                 </Card.Content>
               </Card>
 
-              <Card 
+              <Card
                 style={styles.resultCard}
-                onPress={() => navigation.navigate('FollowUpQuestion', {
-                  question: generateFollowUpQuestion(analysisResult),
-                  context: analysisResult,
-                })}
+                onPress={() =>
+                  navigation.navigate('FollowUpQuestion', {
+                    question: generateFollowUpQuestion(analysisResult),
+                    context: analysisResult,
+                  })
+                }
               >
                 <Card.Content>
                   <View style={styles.cardTitleContainer}>
@@ -352,23 +391,21 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
                   <Paragraph style={styles.resultText}>
                     {generateFollowUpQuestion(analysisResult)}
                   </Paragraph>
-                  <Paragraph style={styles.tapHint}>
-                    👆 Tap to answer this question
-                  </Paragraph>
+                  <Paragraph style={styles.tapHint}>👆 Tap to answer this question</Paragraph>
                 </Card.Content>
               </Card>
 
               <View style={styles.actionButtons}>
-                <Button 
-                  mode="outlined" 
+                <Button
+                  mode="outlined"
                   onPress={navigateWithResults}
                   style={styles.actionButton}
                   textColor="#667eea"
                 >
                   View Full Results
                 </Button>
-                <Button 
-                  mode="contained" 
+                <Button
+                  mode="contained"
                   onPress={() => navigation.navigate('Dashboard')}
                   style={[styles.actionButton, styles.dashboardButton]}
                 >

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,14 +8,14 @@ import {
   Alert,
   Keyboard,
   Animated,
-} from "react-native";
-import { Text, Card, ActivityIndicator, FAB } from "react-native-paper";
-import { LinearGradient } from "expo-linear-gradient";
-import { MaterialIcons } from "@expo/vector-icons";
-import { StackNavigationProp } from "@react-navigation/stack";
-import { RouteProp } from "@react-navigation/native";
-import ConfettiCannon from "react-native-confetti-cannon";
-import { RootStackParamList } from "../types/navigation";
+} from 'react-native';
+import { Text, Card, ActivityIndicator, FAB } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp } from '@react-navigation/native';
+import ConfettiCannon from 'react-native-confetti-cannon';
+import { RootStackParamList } from '../types/navigation';
 import {
   CATEGORY_TAXONOMY,
   TOTAL_CATEGORIES,
@@ -26,7 +26,7 @@ import {
   findValidCategory,
   MappedCategory,
   ConversationInteraction,
-} from "../services/categoryTaxonomyService";
+} from '../services/categoryTaxonomyService';
 import {
   getMappedCategories,
   saveMappedCategory,
@@ -34,63 +34,45 @@ import {
   addConversationInteraction,
   clearAllData,
   isCategoryMapped,
-} from "../services/categoryStorageService";
-import { GeminiService } from "../services/geminiService";
-import { ImagePickerService } from "../services/imagePickerService";
-import { Audio } from "expo-av";
-import ZoomableImageView from "../components/ZoomableImageView";
-import ImageEditor from "../components/ImageEditor";
-import { LoadingModal } from "../components/dialogue/LoadingModal";
-import { CompletionModal } from "../components/dialogue/CompletionModal";
-import { WeakFitModal } from "../components/dialogue/WeakFitModal";
-import { InputMethodModal } from "../components/dialogue/InputMethodModal";
-import { AnswerModal } from "../components/dialogue/AnswerModal";
-import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
-import { CategoryCard } from "../components/dialogue/CategoryCard";
+} from '../services/categoryStorageService';
+import { GeminiService } from '../services/geminiService';
+import { ImagePickerService } from '../services/imagePickerService';
+import { Audio } from 'expo-av';
+import ZoomableImageView from '../components/ZoomableImageView';
+import ImageEditor from '../components/ImageEditor';
+import { LoadingModal } from '../components/dialogue/LoadingModal';
+import { CompletionModal } from '../components/dialogue/CompletionModal';
+import { WeakFitModal } from '../components/dialogue/WeakFitModal';
+import { InputMethodModal } from '../components/dialogue/InputMethodModal';
+import { AnswerModal } from '../components/dialogue/AnswerModal';
+import { VoiceRecordingModal } from '../components/dialogue/VoiceRecordingModal';
+import { CategoryCard } from '../components/dialogue/CategoryCard';
 
-const { width } = Dimensions.get("window");
+const { width } = Dimensions.get('window');
 
-type DialogueDashboardNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  "DialogueDashboard"
->;
-type DialogueDashboardRouteProp = RouteProp<
-  RootStackParamList,
-  "DialogueDashboard"
->;
+type DialogueDashboardNavigationProp = StackNavigationProp<RootStackParamList, 'DialogueDashboard'>;
+type DialogueDashboardRouteProp = RouteProp<RootStackParamList, 'DialogueDashboard'>;
 
 interface Props {
   readonly navigation: DialogueDashboardNavigationProp;
   readonly route: DialogueDashboardRouteProp;
 }
 
-type UIState =
-  | "idle"
-  | "answering"
-  | "loading"
-  | "complete"
-  | "weak-fit"
-  | "voice-recording";
+type UIState = 'idle' | 'answering' | 'loading' | 'complete' | 'weak-fit' | 'voice-recording';
 
 export default function DialogueDashboardScreen({ navigation }: Props) {
-  const [mappedCategories, setMappedCategories] = useState<MappedCategory[]>(
-    [],
-  );
-  const [interactions, setInteractions] = useState<ConversationInteraction[]>(
-    [],
-  );
-  const [uiState, setUiState] = useState<UIState>("idle");
-  const [currentPrompt, setCurrentPrompt] = useState("");
-  const [userAnswer, setUserAnswer] = useState("");
-  const [loadingMessage, setLoadingMessage] = useState("");
-  const [error, setError] = useState("");
-  const [prefetchedQuestion, setPrefetchedQuestion] = useState<string | null>(
-    null,
-  );
+  const [mappedCategories, setMappedCategories] = useState<MappedCategory[]>([]);
+  const [interactions, setInteractions] = useState<ConversationInteraction[]>([]);
+  const [uiState, setUiState] = useState<UIState>('idle');
+  const [currentPrompt, setCurrentPrompt] = useState('');
+  const [userAnswer, setUserAnswer] = useState('');
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [error, setError] = useState('');
+  const [prefetchedQuestion, setPrefetchedQuestion] = useState<string | null>(null);
   const [isPrefetching, setIsPrefetching] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [weakFitJustification, setWeakFitJustification] = useState("");
-  const [savedQuestion, setSavedQuestion] = useState(""); // Store question for weak-fit retry
+  const [weakFitJustification, setWeakFitJustification] = useState('');
+  const [savedQuestion, setSavedQuestion] = useState(''); // Store question for weak-fit retry
 
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiRef = React.useRef<any>(null);
@@ -107,7 +89,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   // Debug useEffect to monitor showInputMethodModal changes
   useEffect(() => {
-    console.log("showInputMethodModal changed to:", showInputMethodModal);
+    console.log('showInputMethodModal changed to:', showInputMethodModal);
   }, [showInputMethodModal]);
 
   // Voice recording state
@@ -135,14 +117,12 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         <TouchableOpacity
           onPress={handleReset}
           style={{ marginRight: 15 }}
-          disabled={uiState !== "idle" && uiState !== "complete"}
+          disabled={uiState !== 'idle' && uiState !== 'complete'}
         >
           <MaterialIcons
             name="refresh"
             size={24}
-            color={
-              uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"
-            }
+            color={uiState !== 'idle' && uiState !== 'complete' ? '#ccc' : '#fff'}
           />
         </TouchableOpacity>
       ),
@@ -157,7 +137,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   // Check completion
   useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
-      setUiState("complete");
+      setUiState('complete');
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
     }
@@ -165,17 +145,17 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   // Debug: Log state changes
   useEffect(() => {
-    console.log("State changed:", {
+    console.log('State changed:', {
       uiState,
-      currentPrompt: currentPrompt.substring(0, 50) + "...",
+      currentPrompt: currentPrompt.substring(0, 50) + '...',
       hasPrompt: !!currentPrompt,
     });
   }, [uiState, currentPrompt]);
 
   // Debug: Specifically track Answer modal visibility
   useEffect(() => {
-    const shouldShowAnswerModal = uiState === "answering";
-    console.log("🔴 Answer Modal should be visible:", shouldShowAnswerModal, {
+    const shouldShowAnswerModal = uiState === 'answering';
+    console.log('🔴 Answer Modal should be visible:', shouldShowAnswerModal, {
       uiState,
       hasCurrentPrompt: !!currentPrompt,
       promptLength: currentPrompt.length,
@@ -227,7 +207,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   const rotation = rotateAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "45deg"],
+    outputRange: ['0deg', '45deg'],
   });
 
   const button1Style = {
@@ -296,8 +276,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       setMappedCategories(mapped);
       setInteractions(history);
     } catch (error) {
-      console.error("Error loading data:", error);
-      Alert.alert("Error", "Failed to load your progress");
+      console.error('Error loading data:', error);
+      Alert.alert('Error', 'Failed to load your progress');
     } finally {
       setLoading(false);
     }
@@ -305,16 +285,16 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   const getNextQuestion = useCallback(
     async (isPrefetch = false) => {
-      setError("");
+      setError('');
 
       if (mappedCategories.length === TOTAL_CATEGORIES) {
-        setUiState("complete");
+        setUiState('complete');
         return;
       }
 
       if (!isPrefetch) {
-        setUiState("loading");
-        setLoadingMessage("Synthesizing a new question...");
+        setUiState('loading');
+        setLoadingMessage('Synthesizing a new question...');
       }
 
       try {
@@ -322,66 +302,63 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         const newQuestion = await GeminiService.synthesizeNextQuestion(
           interactions,
           mappedCategories,
-          taxonomyString,
+          taxonomyString
         );
 
         if (isPrefetch) {
-          console.log("Setting prefetched question:", newQuestion);
+          console.log('Setting prefetched question:', newQuestion);
           setPrefetchedQuestion(newQuestion);
           setIsPrefetching(false);
 
           // If user is waiting, show question immediately
           setUiState((currentUiState) => {
-            if (
-              currentUiState === "loading" &&
-              loadingMessage.includes("Wait while")
-            ) {
-              console.log("User was waiting, showing question immediately");
+            if (currentUiState === 'loading' && loadingMessage.includes('Wait while')) {
+              console.log('User was waiting, showing question immediately');
               setCurrentPrompt(newQuestion);
               if (pendingVoiceRecording) {
                 setPendingVoiceRecording(false);
-                return "voice-recording";
+                return 'voice-recording';
               }
-              return "answering";
+              return 'answering';
             }
-            return currentUiState === "loading" ? "idle" : currentUiState;
+            return currentUiState === 'loading' ? 'idle' : currentUiState;
           });
 
-          setLoadingMessage("");
+          setLoadingMessage('');
         } else {
-          console.log("Setting current prompt (non-prefetch):", newQuestion);
+          console.log('Setting current prompt (non-prefetch):', newQuestion);
           setCurrentPrompt(newQuestion);
-          setLoadingMessage("");
+          setLoadingMessage('');
 
           // Small delay to ensure loading modal closes before answer modal opens
           setTimeout(() => {
             if (pendingVoiceRecording) {
-              console.log("Setting uiState to voice-recording");
+              console.log('Setting uiState to voice-recording');
               setPendingVoiceRecording(false);
-              setUiState("voice-recording");
+              setUiState('voice-recording');
             } else {
-              console.log("Setting uiState to answering");
-              setUiState("answering");
+              console.log('Setting uiState to answering');
+              setUiState('answering');
             }
-            console.log("UI state should now be set, modal should appear");
+            console.log('UI state should now be set, modal should appear');
           }, 100);
         }
       } catch (err) {
-        console.error("Error getting next question:", err);
-        setError("Failed to generate question. Please try again.");
+        console.error('Error getting next question:', err);
+        setError('Failed to generate question. Please try again.');
         setIsPrefetching(false);
         setPendingVoiceRecording(false);
-        setLoadingMessage("");
-        setUiState("idle");
+        setLoadingMessage('');
+        setUiState('idle');
       }
     },
-    [interactions, mappedCategories, pendingVoiceRecording],
+    [interactions, mappedCategories, pendingVoiceRecording]
   );
 
   const mapAnswerToCategory = async (question: string, answer: string) => {
-    setUiState("loading");
-    setLoadingMessage("Analyzing your response...");
-    setError("");
+    setUiState('loading');
+    setLoadingMessage('Analyzing your response...');
+    setError('');
 
     setPrefetchedQuestion(null);
     setIsPrefetching(false);
@@ -397,26 +374,24 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         isInitial,
         interactions,
         mappedCategories,
-        taxonomyString,
+        taxonomyString
       );
 
       const { category: rawCategory, justification, nextQuestion } = result;
 
       // Validate category
       const validCategory = findValidCategory(rawCategory);
-      const categoryNameToCheck = validCategory
-        ? validCategory.category
-        : rawCategory;
+      const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
 
-      let mappingResult = "NO_CHANGE";
+      let mappingResult = 'NO_CHANGE';
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
         // NO-OP: weak fit - ask follow-up question
-        console.log("NO-OP Mapping: weak fit. Justification:", justification);
+        console.log('NO-OP Mapping: weak fit. Justification:', justification);
         const interaction: ConversationInteraction = {
           question,
           answer,
-          mappedCategory: "NO-OP (WEAK FIT)",
+          mappedCategory: 'NO-OP (WEAK FIT)',
           timestamp: new Date().toISOString(),
         };
         await addConversationInteraction(interaction);
@@ -424,14 +399,11 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
         // Show weak fit modal with follow-up prompt
         setWeakFitJustification(justification);
-        setUiState("weak-fit");
+        setUiState('weak-fit');
         return; // Don't prefetch or continue
-      } else if (
-        validCategory &&
-        !(await isCategoryMapped(categoryNameToCheck))
-      ) {
+      } else if (validCategory && !(await isCategoryMapped(categoryNameToCheck))) {
         // Successful mapping
-        mappingResult = "SUCCESS";
+        mappingResult = 'SUCCESS';
 
         const newMappedCategory: MappedCategory = {
           category: categoryNameToCheck,
@@ -457,16 +429,14 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         setTimeout(() => setShowConfetti(false), 3000);
 
         if (newMappedCategories.length === TOTAL_CATEGORIES) {
-          mappingResult = "COMPLETE";
+          mappingResult = 'COMPLETE';
         }
       } else if (await isCategoryMapped(categoryNameToCheck)) {
-        setError(
-          `"${categoryNameToCheck}" is already mapped. Trying next question.`,
-        );
+        setError(`"${categoryNameToCheck}" is already mapped. Trying next question.`);
         const interaction: ConversationInteraction = {
           question,
           answer,
-          mappedCategory: "ALREADY MAPPED (IGNORED)",
+          mappedCategory: 'ALREADY MAPPED (IGNORED)',
           timestamp: new Date().toISOString(),
         };
         await addConversationInteraction(interaction);
@@ -476,99 +446,80 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         const interaction: ConversationInteraction = {
           question,
           answer,
-          mappedCategory: "MAPPING FAILED",
+          mappedCategory: 'MAPPING FAILED',
           timestamp: new Date().toISOString(),
         };
         await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
       }
 
-      setUserAnswer("");
+      setUserAnswer('');
       setIsAnswerFromVoice(false);
 
       // Use the next question that was generated in the same API call
       // No need to prefetch separately - we already have it!
-      if (
-        mappingResult !== "COMPLETE" &&
-        mappingResult !== "MAPPING_FAILED" &&
-        nextQuestion
-      ) {
-        console.log(
-          "Using next question from combined API response:",
-          nextQuestion,
-        );
+      if (mappingResult !== 'COMPLETE' && mappingResult !== 'MAPPING_FAILED' && nextQuestion) {
+        console.log('Using next question from combined API response:', nextQuestion);
         setPrefetchedQuestion(nextQuestion);
         setIsPrefetching(false);
-      } else if (
-        mappingResult !== "COMPLETE" &&
-        mappingResult !== "MAPPING_FAILED"
-      ) {
+      } else if (mappingResult !== 'COMPLETE' && mappingResult !== 'MAPPING_FAILED') {
         // Fallback: only prefetch if the combined call didn't return a question
-        console.log(
-          "Next question not returned, falling back to separate prefetch",
-        );
+        console.log('Next question not returned, falling back to separate prefetch');
         setIsPrefetching(true);
         setTimeout(() => {
           getNextQuestion(true);
         }, 2000);
       }
 
-      if (mappingResult === "COMPLETE") {
-        setUiState("complete");
+      if (mappingResult === 'COMPLETE') {
+        setUiState('complete');
       } else {
-        setUiState("idle");
+        setUiState('idle');
       }
     } catch (err) {
-      console.error("Error mapping answer:", err);
+      console.error('Error mapping answer:', err);
       const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Failed to process your answer. Please try again.";
+        err instanceof Error ? err.message : 'Failed to process your answer. Please try again.';
       setError(errorMessage);
-      setUserAnswer("");
+      setUserAnswer('');
       setIsAnswerFromVoice(false);
-      setCurrentPrompt("");
-      setUiState("idle");
+      setCurrentPrompt('');
+      setUiState('idle');
     }
   };
 
   const handleStartButtonPress = async () => {
-    if (uiState !== "idle") return;
-    setError(""); // Clear any previous errors
+    if (uiState !== 'idle') return;
+    setError(''); // Clear any previous errors
 
     // If we need a question and don't have one, synthesize it first
     if (mappedCategories.length > 0 && !prefetchedQuestion && !isPrefetching) {
-      console.log(
-        "Need to synthesize question before showing input method modal",
-      );
-      setUiState("loading");
-      setLoadingMessage("Synthesizing a new question...");
+      console.log('Need to synthesize question before showing input method modal');
+      setUiState('loading');
+      setLoadingMessage('Synthesizing a new question...');
 
       try {
         const taxonomyString = getTaxonomyString();
         const newQuestion = await GeminiService.synthesizeNextQuestion(
           interactions,
           mappedCategories,
-          taxonomyString,
+          taxonomyString
         );
 
-        console.log(
-          "Question synthesized, storing as prefetched:",
-          newQuestion,
-        );
+        console.log('Question synthesized, storing as prefetched:', newQuestion);
         setPrefetchedQuestion(newQuestion);
-        setUiState("idle");
-        setLoadingMessage("");
+        setUiState('idle');
+        setLoadingMessage('');
 
         // Small delay before showing input method modal
         setTimeout(() => {
           setShowInputMethodModal(true);
         }, 100);
       } catch (err) {
-        console.error("Error synthesizing question:", err);
-        setError("Failed to generate question. Please try again.");
-        setUiState("idle");
-        setLoadingMessage("");
+        console.error('Error synthesizing question:', err);
+        setError('Failed to generate question. Please try again.');
+        setUiState('idle');
+        setLoadingMessage('');
       }
     } else {
       // Question ready or it's first question (INITIAL_PROMPT)
@@ -576,33 +527,31 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     }
   };
 
-  const handleInputMethodSelect = async (
-    method: "text" | "voice" | "image",
-  ) => {
-    console.log("handleInputMethodSelect called with method:", method);
+  const handleInputMethodSelect = async (method: 'text' | 'voice' | 'image') => {
+    console.log('handleInputMethodSelect called with method:', method);
     setShowInputMethodModal(false);
 
     // Wait for state to update and next frame to render
     await new Promise((resolve) => setTimeout(resolve, 150));
 
-    console.log("Executing input method handler after delay");
-    if (method === "text") {
+    console.log('Executing input method handler after delay');
+    if (method === 'text') {
       handleTextInputPress();
-    } else if (method === "voice") {
+    } else if (method === 'voice') {
       handleVoiceInputPress();
-    } else if (method === "image") {
+    } else if (method === 'image') {
       handleImageInputPress();
     }
   };
 
   const handleFabClick = () => {
-    if (uiState !== "idle") return;
+    if (uiState !== 'idle') return;
     toggleFabMenu();
   };
 
   const handleTextInputPress = () => {
-    setError(""); // Clear any previous errors
-    console.log("Text input selected. State:", {
+    setError(''); // Clear any previous errors
+    console.log('Text input selected. State:', {
       mappedCount: mappedCategories.length,
       hasPrefetched: !!prefetchedQuestion,
       prefetchedQuestion,
@@ -610,25 +559,25 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
     if (mappedCategories.length === 0) {
       // Start with initial prompt
-      console.log("Using initial prompt");
+      console.log('Using initial prompt');
       setCurrentPrompt(INITIAL_PROMPT);
-      setTimeout(() => setUiState("answering"), 100);
+      setTimeout(() => setUiState('answering'), 100);
     } else if (prefetchedQuestion) {
       // Use prefetched question (should always be available now)
-      console.log("Using prefetched question:", prefetchedQuestion);
+      console.log('Using prefetched question:', prefetchedQuestion);
       setCurrentPrompt(prefetchedQuestion);
       setPrefetchedQuestion(null);
-      setTimeout(() => setUiState("answering"), 100);
+      setTimeout(() => setUiState('answering'), 100);
     } else {
       // This shouldn't happen now, but fallback to error
-      console.error("No question available when text input was selected");
-      setError("No question available. Please try again.");
+      console.error('No question available when text input was selected');
+      setError('No question available. Please try again.');
     }
   };
 
   const handleVoiceInputPress = () => {
-    setError(""); // Clear any previous errors
-    console.log("Voice input selected. State:", {
+    setError(''); // Clear any previous errors
+    console.log('Voice input selected. State:', {
       mappedCount: mappedCategories.length,
       hasPrefetched: !!prefetchedQuestion,
       prefetchedQuestion,
@@ -636,46 +585,46 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
     if (mappedCategories.length === 0) {
       // Start with initial prompt
-      console.log("Using initial prompt");
+      console.log('Using initial prompt');
       setCurrentPrompt(INITIAL_PROMPT);
-      setTimeout(() => setUiState("voice-recording"), 100);
+      setTimeout(() => setUiState('voice-recording'), 100);
     } else if (prefetchedQuestion) {
       // Use prefetched question (should always be available now)
-      console.log("Using prefetched question:", prefetchedQuestion);
+      console.log('Using prefetched question:', prefetchedQuestion);
       setCurrentPrompt(prefetchedQuestion);
       setPrefetchedQuestion(null);
-      setTimeout(() => setUiState("voice-recording"), 100);
+      setTimeout(() => setUiState('voice-recording'), 100);
     } else {
       // This shouldn't happen now, but fallback to error
-      console.error("No question available when voice input was selected");
-      setError("No question available. Please try again.");
+      console.error('No question available when voice input was selected');
+      setError('No question available. Please try again.');
     }
   };
 
   const showImageSourceDialog = () => {
     Alert.alert(
-      "Choose Image Source",
-      "How would you like to add your image?",
+      'Choose Image Source',
+      'How would you like to add your image?',
       [
         {
-          text: "Take Photo",
+          text: 'Take Photo',
           onPress: () => handleImageSelection(true),
         },
         {
-          text: "Choose from Gallery",
+          text: 'Choose from Gallery',
           onPress: () => handleImageSelection(false),
         },
         {
-          text: "Cancel",
-          style: "cancel",
+          text: 'Cancel',
+          style: 'cancel',
         },
       ],
-      { cancelable: true },
+      { cancelable: true }
     );
   };
 
   const handleImageInputPress = async () => {
-    setError(""); // Clear any previous errors
+    setError(''); // Clear any previous errors
 
     // Get the question
     if (mappedCategories.length === 0) {
@@ -686,8 +635,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       setSavedQuestion(prefetchedQuestion);
       setPrefetchedQuestion(null);
     } else {
-      console.error("No question available when image input was selected");
-      setError("No question available. Please try again.");
+      console.error('No question available when image input was selected');
+      setError('No question available. Please try again.');
       return;
     }
 
@@ -696,16 +645,16 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   const startRecording = async () => {
     try {
-      console.log("Requesting permissions..");
+      console.log('Requesting permissions..');
       await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      console.log("Starting recording..");
+      console.log('Starting recording..');
       const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = recording;
       setIsRecording(true);
@@ -716,18 +665,15 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         setRecordingDuration((prev) => prev + 1);
       }, 1000);
 
-      console.log("Recording started");
+      console.log('Recording started');
     } catch (err) {
-      console.error("Failed to start recording", err);
-      Alert.alert(
-        "Error",
-        "Failed to start recording. Please check your microphone permissions.",
-      );
+      console.error('Failed to start recording', err);
+      Alert.alert('Error', 'Failed to start recording. Please check your microphone permissions.');
     }
   };
 
   const stopRecording = async () => {
-    console.log("Stopping recording..");
+    console.log('Stopping recording..');
     if (!recordingRef.current) return;
 
     try {
@@ -747,30 +693,29 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
       if (uri) {
         setRecordingUri(uri);
-        console.log("Recording stopped and stored at", uri);
+        console.log('Recording stopped and stored at', uri);
       }
     } catch (error) {
-      console.error("Error stopping recording:", error);
-      Alert.alert("Error", "Failed to stop recording");
+      console.error('Error stopping recording:', error);
+      Alert.alert('Error', 'Failed to stop recording');
     }
   };
 
   const handleVoiceSubmit = async () => {
     if (!recordingUri || !currentPrompt) {
-      Alert.alert("Error", "No recording available");
+      Alert.alert('Error', 'No recording available');
       return;
     }
 
     setIsProcessingAudio(true);
 
     try {
-      console.log("Transcribing audio...");
+      console.log('Transcribing audio...');
 
       // Transcribe audio using GeminiService
-      const transcriptionResult =
-        await GeminiService.transcribeAudio(recordingUri);
+      const transcriptionResult = await GeminiService.transcribeAudio(recordingUri);
 
-      console.log("Transcription result:", transcriptionResult);
+      console.log('Transcription result:', transcriptionResult);
 
       if (
         !transcriptionResult.success ||
@@ -779,13 +724,13 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       ) {
         const errorMsg =
           transcriptionResult.error ||
-          "Could not transcribe your audio. Please try recording again.";
-        Alert.alert("Transcription Error", errorMsg);
+          'Could not transcribe your audio. Please try recording again.';
+        Alert.alert('Transcription Error', errorMsg);
         return;
       }
 
       const transcribedText = transcriptionResult.transcript.trim();
-      console.log("Transcribed text:", transcribedText);
+      console.log('Transcribed text:', transcribedText);
 
       // Save the question and transcribed answer
       const question = currentPrompt;
@@ -794,25 +739,23 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       // Close voice recording modal
       setRecordingUri(null);
       setRecordingDuration(0);
-      setCurrentPrompt("");
+      setCurrentPrompt('');
 
       // Process the voice answer directly
       await mapAnswerToCategory(question, answer);
     } catch (error) {
-      console.error("Error processing voice answer:", error);
-      let errorMessage =
-        "Failed to process your voice response. Please try again.";
+      console.error('Error processing voice answer:', error);
+      let errorMessage = 'Failed to process your voice response. Please try again.';
 
       if (error instanceof Error) {
-        if (error.message.includes("Rate limit")) {
-          errorMessage =
-            "Rate limit exceeded. Please wait a moment and try again.";
-        } else if (error.message.includes("API key")) {
-          errorMessage = "API key issue. Please check your configuration.";
+        if (error.message.includes('Rate limit')) {
+          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (error.message.includes('API key')) {
+          errorMessage = 'API key issue. Please check your configuration.';
         }
       }
 
-      Alert.alert("Processing Error", errorMessage);
+      Alert.alert('Processing Error', errorMessage);
     } finally {
       setIsProcessingAudio(false);
     }
@@ -823,8 +766,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       const hasPermissions = await ImagePickerService.requestPermissions();
       if (!hasPermissions) {
         Alert.alert(
-          "Permissions Required",
-          "Camera and photo library permissions are required to use this feature.",
+          'Permissions Required',
+          'Camera and photo library permissions are required to use this feature.'
         );
         return;
       }
@@ -833,19 +776,18 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       if (useCamera) {
         result = await ImagePickerService.takePhotoWithCamera();
       } else {
-        result =
-          await ImagePickerService.pickImageFromGalleryWithOptions(false);
+        result = await ImagePickerService.pickImageFromGalleryWithOptions(false);
       }
 
       if (result.success && result.imageUri) {
         setTempImageUri(result.imageUri);
         setShowImageEditor(true);
       } else if (result.error) {
-        Alert.alert("Error", result.error);
+        Alert.alert('Error', result.error);
       }
     } catch (error) {
-      console.error("Error selecting image:", error);
-      Alert.alert("Error", "An error occurred while selecting image");
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'An error occurred while selecting image');
     }
   };
 
@@ -853,32 +795,31 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     setSelectedImage(editedImageUri);
     setShowImageEditor(false);
     setTempImageUri(null);
-    setUiState("answering"); // Show the answer modal with image preview
+    setUiState('answering'); // Show the answer modal with image preview
   };
 
   const handleImageEditorCancel = () => {
     setShowImageEditor(false);
     setTempImageUri(null);
-    setUiState("idle");
+    setUiState('idle');
   };
 
   const handleSubmitImage = async () => {
     if (!selectedImage || !currentPrompt) {
-      Alert.alert("Error", "Missing image or question");
+      Alert.alert('Error', 'Missing image or question');
       return;
     }
 
     setIsAnalyzingImage(true);
-    setUiState("loading");
-    setLoadingMessage("Analyzing your image response...");
+    setUiState('loading');
+    setLoadingMessage('Analyzing your image response...');
 
     try {
       // Analyze the image with Gemini
-      const analysisResult =
-        await GeminiService.analyzeActionImage(selectedImage);
+      const analysisResult = await GeminiService.analyzeActionImage(selectedImage);
 
       if (!analysisResult.success || !analysisResult.rawResponse) {
-        throw new Error(analysisResult.error || "Failed to analyze image");
+        throw new Error(analysisResult.error || 'Failed to analyze image');
       }
 
       // Use the image analysis description as the answer
@@ -890,9 +831,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       // Map the answer to a category
       await mapAnswerToCategory(currentPrompt, answer);
     } catch (error) {
-      console.error("Error processing image:", error);
-      Alert.alert("Error", "Failed to process image. Please try again.");
-      setUiState("idle");
+      console.error('Error processing image:', error);
+      Alert.alert('Error', 'Failed to process image. Please try again.');
+      setUiState('idle');
     } finally {
       setIsAnalyzingImage(false);
     }
@@ -900,17 +841,15 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   const handleSubmitAnswer = () => {
     if (!userAnswer.trim()) {
-      setError(
-        "Answer cannot be empty. Please provide a substantive response.",
-      );
+      setError('Answer cannot be empty. Please provide a substantive response.');
       return;
     }
 
     const q = currentPrompt;
     const a = userAnswer;
     setSavedQuestion(q); // Save for potential weak-fit retry
-    setCurrentPrompt("");
-    setUserAnswer("");
+    setCurrentPrompt('');
+    setUserAnswer('');
 
     mapAnswerToCategory(q, a);
   };
@@ -918,109 +857,100 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   const handleWeakFitTryAgain = () => {
     // Re-open the answer modal with the same question
     setCurrentPrompt(savedQuestion); // Restore the original question
-    setError(""); // Clear any previous errors
-    setUiState("answering");
-    setWeakFitJustification("");
+    setError(''); // Clear any previous errors
+    setUiState('answering');
+    setWeakFitJustification('');
   };
 
   const handleDismissAnswerModal = () => {
     // Close the answer modal and return to idle
     Keyboard.dismiss();
-    setCurrentPrompt("");
-    setUserAnswer("");
-    setError("");
+    setCurrentPrompt('');
+    setUserAnswer('');
+    setError('');
     setIsAnswerFromVoice(false);
-    setUiState("idle");
+    setUiState('idle');
   };
 
   const handleWeakFitNewQuestion = async () => {
     // After a weak fit, synthesize a new question then show input method modal
-    setWeakFitJustification("");
-    setError("");
+    setWeakFitJustification('');
+    setError('');
 
     // Close weak-fit modal first
-    setUiState("idle");
+    setUiState('idle');
 
     // Wait for weak-fit modal to close before opening loading modal
     await new Promise((resolve) => setTimeout(resolve, 150));
 
-    setUiState("loading");
-    setLoadingMessage("Synthesizing a new question...");
+    setUiState('loading');
+    setLoadingMessage('Synthesizing a new question...');
 
     try {
       const taxonomyString = getTaxonomyString();
       const newQuestion = await GeminiService.synthesizeNextQuestion(
         interactions,
         mappedCategories,
-        taxonomyString,
+        taxonomyString
       );
 
-      console.log(
-        "Weak-fit: Question synthesized, storing as prefetched:",
-        newQuestion,
-      );
+      console.log('Weak-fit: Question synthesized, storing as prefetched:', newQuestion);
       setPrefetchedQuestion(newQuestion);
-      setLoadingMessage("");
+      setLoadingMessage('');
 
       // Wait for loading modal to close before showing input method modal
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      setUiState("idle");
+      setUiState('idle');
 
       setTimeout(() => {
         setShowInputMethodModal(true);
       }, 100);
     } catch (err) {
-      console.error("Error synthesizing question after weak-fit:", err);
-      setError("Failed to generate question. Please try again.");
-      setUiState("idle");
-      setLoadingMessage("");
+      console.error('Error synthesizing question after weak-fit:', err);
+      setError('Failed to generate question. Please try again.');
+      setUiState('idle');
+      setLoadingMessage('');
     }
   };
 
   const handleReset = () => {
-    Alert.alert(
-      "Reset Dashboard",
-      "Are you sure you want to reset? All progress will be lost.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await clearAllData();
-              setMappedCategories([]);
-              setInteractions([]);
-              setCurrentPrompt("");
-              setUserAnswer("");
-              setUiState("idle");
-              setError("");
-              setLoadingMessage("");
-              setPrefetchedQuestion(null);
-              setIsPrefetching(false);
-            } catch (error) {
-              Alert.alert("Error", "Failed to reset dashboard");
-            }
-          },
+    Alert.alert('Reset Dashboard', 'Are you sure you want to reset? All progress will be lost.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reset',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await clearAllData();
+            setMappedCategories([]);
+            setInteractions([]);
+            setCurrentPrompt('');
+            setUserAnswer('');
+            setUiState('idle');
+            setError('');
+            setLoadingMessage('');
+            setPrefetchedQuestion(null);
+            setIsPrefetching(false);
+          } catch (error) {
+            Alert.alert('Error', 'Failed to reset dashboard');
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const handleCardClick = (categoryName: string) => {
     const mapped = mappedCategories.find((c) => c.category === categoryName);
     if (mapped) {
-      Alert.alert(
-        categoryName,
-        `Why you have this trait:\n\n"${mapped.justification}"`,
-        [{ text: "OK" }],
-      );
+      Alert.alert(categoryName, `Why you have this trait:\n\n"${mapped.justification}"`, [
+        { text: 'OK' },
+      ]);
     } else {
       Alert.alert(
-        "Not Yet Mapped",
-        "This trait is not yet mapped to you. Click the + button to discover new traits!",
-        [{ text: "OK" }],
+        'Not Yet Mapped',
+        'This trait is not yet mapped to you. Click the + button to discover new traits!',
+        [{ text: 'OK' }]
       );
     }
   };
@@ -1033,8 +963,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         key={item.category}
         category={{
           ...item,
-          example: "",
-          icon: item.icon || "category",
+          example: '',
+          icon: item.icon || 'category',
         }}
         isMapped={mappedNames.has(item.category)}
         mappedData={mappedNames.get(item.category)}
@@ -1055,11 +985,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   const completionPercentage = getCompletionPercentage(mappedCategories.length);
 
   return (
-    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
+    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
           <MaterialIcons name="explore" size={40} color="#fff" />
@@ -1091,12 +1018,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
               </View>
             </View>
             <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${completionPercentage}%` },
-                ]}
-              />
+              <View style={[styles.progressFill, { width: `${completionPercentage}%` }]} />
             </View>
 
             {/* Large Green Start/Continue Button */}
@@ -1104,7 +1026,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
               <TouchableOpacity
                 style={styles.startButton}
                 onPress={handleStartButtonPress}
-                disabled={uiState !== "idle"}
+                disabled={uiState !== 'idle'}
                 activeOpacity={0.8}
               >
                 <MaterialIcons
@@ -1114,7 +1036,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
                   style={styles.startButtonIcon}
                 />
                 <Text style={styles.startButtonText}>
-                  {mappedCategories.length === 0 ? "Start" : "Continue"}
+                  {mappedCategories.length === 0 ? 'Start' : 'Continue'}
                 </Text>
               </TouchableOpacity>
             )}
@@ -1134,17 +1056,14 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       </ScrollView>
 
       {/* Loading Modal */}
-      <LoadingModal visible={uiState === "loading"} message={loadingMessage} />
+      <LoadingModal visible={uiState === 'loading'} message={loadingMessage} />
 
       {/* Completion Modal */}
-      <CompletionModal
-        visible={uiState === "complete"}
-        onDismiss={() => setUiState("idle")}
-      />
+      <CompletionModal visible={uiState === 'complete'} onDismiss={() => setUiState('idle')} />
 
       {/* Weak Fit Modal */}
       <WeakFitModal
-        visible={uiState === "weak-fit"}
+        visible={uiState === 'weak-fit'}
         justification={weakFitJustification}
         onTryAgain={handleWeakFitTryAgain}
         onNewQuestion={handleWeakFitNewQuestion}
@@ -1152,7 +1071,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
       {/* Answer Modal */}
       <AnswerModal
-        visible={uiState === "answering"}
+        visible={uiState === 'answering'}
         currentPrompt={currentPrompt}
         userAnswer={userAnswer}
         setUserAnswer={setUserAnswer}
@@ -1168,8 +1087,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         onSubmitImage={handleSubmitImage}
         onAnswerChange={setUserAnswer}
         onRecordAgain={() => {
-          setUiState("voice-recording");
-          setUserAnswer("");
+          setUiState('voice-recording');
+          setUserAnswer('');
           setIsAnswerFromVoice(false);
         }}
         onSubmit={handleSubmitAnswer}
@@ -1177,7 +1096,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
       {/* Voice Recording Modal */}
       <VoiceRecordingModal
-        visible={uiState === "voice-recording"}
+        visible={uiState === 'voice-recording'}
         currentPrompt={currentPrompt}
         isRecording={isRecording}
         recordingDuration={recordingDuration}
@@ -1196,14 +1115,14 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
               await recordingRef.current.stopAndUnloadAsync();
               recordingRef.current = null;
             } catch (error) {
-              console.error("Error stopping recording on dismiss:", error);
+              console.error('Error stopping recording on dismiss:', error);
             }
           }
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          setUiState("idle");
+          setUiState('idle');
           setIsRecording(false);
           setRecordingUri(null);
           setRecordingDuration(0);
@@ -1211,13 +1130,10 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       />
 
       {/* Animated FAB Buttons - Hidden */}
-      <View style={[styles.fabContainer, { display: "none" }]}>
+      <View style={[styles.fabContainer, { display: 'none' }]}>
         <View style={styles.fabInner}>
           {/* Action Button 1 - Text Input (Left) */}
-          <Animated.View
-            style={[styles.actionButton, button1Style]}
-            pointerEvents="auto"
-          >
+          <Animated.View style={[styles.actionButton, button1Style]} pointerEvents="auto">
             <FAB
               icon={() => (
                 <View style={styles.iconContainer}>
@@ -1225,16 +1141,13 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
                 </View>
               )}
               onPress={handleTextInputPress}
-              style={[styles.fab, { backgroundColor: "#45B7D1" }]}
+              style={[styles.fab, { backgroundColor: '#45B7D1' }]}
               size="small"
             />
           </Animated.View>
 
           {/* Action Button 2 - Voice Input (Diagonal) */}
-          <Animated.View
-            style={[styles.actionButton, button2Style]}
-            pointerEvents="auto"
-          >
+          <Animated.View style={[styles.actionButton, button2Style]} pointerEvents="auto">
             <FAB
               icon={() => (
                 <View style={styles.iconContainer}>
@@ -1242,16 +1155,13 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
                 </View>
               )}
               onPress={handleVoiceInputPress}
-              style={[styles.fab, { backgroundColor: "#4ECDC4" }]}
+              style={[styles.fab, { backgroundColor: '#4ECDC4' }]}
               size="small"
             />
           </Animated.View>
 
           {/* Action Button 3 - Image Input (Top) */}
-          <Animated.View
-            style={[styles.actionButton, button3Style]}
-            pointerEvents="auto"
-          >
+          <Animated.View style={[styles.actionButton, button3Style]} pointerEvents="auto">
             <FAB
               icon={() => (
                 <View style={styles.iconContainer}>
@@ -1259,18 +1169,13 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
                 </View>
               )}
               onPress={handleImageInputPress}
-              style={[styles.fab, { backgroundColor: "#FF6B6B" }]}
+              style={[styles.fab, { backgroundColor: '#FF6B6B' }]}
               size="small"
             />
           </Animated.View>
 
           {/* Main FAB */}
-          <Animated.View
-            style={[
-              styles.mainFabWrapper,
-              { transform: [{ rotate: rotation }] },
-            ]}
-          >
+          <Animated.View style={[styles.mainFabWrapper, { transform: [{ rotate: rotation }] }]}>
             <FAB
               icon={() => (
                 <View style={styles.iconContainer}>
@@ -1278,11 +1183,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
                 </View>
               )}
               onPress={handleFabClick}
-              disabled={
-                uiState !== "idle" ||
-                mappedCategories.length === TOTAL_CATEGORIES
-              }
-              style={[styles.mainFab, { backgroundColor: "#667eea" }]}
+              disabled={uiState !== 'idle' || mappedCategories.length === TOTAL_CATEGORIES}
+              style={[styles.mainFab, { backgroundColor: '#667eea' }]}
             />
           </Animated.View>
         </View>
@@ -1333,14 +1235,14 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#667eea",
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#667eea',
   },
   loadingText: {
     marginTop: 15,
     fontSize: 16,
-    color: "#fff",
+    color: '#fff',
   },
   scrollView: {
     flex: 1,
@@ -1350,18 +1252,18 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   header: {
-    alignItems: "center",
+    alignItems: 'center',
     marginBottom: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
+    fontWeight: 'bold',
+    color: '#fff',
     marginTop: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 5,
   },
   progressCard: {
@@ -1369,55 +1271,55 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   progressHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
     marginBottom: 15,
   },
   progressTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: 'bold',
+    color: '#333',
   },
   statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     marginBottom: 20,
   },
   statBox: {
-    alignItems: "center",
+    alignItems: 'center',
   },
   statNumber: {
     fontSize: 32,
-    fontWeight: "bold",
-    color: "#667eea",
+    fontWeight: 'bold',
+    color: '#667eea',
   },
   statLabel: {
     fontSize: 12,
-    color: "#666",
+    color: '#666',
     marginTop: 5,
   },
   progressBar: {
     height: 10,
-    backgroundColor: "#E0E0E0",
+    backgroundColor: '#E0E0E0',
     borderRadius: 5,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   progressFill: {
-    height: "100%",
-    backgroundColor: "#667eea",
+    height: '100%',
+    backgroundColor: '#667eea',
   },
   startButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#4CAF50",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4CAF50',
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
     marginTop: 20,
     elevation: 3,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -1426,63 +1328,63 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   startButtonText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     letterSpacing: 0.5,
   },
   errorCard: {
     marginBottom: 20,
-    backgroundColor: "#ffebee",
+    backgroundColor: '#ffebee',
     elevation: 4,
   },
   errorText: {
     fontSize: 14,
-    color: "#c62828",
+    color: '#c62828',
   },
   categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   fabContainer: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 30,
     right: 0,
     left: 0,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   fabInner: {
-    position: "relative",
+    position: 'relative',
     width: 56,
     height: 56,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mainFab: {
-    position: "absolute",
+    position: 'absolute',
     margin: 0,
     elevation: 6,
   },
   mainFabWrapper: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionButton: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   fab: {
     elevation: 6,
   },
   fabAdd: {
-    backgroundColor: "#667eea",
+    backgroundColor: '#667eea',
   },
   iconContainer: {
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

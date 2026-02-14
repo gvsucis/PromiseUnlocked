@@ -1,19 +1,6 @@
 import React from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  Share,
-} from 'react-native';
-import {
-  Card,
-  Title,
-  Paragraph,
-  Button,
-  DataTable,
-  Chip,
-} from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, Share } from 'react-native';
+import { Card, Title, Paragraph, Button, DataTable, Chip } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -32,7 +19,7 @@ interface Props {
 export default function ResultScreen({ navigation, route }: Props) {
   const { result } = route.params;
   const data = result.data;
-  
+
   // Detect if this is action analysis or transcript analysis
   const isActionAnalysis = data && 'activity_description' in data;
   const isTranscriptAnalysis = data && 'courses' in data;
@@ -96,9 +83,9 @@ export default function ResultScreen({ navigation, route }: Props) {
 
   const generateActionShareText = (actionData: any): string => {
     let text = '🎯 Activity Analysis Results\n\n';
-    
+
     text += `📝 Activity: ${actionData.activity_description}\n\n`;
-    
+
     if (actionData.primary_skills?.length > 0) {
       text += '🛠️ Primary Skills:\n';
       actionData.primary_skills.forEach((skill: string) => {
@@ -106,7 +93,7 @@ export default function ResultScreen({ navigation, route }: Props) {
       });
       text += '\n';
     }
-    
+
     if (actionData.taxonomy_categories?.length > 0) {
       text += '📚 Categories:\n';
       actionData.taxonomy_categories.forEach((category: string) => {
@@ -114,25 +101,25 @@ export default function ResultScreen({ navigation, route }: Props) {
       });
       text += '\n';
     }
-    
+
     if (actionData.flow_state_potential) {
       text += `⏰ Flow State: ${actionData.flow_state_potential}\n\n`;
     }
-    
+
     if (actionData.skill_development_insights) {
       text += `💡 Insights: ${actionData.skill_development_insights}\n\n`;
     }
-    
+
     if (actionData.confidence_level) {
       text += `🎯 Confidence: ${actionData.confidence_level}\n`;
     }
-    
+
     return text;
   };
 
   const generateShareText = (transcriptData: TranscriptAnalysis): string => {
     let text = '📚 Academic Transcript Analysis\n\n';
-    
+
     if (transcriptData.institution) {
       text += `🏫 Institution: ${transcriptData.institution}\n`;
     }
@@ -151,7 +138,7 @@ export default function ResultScreen({ navigation, route }: Props) {
     if (transcriptData.graduationDate) {
       text += `🎉 Graduation Date: ${transcriptData.graduationDate}\n`;
     }
-    
+
     text += '\n📋 Courses:\n';
     transcriptData.courses.forEach((course, index) => {
       text += `${index + 1}. ${course.code} - ${course.name}\n`;
@@ -161,7 +148,7 @@ export default function ResultScreen({ navigation, route }: Props) {
       }
       text += '\n';
     });
-    
+
     return text;
   };
 
@@ -196,8 +183,8 @@ export default function ResultScreen({ navigation, route }: Props) {
           <Title style={styles.cardTitle}>🛠️ Primary Skills Demonstrated</Title>
           <View style={styles.skillsContainer}>
             {actionData.primary_skills?.map((skill: string, index: number) => (
-              <Chip 
-                key={index} 
+              <Chip
+                key={index}
                 style={[styles.skillChip, { backgroundColor: '#e3f2fd' }]}
                 textStyle={styles.skillChipText}
               >
@@ -214,8 +201,8 @@ export default function ResultScreen({ navigation, route }: Props) {
           <Title style={styles.cardTitle}>📚 Skills Categories</Title>
           <View style={styles.categoriesContainer}>
             {actionData.taxonomy_categories?.map((category: string, index: number) => (
-              <Chip 
-                key={index} 
+              <Chip
+                key={index}
                 style={[styles.categoryChip, { backgroundColor: '#f3e5f5' }]}
                 textStyle={styles.categoryChipText}
               >
@@ -230,9 +217,7 @@ export default function ResultScreen({ navigation, route }: Props) {
       <Card style={styles.card}>
         <Card.Content>
           <Title style={styles.cardTitle}>⏰ Flow State Analysis</Title>
-          <Paragraph style={styles.analysisText}>
-            {actionData.flow_state_potential}
-          </Paragraph>
+          <Paragraph style={styles.analysisText}>{actionData.flow_state_potential}</Paragraph>
         </Card.Content>
       </Card>
 
@@ -243,9 +228,7 @@ export default function ResultScreen({ navigation, route }: Props) {
             <MaterialIcons name="lightbulb" size={24} color="#667eea" />
             <Title style={styles.cardTitle}>Development Insights</Title>
           </View>
-          <Paragraph style={styles.analysisText}>
-            {actionData.skill_development_insights}
-          </Paragraph>
+          <Paragraph style={styles.analysisText}>{actionData.skill_development_insights}</Paragraph>
         </Card.Content>
       </Card>
 
@@ -256,9 +239,7 @@ export default function ResultScreen({ navigation, route }: Props) {
             <MaterialIcons name="trending-up" size={24} color="#667eea" />
             <Title style={styles.cardTitle}>Growth Opportunities</Title>
           </View>
-          <Paragraph style={styles.analysisText}>
-            {actionData.growth_opportunities}
-          </Paragraph>
+          <Paragraph style={styles.analysisText}>{actionData.growth_opportunities}</Paragraph>
         </Card.Content>
       </Card>
 
@@ -269,13 +250,17 @@ export default function ResultScreen({ navigation, route }: Props) {
             <MaterialIcons name="verified" size={24} color="#667eea" />
             <Title style={styles.cardTitle}>Analysis Confidence</Title>
           </View>
-          <Chip 
+          <Chip
             style={[
-              styles.confidenceChip, 
-              { 
-                backgroundColor: actionData.confidence_level === 'High' ? '#4CAF50' : 
-                                actionData.confidence_level === 'Medium' ? '#FF9800' : '#FF5722'
-              }
+              styles.confidenceChip,
+              {
+                backgroundColor:
+                  actionData.confidence_level === 'High'
+                    ? '#4CAF50'
+                    : actionData.confidence_level === 'Medium'
+                      ? '#FF9800'
+                      : '#FF5722',
+              },
             ]}
             textStyle={styles.confidenceChipText}
           >
@@ -285,35 +270,28 @@ export default function ResultScreen({ navigation, route }: Props) {
       </Card>
 
       {/* Follow-up Question */}
-      <Card 
+      <Card
         style={styles.card}
-        onPress={() => navigation.navigate('FollowUpQuestion', {
-          question: generateFollowUpQuestion(actionData),
-          context: actionData,
-        })}
+        onPress={() =>
+          navigation.navigate('FollowUpQuestion', {
+            question: generateFollowUpQuestion(actionData),
+            context: actionData,
+          })
+        }
       >
         <Card.Content>
           <View style={styles.cardTitleContainer}>
             <MaterialIcons name="extension" size={24} color="#667eea" />
             <Title style={styles.cardTitle}>Follow-up Question</Title>
           </View>
-          <Paragraph style={styles.analysisText}>
-            {generateFollowUpQuestion(actionData)}
-          </Paragraph>
-          <Paragraph style={styles.tapHint}>
-            👆 Tap to answer this question
-          </Paragraph>
+          <Paragraph style={styles.analysisText}>{generateFollowUpQuestion(actionData)}</Paragraph>
+          <Paragraph style={styles.tapHint}>👆 Tap to answer this question</Paragraph>
         </Card.Content>
       </Card>
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
-        <Button
-          mode="outlined"
-          onPress={handleShare}
-          style={styles.button}
-          icon="share"
-        >
+        <Button mode="outlined" onPress={handleShare} style={styles.button} icon="share">
           Share Analysis
         </Button>
         <Button
@@ -336,7 +314,8 @@ export default function ResultScreen({ navigation, route }: Props) {
             <Card.Content>
               <Title style={styles.errorTitle}>Analysis Failed</Title>
               <Paragraph style={styles.errorText}>
-                {result.error || 'Unable to analyze the transcript. Please try again with a clearer image.'}
+                {result.error ||
+                  'Unable to analyze the transcript. Please try again with a clearer image.'}
               </Paragraph>
               <Button
                 mode="contained"
@@ -446,7 +425,7 @@ export default function ResultScreen({ navigation, route }: Props) {
               <Paragraph style={styles.courseCount}>
                 {data.courses.length} course{data.courses.length !== 1 ? 's' : ''} found
               </Paragraph>
-              
+
               <DataTable>
                 <DataTable.Header>
                   <DataTable.Title>Course</DataTable.Title>
@@ -467,10 +446,7 @@ export default function ResultScreen({ navigation, route }: Props) {
                     </DataTable.Cell>
                     <DataTable.Cell numeric>
                       <Chip
-                        style={[
-                          styles.gradeChip,
-                          { backgroundColor: getGradeColor(course.grade) }
-                        ]}
+                        style={[styles.gradeChip, { backgroundColor: getGradeColor(course.grade) }]}
                         textStyle={styles.gradeChipText}
                       >
                         {course.grade}
@@ -495,7 +471,7 @@ export default function ResultScreen({ navigation, route }: Props) {
             >
               Share Results
             </Button>
-            
+
             <Button
               mode="contained"
               onPress={() => navigation.navigate('SkillsDashboard')}
@@ -504,7 +480,7 @@ export default function ResultScreen({ navigation, route }: Props) {
             >
               View Skills Dashboard
             </Button>
-            
+
             <Button
               mode="outlined"
               onPress={() => navigation.navigate('Home')}

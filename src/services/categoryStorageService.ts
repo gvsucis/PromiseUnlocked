@@ -52,7 +52,9 @@ export async function getConversationHistory(): Promise<ConversationInteraction[
 /**
  * Add a conversation interaction
  */
-export async function addConversationInteraction(interaction: ConversationInteraction): Promise<void> {
+export async function addConversationInteraction(
+  interaction: ConversationInteraction
+): Promise<void> {
   try {
     const current = await getConversationHistory();
     const updated = [...current, interaction];
@@ -68,7 +70,7 @@ export async function addConversationInteraction(interaction: ConversationIntera
  */
 export async function isCategoryMapped(categoryName: string): Promise<boolean> {
   const mapped = await getMappedCategories();
-  return mapped.some(c => c.category === categoryName);
+  return mapped.some((c) => c.category === categoryName);
 }
 
 /**
@@ -76,7 +78,7 @@ export async function isCategoryMapped(categoryName: string): Promise<boolean> {
  */
 export async function getMappedCategoryNames(): Promise<string[]> {
   const mapped = await getMappedCategories();
-  return mapped.map(c => c.category);
+  return mapped.map((c) => c.category);
 }
 
 /**
@@ -101,14 +103,13 @@ export async function getMappingStats(): Promise<{
 }> {
   const [mapped, interactions] = await Promise.all([
     getMappedCategories(),
-    getConversationHistory()
+    getConversationHistory(),
   ]);
 
   return {
     totalMapped: mapped.length,
     totalInteractions: interactions.length,
-    lastInteractionDate: interactions.length > 0 
-      ? interactions[interactions.length - 1].timestamp 
-      : undefined
+    lastInteractionDate:
+      interactions.length > 0 ? interactions[interactions.length - 1].timestamp : undefined,
   };
 }

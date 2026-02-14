@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Animated } from "react-native";
+import { useState, useRef } from 'react';
+import { Animated } from 'react-native';
 
 export function useFabAnimation() {
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -52,7 +52,7 @@ export function useFabAnimation() {
 
   const rotation = rotateAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "45deg"],
+    outputRange: ['0deg', '45deg'],
   });
 
   const button1Style = {

@@ -6,7 +6,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 
-
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Register'>;
 
 interface Props {
@@ -22,93 +21,96 @@ export default function RegisterScreen({ navigation }: Props) {
   const hasPasswordError = password.length > 0 && !passwordValid;
   const formValid = emailValid && passwordValid;
   return (
-    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
       <View style={styles.content}>
         <View style={styles.hero}>
           <MaterialIcons name="psychology" size={36} color="#fff" />
           <View style={{ height: 8 }} />
-          
         </View>
         <Card style={styles.card}>
-          <Card.Title 
-            title="Create your account" 
-            subtitle="Join to save your insights" 
+          <Card.Title
+            title="Create your account"
+            subtitle="Join to save your insights"
             titleStyle={styles.cardTitle}
             subtitleStyle={styles.cardSubtitle}
           />
           <Card.Content>
             <View style={styles.cardContentWrap}>
-            <TextInput
-              mode="flat"
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              style={styles.input}
-              error={hasEmailError}
-              theme={{ colors: { onSurfaceVariant: '#fff' } }}
-            />
-            <HelperText type="error" visible={hasEmailError} style={styles.helper}>
-              Enter a valid email address
-            </HelperText>
-            <TextInput
-              mode="flat"
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              style={styles.input}
-              error={hasPasswordError}
-              theme={{ colors: { onSurfaceVariant: '#fff' } }}
-            />
-            <HelperText type="error" visible={hasPasswordError} style={styles.helper}>
-              Minimum 6 characters
-            </HelperText>
+              <TextInput
+                mode="flat"
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={styles.input}
+                error={hasEmailError}
+                theme={{ colors: { onSurfaceVariant: '#fff' } }}
+              />
+              <HelperText type="error" visible={hasEmailError} style={styles.helper}>
+                Enter a valid email address
+              </HelperText>
+              <TextInput
+                mode="flat"
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                style={styles.input}
+                error={hasPasswordError}
+                theme={{ colors: { onSurfaceVariant: '#fff' } }}
+              />
+              <HelperText type="error" visible={hasPasswordError} style={styles.helper}>
+                Minimum 6 characters
+              </HelperText>
 
-            <Button 
-              mode="contained" 
-              style={[styles.primary, styles.pill]}
-              contentStyle={styles.primaryContent}
-              labelStyle={styles.primaryLabel}
-              disabled={!formValid}
-              onPress={() => Alert.alert('Not implemented', 'Email sign-up will be added later.')}
-            >
-              Sign up
-            </Button>
-            <Divider style={styles.divider} />
-            <Button 
-              mode="contained" 
-              style={[styles.pill, styles.secondaryContained]}
-              contentStyle={styles.primaryContent}
-              labelStyle={styles.secondaryLabel}
-              onPress={() => navigation.replace('Welcome')}
-            >
-              Continue without signing up
-            </Button>
-            <Divider style={styles.divider} />
-            <Button 
-              mode="outlined" 
-              icon="google" 
-              style={[styles.outlined, styles.pill]}
-              labelStyle={styles.outlinedLabel}
-              onPress={() => { /* TODO: implement Google sign-up */ }}
-            >
-              Sign up with Google
-            </Button>
-            <Button 
-              mode="outlined" 
-              icon="apple" 
-              style={[styles.outlined, styles.apple, styles.pill]}
-              labelStyle={styles.outlinedLabel}
-              onPress={() => { /* TODO: implement Apple sign-up */ }}
-            >
-              Sign up with Apple
-            </Button>
-            <Divider style={styles.divider} />
-            <Button onPress={() => navigation.navigate('Login')} labelStyle={styles.linkLabel}>
-              Already have an account? Sign in
-            </Button>
+              <Button
+                mode="contained"
+                style={[styles.primary, styles.pill]}
+                contentStyle={styles.primaryContent}
+                labelStyle={styles.primaryLabel}
+                disabled={!formValid}
+                onPress={() => Alert.alert('Not implemented', 'Email sign-up will be added later.')}
+              >
+                Sign up
+              </Button>
+              <Divider style={styles.divider} />
+              <Button
+                mode="contained"
+                style={[styles.pill, styles.secondaryContained]}
+                contentStyle={styles.primaryContent}
+                labelStyle={styles.secondaryLabel}
+                onPress={() => navigation.replace('Welcome')}
+              >
+                Continue without signing up
+              </Button>
+              <Divider style={styles.divider} />
+              <Button
+                mode="outlined"
+                icon="google"
+                style={[styles.outlined, styles.pill]}
+                labelStyle={styles.outlinedLabel}
+                onPress={() => {
+                  /* TODO: implement Google sign-up */
+                }}
+              >
+                Sign up with Google
+              </Button>
+              <Button
+                mode="outlined"
+                icon="apple"
+                style={[styles.outlined, styles.apple, styles.pill]}
+                labelStyle={styles.outlinedLabel}
+                onPress={() => {
+                  /* TODO: implement Apple sign-up */
+                }}
+              >
+                Sign up with Apple
+              </Button>
+              <Divider style={styles.divider} />
+              <Button onPress={() => navigation.navigate('Login')} labelStyle={styles.linkLabel}>
+                Already have an account? Sign in
+              </Button>
             </View>
           </Card.Content>
         </Card>

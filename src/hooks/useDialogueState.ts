@@ -1,31 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import {
   MappedCategory,
   ConversationInteraction,
   TOTAL_CATEGORIES,
-} from "../services/categoryTaxonomyService";
+} from '../services/categoryTaxonomyService';
 import {
   getMappedCategories,
   getConversationHistory,
   clearAllData,
-} from "../services/categoryStorageService";
+} from '../services/categoryStorageService';
 
 export type UIState =
-  | "idle"
-  | "answering"
-  | "loading"
-  | "complete"
-  | "weak-fit"
-  | "voice-recording";
+  | 'idle'
+  | 'answering'
+  | 'loading'
+  | 'complete'
+  | 'weak-fit'
+  | 'voice-recording';
 
 export interface DialogueState {
   // Core state
   mappedCategories: MappedCategory[];
   setMappedCategories: React.Dispatch<React.SetStateAction<MappedCategory[]>>;
   interactions: ConversationInteraction[];
-  setInteractions: React.Dispatch<
-    React.SetStateAction<ConversationInteraction[]>
-  >;
+  setInteractions: React.Dispatch<React.SetStateAction<ConversationInteraction[]>>;
   uiState: UIState;
   setUiState: React.Dispatch<React.SetStateAction<UIState>>;
 
@@ -71,24 +69,18 @@ export interface DialogueState {
 }
 
 export function useDialogueState(): DialogueState {
-  const [mappedCategories, setMappedCategories] = useState<MappedCategory[]>(
-    [],
-  );
-  const [interactions, setInteractions] = useState<ConversationInteraction[]>(
-    [],
-  );
-  const [uiState, setUiState] = useState<UIState>("idle");
-  const [currentPrompt, setCurrentPrompt] = useState("");
-  const [userAnswer, setUserAnswer] = useState("");
-  const [loadingMessage, setLoadingMessage] = useState("");
-  const [error, setError] = useState("");
-  const [prefetchedQuestion, setPrefetchedQuestion] = useState<string | null>(
-    null,
-  );
+  const [mappedCategories, setMappedCategories] = useState<MappedCategory[]>([]);
+  const [interactions, setInteractions] = useState<ConversationInteraction[]>([]);
+  const [uiState, setUiState] = useState<UIState>('idle');
+  const [currentPrompt, setCurrentPrompt] = useState('');
+  const [userAnswer, setUserAnswer] = useState('');
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [error, setError] = useState('');
+  const [prefetchedQuestion, setPrefetchedQuestion] = useState<string | null>(null);
   const [isPrefetching, setIsPrefetching] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [weakFitJustification, setWeakFitJustification] = useState("");
-  const [savedQuestion, setSavedQuestion] = useState("");
+  const [weakFitJustification, setWeakFitJustification] = useState('');
+  const [savedQuestion, setSavedQuestion] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
   const [showInputMethodModal, setShowInputMethodModal] = useState(false);
 
@@ -99,16 +91,10 @@ export function useDialogueState(): DialogueState {
       const history = await getConversationHistory();
       setMappedCategories(categories);
       setInteractions(history);
-      console.log(
-        "Loaded data:",
-        categories.length,
-        "categories,",
-        history.length,
-        "interactions",
-      );
+      console.log('Loaded data:', categories.length, 'categories,', history.length, 'interactions');
     } catch (err) {
-      console.error("Error loading data:", err);
-      setError("Failed to load your progress. Please try again.");
+      console.error('Error loading data:', err);
+      setError('Failed to load your progress. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -120,26 +106,26 @@ export function useDialogueState(): DialogueState {
       await clearAllData();
       setMappedCategories([]);
       setInteractions([]);
-      setCurrentPrompt("");
-      setUserAnswer("");
+      setCurrentPrompt('');
+      setUserAnswer('');
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
-      setWeakFitJustification("");
-      setSavedQuestion("");
-      setError("");
+      setWeakFitJustification('');
+      setSavedQuestion('');
+      setError('');
       setShowConfetti(false);
-      setUiState("idle");
-      console.log("Data reset successfully");
+      setUiState('idle');
+      console.log('Data reset successfully');
     } catch (err) {
-      console.error("Error resetting data:", err);
-      setError("Failed to reset data. Please try again.");
+      console.error('Error resetting data:', err);
+      setError('Failed to reset data. Please try again.');
     }
   };
 
   // Check completion
   useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
-      setUiState("complete");
+      setUiState('complete');
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
     }
@@ -147,22 +133,22 @@ export function useDialogueState(): DialogueState {
 
   // Debug useEffect to monitor showInputMethodModal changes
   useEffect(() => {
-    console.log("showInputMethodModal changed to:", showInputMethodModal);
+    console.log('showInputMethodModal changed to:', showInputMethodModal);
   }, [showInputMethodModal]);
 
   // Debug: Log state changes
   useEffect(() => {
-    console.log("State changed:", {
+    console.log('State changed:', {
       uiState,
-      currentPrompt: currentPrompt.substring(0, 50) + "...",
+      currentPrompt: currentPrompt.substring(0, 50) + '...',
       hasPrompt: !!currentPrompt,
     });
   }, [uiState, currentPrompt]);
 
   // Debug: Specifically track Answer modal visibility
   useEffect(() => {
-    const shouldShowAnswerModal = uiState === "answering";
-    console.log("🔴 Answer Modal should be visible:", shouldShowAnswerModal, {
+    const shouldShowAnswerModal = uiState === 'answering';
+    console.log('🔴 Answer Modal should be visible:', shouldShowAnswerModal, {
       uiState,
       hasCurrentPrompt: !!currentPrompt,
       promptLength: currentPrompt.length,

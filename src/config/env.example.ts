@@ -3,9 +3,8 @@
 export const CONFIG = {
   // Google Gemini API Configuration
   GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
-  GEMINI_API_URL: "https://generativelanguage.googleapis.com/v1beta/models",
-  TEXT_MODEL:
-  "gemini-2.5-flash",
+  GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models',
+  TEXT_MODEL: 'gemini-2.5-flash',
 
   // Image Processing Configuration
   MAX_IMAGE_SIZE: 4 * 1024 * 1024,
@@ -29,5 +28,3 @@ export const getGeminiApiKey = (): string => {
   }
   return CONFIG.GEMINI_API_KEY;
 };
-
-

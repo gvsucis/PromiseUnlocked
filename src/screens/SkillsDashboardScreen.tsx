@@ -1,20 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  Dimensions,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
-import {
-  Text,
-  Card,
-  Button,
-  ActivityIndicator,
-  Chip,
-  ProgressBar,
-} from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from 'react-native';
+import { Text, Card, Button, ActivityIndicator, Chip, ProgressBar } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -30,7 +16,10 @@ import { SKILLS_TAXONOMY } from '../services/skillTaxonomyService';
 
 const { width } = Dimensions.get('window');
 
-type SkillsDashboardScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SkillsDashboard'>;
+type SkillsDashboardScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'SkillsDashboard'
+>;
 type SkillsDashboardScreenRouteProp = RouteProp<RootStackParamList, 'SkillsDashboard'>;
 
 interface Props {
@@ -44,7 +33,9 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
   const [skillsStats, setSkillsStats] = useState<any>(null);
   const [taxonomySkills, setTaxonomySkills] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [selectedView, setSelectedView] = useState<'overview' | 'taxonomy' | 'timeline'>('overview');
+  const [selectedView, setSelectedView] = useState<'overview' | 'taxonomy' | 'timeline'>(
+    'overview'
+  );
 
   // No route params expected for SkillsDashboard
 
@@ -126,10 +117,12 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
     return Math.round((identified / total) * 100);
   };
 
-  const getCategoryProgress = (category: string): { identified: number; total: number; percentage: number } => {
+  const getCategoryProgress = (
+    category: string
+  ): { identified: number; total: number; percentage: number } => {
     const categorySkills = SKILLS_TAXONOMY[category as keyof typeof SKILLS_TAXONOMY] || [];
     const total = categorySkills.length;
-    const identified = userSkills.filter(s => s.category === category).length;
+    const identified = userSkills.filter((s) => s.category === category).length;
     const percentage = total > 0 ? Math.round((identified / total) * 100) : 0;
     return { identified, total, percentage };
   };
@@ -147,9 +140,10 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
     return date.toLocaleDateString();
   };
 
-  const filteredSkills = selectedCategory === 'All'
-    ? userSkills
-    : userSkills.filter(s => s.category === selectedCategory);
+  const filteredSkills =
+    selectedCategory === 'All'
+      ? userSkills
+      : userSkills.filter((s) => s.category === selectedCategory);
 
   const categories = ['All', ...Object.keys(SKILLS_TAXONOMY)];
 
@@ -187,7 +181,12 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                   size={20}
                   color={selectedView === 'overview' ? '#fff' : '#667eea'}
                 />
-                <Text style={[styles.viewButtonText, selectedView === 'overview' && styles.viewButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.viewButtonText,
+                    selectedView === 'overview' && styles.viewButtonTextActive,
+                  ]}
+                >
                   Overview
                 </Text>
               </TouchableOpacity>
@@ -201,7 +200,12 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                   size={20}
                   color={selectedView === 'taxonomy' ? '#fff' : '#667eea'}
                 />
-                <Text style={[styles.viewButtonText, selectedView === 'taxonomy' && styles.viewButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.viewButtonText,
+                    selectedView === 'taxonomy' && styles.viewButtonTextActive,
+                  ]}
+                >
                   All Skills
                 </Text>
               </TouchableOpacity>
@@ -215,7 +219,12 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                   size={20}
                   color={selectedView === 'timeline' ? '#fff' : '#667eea'}
                 />
-                <Text style={[styles.viewButtonText, selectedView === 'timeline' && styles.viewButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.viewButtonText,
+                    selectedView === 'timeline' && styles.viewButtonTextActive,
+                  ]}
+                >
                   Timeline
                 </Text>
               </TouchableOpacity>
@@ -251,9 +260,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
               color="#667eea"
               style={styles.progressBar}
             />
-            <Text style={styles.progressHint}>
-              Keep exploring to unlock more skills!
-            </Text>
+            <Text style={styles.progressHint}>Keep exploring to unlock more skills!</Text>
           </Card.Content>
         </Card>
 
@@ -268,7 +275,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                   <Text style={styles.sectionTitle}>Skills by Category</Text>
                 </View>
 
-                {Object.keys(SKILLS_TAXONOMY).map(category => {
+                {Object.keys(SKILLS_TAXONOMY).map((category) => {
                   const progress = getCategoryProgress(category);
                   return (
                     <View key={category} style={styles.categoryProgressItem}>
@@ -314,16 +321,18 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                             { backgroundColor: getCategoryColor(skill.category) },
                           ]}
                         >
-                          <MaterialIcons name={getSourceIcon(skill.source) as any} size={16} color="#fff" />
+                          <MaterialIcons
+                            name={getSourceIcon(skill.source) as any}
+                            size={16}
+                            color="#fff"
+                          />
                         </View>
                         <View style={styles.recentSkillInfo}>
                           <Text style={styles.recentSkillName}>{skill.skill}</Text>
                           <Text style={styles.recentSkillCategory}>{skill.category}</Text>
                         </View>
                       </View>
-                      <Text style={styles.recentSkillDate}>
-                        {formatDate(skill.dateIdentified)}
-                      </Text>
+                      <Text style={styles.recentSkillDate}>{formatDate(skill.dateIdentified)}</Text>
                     </View>
                   ))}
                 </Card.Content>
@@ -339,7 +348,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
             <Card style={styles.filterCard}>
               <Card.Content>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {categories.map(category => (
+                  {categories.map((category) => (
                     <Chip
                       key={category}
                       mode={selectedCategory === category ? 'flat' : 'outlined'}
@@ -367,38 +376,45 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                         size={24}
                         color={getCategoryColor(category)}
                       />
-                      <Text style={[styles.taxonomyCategoryTitle, { color: getCategoryColor(category) }]}>
+                      <Text
+                        style={[
+                          styles.taxonomyCategoryTitle,
+                          { color: getCategoryColor(category) },
+                        ]}
+                      >
                         {category}
                       </Text>
                     </View>
 
                     <View style={styles.taxonomySkillsGrid}>
-                      {skills.map((skill: { name: string; identified: boolean; dateIdentified?: string }) => (
-                        <Chip
-                          key={skill.name}
-                          mode="flat"
-                          selected={skill.identified}
-                          style={[
-                            styles.taxonomySkillChip,
-                            skill.identified
-                              ? { backgroundColor: getCategoryColor(category) }
-                              : styles.taxonomySkillChipUnidentified,
-                          ]}
-                          textStyle={[
-                            styles.taxonomySkillChipText,
-                            skill.identified
-                              ? styles.taxonomySkillChipTextIdentified
-                              : styles.taxonomySkillChipTextUnidentified,
-                          ]}
-                          icon={() =>
-                            skill.identified ? (
-                              <MaterialIcons name="check-circle" size={16} color="#fff" />
-                            ) : null
-                          }
-                        >
-                          {skill.name}
-                        </Chip>
-                      ))}
+                      {skills.map(
+                        (skill: { name: string; identified: boolean; dateIdentified?: string }) => (
+                          <Chip
+                            key={skill.name}
+                            mode="flat"
+                            selected={skill.identified}
+                            style={[
+                              styles.taxonomySkillChip,
+                              skill.identified
+                                ? { backgroundColor: getCategoryColor(category) }
+                                : styles.taxonomySkillChipUnidentified,
+                            ]}
+                            textStyle={[
+                              styles.taxonomySkillChipText,
+                              skill.identified
+                                ? styles.taxonomySkillChipTextIdentified
+                                : styles.taxonomySkillChipTextUnidentified,
+                            ]}
+                            icon={() =>
+                              skill.identified ? (
+                                <MaterialIcons name="check-circle" size={16} color="#fff" />
+                              ) : null
+                            }
+                          >
+                            {skill.name}
+                          </Chip>
+                        )
+                      )}
                     </View>
                   </Card.Content>
                 </Card>
@@ -426,21 +442,33 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
               ) : (
                 <View style={styles.timelineList}>
                   {[...userSkills]
-                    .sort((a, b) => new Date(b.dateIdentified).getTime() - new Date(a.dateIdentified).getTime())
+                    .sort(
+                      (a, b) =>
+                        new Date(b.dateIdentified).getTime() - new Date(a.dateIdentified).getTime()
+                    )
                     .map((skill, index) => (
                       <View key={index} style={styles.timelineItem}>
                         <View style={styles.timelineDot}>
                           <View
-                            style={[styles.timelineDotInner, { backgroundColor: getCategoryColor(skill.category) }]}
+                            style={[
+                              styles.timelineDotInner,
+                              { backgroundColor: getCategoryColor(skill.category) },
+                            ]}
                           />
                         </View>
                         <View style={styles.timelineContent}>
                           <View style={styles.timelineSkillHeader}>
                             <Text style={styles.timelineSkillName}>{skill.skill}</Text>
-                            <MaterialIcons name={getSourceIcon(skill.source) as any} size={16} color="#999" />
+                            <MaterialIcons
+                              name={getSourceIcon(skill.source) as any}
+                              size={16}
+                              color="#999"
+                            />
                           </View>
                           <Text style={styles.timelineSkillCategory}>{skill.category}</Text>
-                          <Text style={styles.timelineSkillDate}>{formatDate(skill.dateIdentified)}</Text>
+                          <Text style={styles.timelineSkillDate}>
+                            {formatDate(skill.dateIdentified)}
+                          </Text>
                         </View>
                       </View>
                     ))}
@@ -503,10 +531,13 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
 }
 
 function getMotivationalMessage(skillCount: number): string {
-  if (skillCount < 5) return "Great start! Every skill you discover is a step toward understanding yourself better.";
-  if (skillCount < 10) return "You're building momentum! Keep exploring what makes you lose track of time.";
-  if (skillCount < 20) return "Impressive collection! You're uncovering the patterns in your passions.";
-  if (skillCount < 30) return "Amazing progress! Your skills map is taking shape beautifully.";
+  if (skillCount < 5)
+    return 'Great start! Every skill you discover is a step toward understanding yourself better.';
+  if (skillCount < 10)
+    return "You're building momentum! Keep exploring what makes you lose track of time.";
+  if (skillCount < 20)
+    return "Impressive collection! You're uncovering the patterns in your passions.";
+  if (skillCount < 30) return 'Amazing progress! Your skills map is taking shape beautifully.';
   return "Wow! You're a skill-discovering champion! Your self-awareness is truly remarkable.";
 }
 

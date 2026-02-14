@@ -1,7 +1,7 @@
-import axios from "axios";
-import * as FileSystem from "expo-file-system/legacy";
-import { AnalysisResult, TranscriptAnalysis } from "../types";
-import { CONFIG, getGeminiApiKey } from "../config/env";
+import axios from 'axios';
+import * as FileSystem from 'expo-file-system/legacy';
+import { AnalysisResult, TranscriptAnalysis } from '../types';
+import { CONFIG, getGeminiApiKey } from '../config/env';
 
 export class GeminiService {
   private static readonly MODEL_NAME = CONFIG.TEXT_MODEL;
@@ -12,7 +12,7 @@ export class GeminiService {
   private static async retryWithBackoff<T>(
     fn: () => Promise<T>,
     maxRetries: number = 4,
-    initialDelay: number = 2000,
+    initialDelay: number = 2000
   ): Promise<T> {
     let lastError: any;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -23,7 +23,7 @@ export class GeminiService {
         if (axios.isAxiosError(error) && error.response?.status === 429) {
           const delay = initialDelay * Math.pow(2, attempt);
           console.log(
-            `Rate limit hit. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`,
+            `Rate limit hit. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`
           );
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
@@ -46,16 +46,16 @@ export class GeminiService {
       const response = await axios.post(
         apiUrl,
         {
-          contents: [{ parts: [{ text: "Test" }] }],
+          contents: [{ parts: [{ text: 'Test' }] }],
           generationConfig: { temperature: 0.1, maxOutputTokens: 10 },
         },
-        { timeout: 10000 },
+        { timeout: 10000 }
       );
       return { success: true };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -63,9 +63,7 @@ export class GeminiService {
   /**
    * PUBLIC API: ANALYZE TRANSCRIPT IMAGE
    */
-  public static async analyzeTranscript(
-    imageUri: string,
-  ): Promise<AnalysisResult> {
+  public static async analyzeTranscript(imageUri: string): Promise<AnalysisResult> {
     try {
       const base64Image = await this.encodeImageToBase64(imageUri);
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
@@ -77,7 +75,7 @@ export class GeminiService {
               {
                 text: `Analyze this academic transcript image and extract course information. Return a JSON object with fields: courses, gpa, totalCredits, institution, studentName, degree, graduationDate. Return only valid JSON.`,
               },
-              { inline_data: { mime_type: "image/jpeg", data: base64Image } },
+              { inline_data: { mime_type: 'image/jpeg', data: base64Image } },
             ],
           },
         ],
@@ -98,8 +96,75 @@ export class GeminiService {
     } catch (error) {
       return {
         success: false,
-        error: "Analysis failed",
+        error: 'Analysis failed',
         rawResponse: String(error),
+      };
+    }
+  }
+
+  /**
+   * PUBLIC API: ANALYZE ACTION IMAGE
+   * Analyzes an image of an activity/action and returns a description
+   */
+  public static async analyzeActionImage(
+    imageUri: string
+  ): Promise<{ success: boolean; rawResponse?: string; error?: string }> {
+    try {
+      const base64Image = await this.encodeImageToBase64(imageUri);
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
+
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: `Analyze this image and describe what activity or action is being shown. Focus on:
+1. What specific activity or action is depicted
+2. What skills or competencies are being demonstrated
+3. Why this activity might help someone lose track of time
+4. What this reveals about their interests and strengths
+
+Provide a thoughtful, specific description (2-3 sentences) that could serve as a response to the question: "What are you typically doing when you lose track of time?"`,
+              },
+              { inline_data: { mime_type: 'image/jpeg', data: base64Image } },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.5, maxOutputTokens: 512 },
+      };
+
+      const response = await this.retryWithBackoff(() =>
+        axios.post(apiUrl, requestBody, {
+          timeout: CONFIG.REQUEST_TIMEOUT,
+        })
+      );
+
+      const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('No analysis generated from Gemini');
+      }
+
+      return {
+        success: true,
+        rawResponse: text.trim(),
+      };
+    } catch (error) {
+      let errorMessage = 'Failed to analyze image';
+
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 429) {
+          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (error.response?.status === 413) {
+          errorMessage = 'Image is too large. Please try with a smaller image.';
+        } else if (error.response?.status === 401 || error.response?.status === 403) {
+          errorMessage = 'API key error. Please check your configuration.';
+        }
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
       };
     }
   }
@@ -108,13 +173,13 @@ export class GeminiService {
    * PUBLIC API: TRANSCRIBE AUDIO
    */
   public static async transcribeAudio(
-    audioUri: string,
+    audioUri: string
   ): Promise<{ success: boolean; transcript?: string; error?: string }> {
     try {
       const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
-        encoding: "base64" as any,
+        encoding: 'base64' as any,
       });
-      const mimeType = audioUri.includes(".m4a") ? "audio/mp4" : "audio/wav";
+      const mimeType = audioUri.includes('.m4a') ? 'audio/mp4' : 'audio/wav';
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
 
       const requestBody = {
@@ -122,7 +187,7 @@ export class GeminiService {
           {
             parts: [
               {
-                text: "Please transcribe the following audio file. Return only the transcribed text.",
+                text: 'Please transcribe the following audio file. Return only the transcribed text.',
               },
               { inline_data: { mime_type: mimeType, data: base64Audio } },
             ],
@@ -131,24 +196,19 @@ export class GeminiService {
         generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
       };
 
-      const response = await this.retryWithBackoff(() =>
-        axios.post(apiUrl, requestBody),
-      );
-      const transcript =
-        response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const response = await this.retryWithBackoff(() => axios.post(apiUrl, requestBody));
+      const transcript = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       return { success: true, transcript: transcript?.trim() };
     } catch (error) {
-      return { success: false, error: "Transcription failed" };
+      return { success: false, error: 'Transcription failed' };
     }
   }
 
   /**
    * PUBLIC API: PROCESS TRANSCRIPT TEXT
    */
-  public static async processTranscriptText(
-    transcript: string,
-  ): Promise<string> {
+  public static async processTranscriptText(transcript: string): Promise<string> {
     try {
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
       const response = await axios.post(apiUrl, {
@@ -163,7 +223,7 @@ export class GeminiService {
         ],
         generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
       });
-      return response.data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      return response.data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     } catch (error) {
       if (error instanceof axios.AxiosError) {
         throw new Error(`Gemini API error: ${error.message}`);
@@ -182,14 +242,11 @@ export class GeminiService {
     isInitial: boolean,
     interactions: any[],
     mappedCategories: any[],
-    taxonomyString: string,
+    taxonomyString: string
   ): Promise<any> {
     const history = interactions
-      .map(
-        (i) =>
-          `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`,
-      )
-      .join("\n");
+      .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
+      .join('\n');
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
 
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
@@ -201,14 +258,12 @@ export class GeminiService {
 
     const response = await this.retryWithBackoff(() =>
       axios.post(apiUrl, {
-        contents: [
-          { parts: [{ text: systemInstruction + "\n\n" + userPrompt }] },
-        ],
+        contents: [{ parts: [{ text: systemInstruction + '\n\n' + userPrompt }] }],
         generationConfig: {
           temperature: 0.5,
-          responseMimeType: "application/json",
+          responseMimeType: 'application/json',
         },
-      }),
+      })
     );
 
     return JSON.parse(response.data.candidates[0].content.parts[0].text);
@@ -216,7 +271,7 @@ export class GeminiService {
 
   private static async encodeImageToBase64(imageUri: string): Promise<string> {
     return await FileSystem.readAsStringAsync(imageUri, {
-      encoding: "base64" as any,
+      encoding: 'base64' as any,
     });
   }
 
@@ -230,21 +285,16 @@ export class GeminiService {
       mappedCategory: string;
     }>,
     mappedCategories: Array<{ category: string }>,
-    taxonomyString: string,
+    taxonomyString: string
   ): Promise<string> {
     try {
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
 
       const history = interactions
-        .map(
-          (i) =>
-            `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`,
-        )
-        .join("\n");
+        .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
+        .join('\n');
 
-      const mappedCategoriesList = mappedCategories
-        .map((c) => c.category)
-        .join(", ");
+      const mappedCategoriesList = mappedCategories.map((c) => c.category).join(', ');
 
       const prompt = `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a new question that might help tease out which additional categories might map to me. You may (optionally) use what you've learned about me in previous answers as context in the question if it helps.
 
@@ -258,7 +308,7 @@ CATEGORIES MAPPED: ${mappedCategoriesList}
 
 RESPOND ONLY with the text of the new question. Do not include any other text, explanation, or formatting.`;
 
-      console.log("Synthesizing next question...");
+      console.log('Synthesizing next question...');
 
       const requestBody = {
         contents: [
@@ -275,7 +325,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
       // Use retry logic with exponential backoff
       const response = await this.retryWithBackoff(async () => {
         return await axios.post(apiUrl, requestBody, {
-          headers: { "Content-Type": "application/json" },
+          headers: { 'Content-Type': 'application/json' },
           timeout: 30000,
         });
       });
@@ -283,35 +333,29 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
       const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!text) {
-        throw new Error("No question generated from API");
+        throw new Error('No question generated from API');
       }
 
       const question = text.trim();
-      console.log("Synthesized question:", question);
+      console.log('Synthesized question:', question);
 
       return question;
     } catch (error) {
-      console.error("Error synthesizing question:", error);
+      console.error('Error synthesizing question:', error);
 
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 429) {
-          throw new Error(
-            "Rate limit exceeded. Please wait a moment and try again.",
-          );
+          throw new Error('Rate limit exceeded. Please wait a moment and try again.');
         } else if (error.response?.status === 403) {
-          throw new Error("API key invalid or missing. Check your .env file.");
+          throw new Error('API key invalid or missing. Check your .env file.');
         } else if (error.response) {
-          throw new Error(
-            `API Error: ${error.response.status} - ${error.response.statusText}`,
-          );
+          throw new Error(`API Error: ${error.response.status} - ${error.response.statusText}`);
         } else if (error.request) {
-          throw new Error(
-            "Network error. Please check your internet connection.",
-          );
+          throw new Error('Network error. Please check your internet connection.');
         }
       }
 
-      throw new Error("Failed to generate next question");
+      throw new Error('Failed to generate next question');
     }
   }
 }

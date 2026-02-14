@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 import {
   Modal,
   View,
@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   StyleSheet,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface VoiceRecordingModalProps {
   visible: boolean;
@@ -39,61 +39,42 @@ export function VoiceRecordingModal({
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onCancel}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <TouchableWithoutFeedback onPress={onCancel}>
         <View style={styles.modalOverlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalContent}>
               <Text style={styles.questionTitle}>Voice Response</Text>
-              <Text style={styles.questionText}>
-                {currentPrompt || "(No question loaded)"}
-              </Text>
+              <Text style={styles.questionText}>{currentPrompt || '(No question loaded)'}</Text>
 
               <View style={styles.voiceRecordingContainer}>
                 {!recordingUri ? (
                   /* Recording Interface */
                   <>
                     <View style={styles.recordingVisualization}>
-                      <View
-                        style={[
-                          styles.recordingCircle,
-                          isRecording && styles.recordingActive,
-                        ]}
-                      >
+                      <View style={[styles.recordingCircle, isRecording && styles.recordingActive]}>
                         <Ionicons
-                          name={isRecording ? "stop" : "mic"}
+                          name={isRecording ? 'stop' : 'mic'}
                           size={48}
-                          color={isRecording ? "white" : "#666"}
+                          color={isRecording ? 'white' : '#666'}
                         />
                       </View>
                     </View>
 
                     {isRecording && (
-                      <Text style={styles.recordingTimer}>
-                        {formatDuration(recordingDuration)}
-                      </Text>
+                      <Text style={styles.recordingTimer}>{formatDuration(recordingDuration)}</Text>
                     )}
 
                     <Text style={styles.recordingInstruction}>
-                      {isRecording
-                        ? "Recording... Tap to stop"
-                        : "Tap to start recording"}
+                      {isRecording ? 'Recording... Tap to stop' : 'Tap to start recording'}
                     </Text>
 
                     <TouchableOpacity
-                      style={[
-                        styles.recordButton,
-                        isRecording && styles.recordButtonActive,
-                      ]}
+                      style={[styles.recordButton, isRecording && styles.recordButtonActive]}
                       onPress={isRecording ? onStopRecording : onStartRecording}
                       disabled={isProcessingAudio}
                     >
@@ -103,7 +84,7 @@ export function VoiceRecordingModal({
                           isRecording && styles.recordButtonTextActive,
                         ]}
                       >
-                        {isRecording ? "Stop Recording" : "Start Recording"}
+                        {isRecording ? 'Stop Recording' : 'Start Recording'}
                       </Text>
                     </TouchableOpacity>
                   </>
@@ -111,34 +92,20 @@ export function VoiceRecordingModal({
                   /* Playback Interface */
                   <>
                     <View style={styles.playbackContainer}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={64}
-                        color="#4CAF50"
-                      />
-                      <Text style={styles.playbackTitle}>
-                        Recording Complete!
-                      </Text>
+                      <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
+                      <Text style={styles.playbackTitle}>Recording Complete!</Text>
                       <Text style={styles.playbackDuration}>
                         Duration: {formatDuration(recordingDuration)}
                       </Text>
                     </View>
 
                     <View style={styles.voiceActions}>
-                      <TouchableOpacity
-                        style={styles.voiceActionButton}
-                        onPress={onRecordAgain}
-                      >
-                        <Text style={styles.voiceActionButtonText}>
-                          Record Again
-                        </Text>
+                      <TouchableOpacity style={styles.voiceActionButton} onPress={onRecordAgain}>
+                        <Text style={styles.voiceActionButtonText}>Record Again</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={[
-                          styles.voiceActionButton,
-                          styles.voiceActionButtonPrimary,
-                        ]}
+                        style={[styles.voiceActionButton, styles.voiceActionButtonPrimary]}
                         onPress={onSubmit}
                         disabled={isProcessingAudio}
                       >
@@ -148,9 +115,7 @@ export function VoiceRecordingModal({
                             styles.voiceActionButtonTextPrimary,
                           ]}
                         >
-                          {isProcessingAudio
-                            ? "Processing..."
-                            : "Submit Recording"}
+                          {isProcessingAudio ? 'Processing...' : 'Submit Recording'}
                         </Text>
                       </TouchableOpacity>
                     </View>
@@ -168,33 +133,33 @@ export function VoiceRecordingModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: "white",
+    backgroundColor: 'white',
     borderRadius: 20,
     padding: 25,
-    width: "90%",
+    width: '90%',
     maxWidth: 450,
   },
   questionTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: 'bold',
+    color: '#333',
     marginBottom: 12,
-    textAlign: "center",
+    textAlign: 'center',
   },
   questionText: {
     fontSize: 15,
-    color: "#666",
+    color: '#666',
     lineHeight: 22,
-    textAlign: "center",
+    textAlign: 'center',
     marginBottom: 25,
   },
   voiceRecordingContainer: {
-    alignItems: "center",
+    alignItems: 'center',
   },
   recordingVisualization: {
     marginVertical: 20,
@@ -203,16 +168,16 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "#f0f0f0",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 3,
-    borderColor: "#ddd",
+    borderColor: '#ddd',
   },
   recordingActive: {
-    backgroundColor: "#FF5252",
-    borderColor: "#FF5252",
-    shadowColor: "#FF5252",
+    backgroundColor: '#FF5252',
+    borderColor: '#FF5252',
+    shadowColor: '#FF5252',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 15,
@@ -220,74 +185,74 @@ const styles = StyleSheet.create({
   },
   recordingTimer: {
     fontSize: 32,
-    fontWeight: "bold",
-    color: "#FF5252",
+    fontWeight: 'bold',
+    color: '#FF5252',
     marginTop: 15,
-    fontVariant: ["tabular-nums"],
+    fontVariant: ['tabular-nums'],
   },
   recordingInstruction: {
     fontSize: 16,
-    color: "#666",
+    color: '#666',
     marginTop: 10,
     marginBottom: 25,
-    textAlign: "center",
+    textAlign: 'center',
   },
   recordButton: {
-    backgroundColor: "#4ECDC4",
+    backgroundColor: '#4ECDC4',
     paddingVertical: 14,
     paddingHorizontal: 40,
     borderRadius: 25,
     minWidth: 180,
-    alignItems: "center",
+    alignItems: 'center',
   },
   recordButtonActive: {
-    backgroundColor: "#FF5252",
+    backgroundColor: '#FF5252',
   },
   recordButtonText: {
-    color: "white",
+    color: 'white',
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   recordButtonTextActive: {
-    color: "white",
+    color: 'white',
   },
   playbackContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     marginVertical: 20,
   },
   playbackTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: 'bold',
+    color: '#333',
     marginTop: 15,
     marginBottom: 8,
   },
   playbackDuration: {
     fontSize: 16,
-    color: "#666",
+    color: '#666',
   },
   voiceActions: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 15,
-    width: "100%",
+    width: '100%',
     marginTop: 20,
   },
   voiceActionButton: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: '#f5f5f5',
     paddingVertical: 12,
     borderRadius: 8,
-    alignItems: "center",
+    alignItems: 'center',
   },
   voiceActionButtonPrimary: {
-    backgroundColor: "#4ECDC4",
+    backgroundColor: '#4ECDC4',
   },
   voiceActionButtonText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
+    fontWeight: '600',
+    color: '#666',
   },
   voiceActionButtonTextPrimary: {
-    color: "#fff",
+    color: '#fff',
   },
 });

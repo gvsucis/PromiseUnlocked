@@ -30,7 +30,10 @@ import { GeminiService } from '../services/geminiService';
 import ZoomableImageView from '../components/ZoomableImageView';
 import ImageEditor from '../components/ImageEditor';
 
-type FollowUpQuestionScreenNavigationProp = StackNavigationProp<RootStackParamList, 'FollowUpQuestion'>;
+type FollowUpQuestionScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'FollowUpQuestion'
+>;
 type FollowUpQuestionScreenRouteProp = RouteProp<RootStackParamList, 'FollowUpQuestion'>;
 
 interface Props {
@@ -42,7 +45,7 @@ const { width, height } = Dimensions.get('window');
 
 export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   const { question, context } = route.params;
-  
+
   // State management
   const [isOpen, setIsOpen] = useState(false);
   const [inputMode, setInputMode] = useState<'none' | 'text' | 'voice' | 'image'>('none');
@@ -55,7 +58,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [tempImageUri, setTempImageUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  
+
   // Animation values for FAB
   const animation = useRef(new Animated.Value(0)).current;
   const button1Animation = useRef(new Animated.Value(0)).current;
@@ -70,7 +73,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
 
   const toggleMenu = () => {
     const toValue = isOpen ? 0 : 1;
-    
+
     Animated.parallel([
       Animated.spring(animation, {
         toValue,
@@ -105,7 +108,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
         }),
       ]),
     ]).start();
-    
+
     setIsOpen(!isOpen);
   };
 
@@ -232,11 +235,11 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   // Handle photo button press
   const handlePhotoPress = () => {
     toggleMenu();
-    
+
     // Use setTimeout to ensure the FAB menu animation completes before showing Alert
     setTimeout(() => {
       setInputMode('image');
-      
+
       // Show options to choose between camera and gallery
       Alert.alert(
         'Choose Image Source',
@@ -316,7 +319,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
     try {
       // Analyze the image in the context of the follow-up question
       const result = await GeminiService.analyzeActionImage(selectedImage);
-      
+
       if (result.success) {
         navigation.navigate('Result', { result });
       } else {
@@ -330,14 +333,8 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   };
 
   return (
-    <LinearGradient
-      colors={['#667eea', '#764ba2']}
-      style={styles.container}
-    >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
+    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Question Card */}
         <Card style={styles.questionCard}>
           <Card.Content>
