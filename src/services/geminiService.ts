@@ -14,7 +14,7 @@ export class GeminiService {
     maxRetries: number = 4,
     initialDelay: number = 2000
   ): Promise<T> {
-    let lastError: any;
+    let lastError: unknown;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         return await fn();

@@ -17,6 +17,9 @@ import DialogueDashboardScreen from './src/screens/DialogueDashboardScreen';
 import { RootStackParamList } from './src/types/navigation';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import { Limelight } from '@getlimelight/sdk';
+
+Limelight.connect();
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -25,7 +28,7 @@ export default function App() {
     <PaperProvider>
       <NavigationContainer>
         <StatusBar style="auto" />
-        <Stack.Navigator 
+        <Stack.Navigator
           initialRouteName="Login"
           screenOptions={{
             headerStyle: {
@@ -37,64 +40,60 @@ export default function App() {
             },
           }}
         >
-          <Stack.Screen 
-            name="Login" 
-            component={LoginScreen} 
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
             options={{ title: 'Sign In', headerShown: false }}
           />
-          <Stack.Screen 
-            name="Register" 
-            component={RegisterScreen} 
+          <Stack.Screen
+            name="Register"
+            component={RegisterScreen}
             options={{ title: 'Create Account', headerShown: false }}
           />
-          <Stack.Screen 
-            name="Welcome" 
-            component={WelcomeScreen} 
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen 
-            name="Home" 
-            component={HomeScreen} 
+          <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
+          <Stack.Screen
+            name="Home"
+            component={HomeScreen}
             options={{ title: 'Activity Analyzer' }}
           />
-          <Stack.Screen 
-            name="Result" 
-            component={ResultScreen} 
+          <Stack.Screen
+            name="Result"
+            component={ResultScreen}
             options={{ title: 'Analysis Results' }}
           />
-          <Stack.Screen 
-            name="Blue" 
-            component={BlueScreen} 
+          <Stack.Screen
+            name="Blue"
+            component={BlueScreen}
             options={{ title: 'Voice Transcription' }}
           />
-          <Stack.Screen 
-            name="Dashboard" 
-            component={DashboardScreen} 
+          <Stack.Screen
+            name="Dashboard"
+            component={DashboardScreen}
             options={{ title: 'Achievement Dashboard' }}
           />
-          <Stack.Screen 
-            name="SkillsDashboard" 
-            component={SkillsDashboardScreen} 
+          <Stack.Screen
+            name="SkillsDashboard"
+            component={SkillsDashboardScreen}
             options={{ title: 'Skills Dashboard' }}
           />
-          <Stack.Screen 
-            name="DialogueDashboard" 
-            component={DialogueDashboardScreen} 
+          <Stack.Screen
+            name="DialogueDashboard"
+            component={DialogueDashboardScreen}
             options={{ title: 'Skills Passport' }}
           />
-          <Stack.Screen 
-            name="VoiceAnalysis" 
-            component={VoiceAnalysisScreen} 
+          <Stack.Screen
+            name="VoiceAnalysis"
+            component={VoiceAnalysisScreen}
             options={{ title: 'Voice Analysis' }}
           />
-          <Stack.Screen 
-            name="TextAnalysis" 
-            component={TextAnalysisScreen} 
+          <Stack.Screen
+            name="TextAnalysis"
+            component={TextAnalysisScreen}
             options={{ title: 'Text Analysis' }}
           />
-          <Stack.Screen 
-            name="FollowUpQuestion" 
-            component={FollowUpQuestionScreen} 
+          <Stack.Screen
+            name="FollowUpQuestion"
+            component={FollowUpQuestionScreen}
             options={{ title: 'Answer Follow-up Question' }}
           />
         </Stack.Navigator>
