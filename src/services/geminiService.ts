@@ -189,7 +189,8 @@ CATEGORIES MAPPED: ${mappedCategoriesList}
       
 RESPOND ONLY with the text of the new question. Do not include any other text, explanation, or formatting.`;
 
-      console.log('Synthesizing next question...');
+      // log the actual prompt sent to the model for debugging
+      console.log('Synthesizing next question with prompt:', prompt);
       
       const requestBody = {
         contents: [
@@ -199,7 +200,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
         ],
         generationConfig: {
           temperature: 0.9,
-          maxOutputTokens: 200,
+          // how much Gemini outputs to text (not 1-to-1) - lowering this risks truncation, raising this risks response fluff and higher costs
+          maxOutputTokens: 800, // changed from 200
         }
       };
 
@@ -210,6 +212,14 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
           timeout: 30000,
         });
       });
+
+      // if the model stopped because it hit our maxOutputTokens limit, log a warning
+      const finish = response.data?.candidates?.[0]?.finishReason;
+      if (finish === 'MAX_TOKENS') {
+        console.warn('Gemini response finished with MAX_TOKENS – question may be truncated.');
+      }
+
+      console.log("this is the response you get: ", response);
 
       const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
       
