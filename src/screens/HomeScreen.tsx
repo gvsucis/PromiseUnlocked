@@ -8,14 +8,7 @@ import {
   Dimensions,
   TouchableOpacity,
 } from 'react-native';
-import {
-  Button,
-  Card,
-  Title,
-  Paragraph,
-  ActivityIndicator,
-  Snackbar,
-} from 'react-native-paper';
+import { Button, Card, Title, Paragraph, ActivityIndicator, Snackbar } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
@@ -105,18 +98,19 @@ export default function HomeScreen({ navigation }: Props) {
     setIsAnalyzing(true);
     try {
       const result = await GeminiService.analyzeActionImage(selectedImage);
-      
+
       if (result.success) {
         navigation.navigate('Result', { result });
       } else {
         console.log('Analysis failed with error:', result.error);
         console.log('Raw response:', result.rawResponse);
-        
+
         let errorMessage = result.error || 'Failed to analyze transcript.';
-        
+
         // Provide more specific error messages
         if (result.error?.includes('404')) {
-          errorMessage = 'API endpoint not found. Please check your internet connection and try again.';
+          errorMessage =
+            'API endpoint not found. Please check your internet connection and try again.';
         } else if (result.error?.includes('413') || result.error?.includes('too large')) {
           errorMessage = 'Image is too large. Please try with a smaller image.';
         } else if (result.error?.includes('401') || result.error?.includes('403')) {
@@ -124,7 +118,7 @@ export default function HomeScreen({ navigation }: Props) {
         } else if (result.error?.includes('Network Error')) {
           errorMessage = 'Network connection error. Please check your internet connection.';
         }
-        
+
         Alert.alert(
           'Analysis Failed',
           errorMessage + '\n\nPlease try again with a clearer image.',
@@ -146,26 +140,18 @@ export default function HomeScreen({ navigation }: Props) {
     setIsAnalyzing(true);
     try {
       const result = await GeminiService.testApiConnection();
-      
+
       if (result.success) {
-        Alert.alert(
-          'API Test Successful',
-          'Connection to Gemini API is working properly.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('API Test Successful', 'Connection to Gemini API is working properly.', [
+          { text: 'OK' },
+        ]);
       } else {
-        Alert.alert(
-          'API Test Failed',
-          result.error || 'Failed to connect to Gemini API.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('API Test Failed', result.error || 'Failed to connect to Gemini API.', [
+          { text: 'OK' },
+        ]);
       }
     } catch (error) {
-      Alert.alert(
-        'Test Error',
-        'An unexpected error occurred during API test.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Test Error', 'An unexpected error occurred during API test.', [{ text: 'OK' }]);
     } finally {
       setIsAnalyzing(false);
     }
@@ -178,16 +164,14 @@ export default function HomeScreen({ navigation }: Props) {
 
   return (
     <ScrollView style={styles.container}>
-      <LinearGradient
-        colors={['#2196F3', '#1976D2']}
-        style={styles.gradient}
-      >
+      <LinearGradient colors={['#2196F3', '#1976D2']} style={styles.gradient}>
         <View style={styles.content}>
           <Card style={styles.card}>
             <Card.Content>
               <Title style={styles.title}>Activity Analyzer</Title>
               <Paragraph style={styles.subtitle}>
-                Upload a photo of an activity or action to analyze it using our skills taxonomy framework and discover what skills are being developed.
+                Upload a photo of an activity or action to analyze it using our skills taxonomy
+                framework and discover what skills are being developed.
               </Paragraph>
             </Card.Content>
           </Card>
@@ -195,7 +179,7 @@ export default function HomeScreen({ navigation }: Props) {
           <Card style={styles.imageCard}>
             <Card.Content>
               <Title style={styles.sectionTitle}>Upload Activity Image</Title>
-              
+
               {selectedImage ? (
                 <View style={styles.imageContainer}>
                   <TouchableOpacity onPress={() => setZoomViewerVisible(true)}>
@@ -235,12 +219,11 @@ export default function HomeScreen({ navigation }: Props) {
               ) : (
                 <View style={styles.uploadContainer}>
                   <Paragraph style={styles.uploadText}>
-                    Choose how you'd like to upload your transcript:{'\n'}
-                    • Choose Full Image: Select entire image without cropping{'\n'}
-                    • Choose & Crop: Select and crop image in picker{'\n'}
-                    • Take Photo: Capture new photo with camera
+                    Choose how you'd like to upload your transcript:{'\n'}• Choose Full Image:
+                    Select entire image without cropping{'\n'}• Choose & Crop: Select and crop image
+                    in picker{'\n'}• Take Photo: Capture new photo with camera
                   </Paragraph>
-                  
+
                   <View style={styles.buttonContainer}>
                     <Button
                       mode="contained"
@@ -250,7 +233,7 @@ export default function HomeScreen({ navigation }: Props) {
                     >
                       Choose Full Image
                     </Button>
-                    
+
                     <Button
                       mode="contained"
                       onPress={() => handleImageSelection(false, true)}
@@ -259,7 +242,7 @@ export default function HomeScreen({ navigation }: Props) {
                     >
                       Choose & Crop
                     </Button>
-                    
+
                     <Button
                       mode="contained"
                       onPress={() => handleImageSelection(true, false)}
@@ -278,14 +261,12 @@ export default function HomeScreen({ navigation }: Props) {
                   onPress={handleAnalyzeTranscript}
                   disabled={isAnalyzing}
                   style={styles.analyzeButton}
-                  icon={isAnalyzing ? undefined : "brain"}
+                  icon={isAnalyzing ? undefined : 'brain'}
                 >
                   {isAnalyzing ? (
                     <View style={styles.loadingContainer}>
                       <ActivityIndicator size="small" color="#fff" />
-                      <Paragraph style={styles.loadingText}>
-                        Analyzing activity...
-                      </Paragraph>
+                      <Paragraph style={styles.loadingText}>Analyzing activity...</Paragraph>
                     </View>
                   ) : (
                     'Analyze Activity'

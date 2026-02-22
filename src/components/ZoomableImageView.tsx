@@ -1,18 +1,6 @@
 import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  Dimensions,
-  Modal,
-  ScrollView,
-  StatusBar,
-  Image,
-} from 'react-native';
-import {
-  IconButton,
-  Portal,
-  Text,
-} from 'react-native-paper';
+import { View, StyleSheet, Dimensions, Modal, ScrollView, StatusBar, Image } from 'react-native';
+import { IconButton, Portal, Text } from 'react-native-paper';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -22,11 +10,7 @@ interface ZoomableImageViewProps {
   onClose: () => void;
 }
 
-export default function ZoomableImageView({ 
-  imageUri, 
-  visible, 
-  onClose 
-}: ZoomableImageViewProps) {
+export default function ZoomableImageView({ imageUri, visible, onClose }: ZoomableImageViewProps) {
   const [scale, setScale] = useState(1);
 
   const resetZoom = () => {
@@ -34,54 +18,29 @@ export default function ZoomableImageView({
   };
 
   const zoomIn = () => {
-    setScale(prev => Math.min(prev * 1.5, 3));
+    setScale((prev) => Math.min(prev * 1.5, 3));
   };
 
   const zoomOut = () => {
-    setScale(prev => Math.max(prev / 1.5, 0.5));
+    setScale((prev) => Math.max(prev / 1.5, 0.5));
   };
 
   return (
     <Portal>
-      <Modal
-        visible={visible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={onClose}
-      >
+      <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onClose}>
         <StatusBar hidden />
         <View style={styles.container}>
           <View style={styles.header}>
             <Text style={styles.headerText}>Transcript Viewer</Text>
             <View style={styles.headerButtons}>
-              <IconButton
-                icon="magnify-plus"
-                size={24}
-                onPress={zoomIn}
-                iconColor="#fff"
-              />
-              <IconButton
-                icon="magnify-minus"
-                size={24}
-                onPress={zoomOut}
-                iconColor="#fff"
-              />
-              <IconButton
-                icon="refresh"
-                size={24}
-                onPress={resetZoom}
-                iconColor="#fff"
-              />
-              <IconButton
-                icon="close"
-                size={24}
-                onPress={onClose}
-                iconColor="#fff"
-              />
+              <IconButton icon="magnify-plus" size={24} onPress={zoomIn} iconColor="#fff" />
+              <IconButton icon="magnify-minus" size={24} onPress={zoomOut} iconColor="#fff" />
+              <IconButton icon="refresh" size={24} onPress={resetZoom} iconColor="#fff" />
+              <IconButton icon="close" size={24} onPress={onClose} iconColor="#fff" />
             </View>
           </View>
 
-          <ScrollView 
+          <ScrollView
             style={styles.scrollContainer}
             contentContainerStyle={styles.scrollContent}
             maximumZoomScale={3}
@@ -90,11 +49,7 @@ export default function ZoomableImageView({
             showsVerticalScrollIndicator={false}
           >
             <View style={[styles.imageContainer, { transform: [{ scale }] }]}>
-              <Image
-                source={{ uri: imageUri }}
-                style={styles.image}
-                resizeMode="contain"
-              />
+              <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
             </View>
           </ScrollView>
 
@@ -102,9 +57,7 @@ export default function ZoomableImageView({
             <Text style={styles.instructions}>
               Pinch to zoom • Scroll to pan • Use buttons to zoom in/out
             </Text>
-            <Text style={styles.scaleText}>
-              Zoom: {Math.round(scale * 100)}%
-            </Text>
+            <Text style={styles.scaleText}>Zoom: {Math.round(scale * 100)}%</Text>
           </View>
         </View>
       </Modal>

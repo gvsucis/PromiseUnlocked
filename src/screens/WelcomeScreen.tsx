@@ -28,14 +28,9 @@ export default function WelcomeScreen({ navigation }: Props) {
   };
 
   return (
-    <LinearGradient
-      colors={['#667eea', '#764ba2']}
-      style={styles.container}
-    >
+    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.mainText}>
-          What are you doing when you lose track of time?
-        </Text>
+        <Text style={styles.mainText}>What are you doing when you lose track of time?</Text>
       </View>
 
       <View style={styles.fabContainer}>
@@ -50,8 +45,6 @@ export default function WelcomeScreen({ navigation }: Props) {
           label="Start Journey"
         />
       </View>
-
-
     </LinearGradient>
   );
 }

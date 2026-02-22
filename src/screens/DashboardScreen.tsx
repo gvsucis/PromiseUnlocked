@@ -54,63 +54,211 @@ interface CourseAnalysis {
 
 const AVAILABLE_STAMPS: Stamp[] = [
   // Academic Stamps
-  { id: 'math', name: 'Mathematics Master', icon: '🧮', category: 'Academic', description: 'Completed mathematics courses', unlocked: false },
-  { id: 'science', name: 'Science Scholar', icon: '🔬', category: 'Academic', description: 'Excelled in science subjects', unlocked: false },
-  { id: 'literature', name: 'Literature Lover', icon: '📚', category: 'Academic', description: 'Studied literature and languages', unlocked: false },
-  { id: 'history', name: 'History Buff', icon: '🏛️', category: 'Academic', description: 'Passionate about history', unlocked: false },
-  { id: 'art', name: 'Creative Artist', icon: '🎨', category: 'Academic', description: 'Pursued arts and creativity', unlocked: false },
-  { id: 'music', name: 'Music Maestro', icon: '🎵', category: 'Academic', description: 'Talented in music', unlocked: false },
-  
+  {
+    id: 'math',
+    name: 'Mathematics Master',
+    icon: '🧮',
+    category: 'Academic',
+    description: 'Completed mathematics courses',
+    unlocked: false,
+  },
+  {
+    id: 'science',
+    name: 'Science Scholar',
+    icon: '🔬',
+    category: 'Academic',
+    description: 'Excelled in science subjects',
+    unlocked: false,
+  },
+  {
+    id: 'literature',
+    name: 'Literature Lover',
+    icon: '📚',
+    category: 'Academic',
+    description: 'Studied literature and languages',
+    unlocked: false,
+  },
+  {
+    id: 'history',
+    name: 'History Buff',
+    icon: '🏛️',
+    category: 'Academic',
+    description: 'Passionate about history',
+    unlocked: false,
+  },
+  {
+    id: 'art',
+    name: 'Creative Artist',
+    icon: '🎨',
+    category: 'Academic',
+    description: 'Pursued arts and creativity',
+    unlocked: false,
+  },
+  {
+    id: 'music',
+    name: 'Music Maestro',
+    icon: '🎵',
+    category: 'Academic',
+    description: 'Talented in music',
+    unlocked: false,
+  },
+
   // Achievement Stamps
-  { id: 'dean_list', name: 'Dean\'s List', icon: '⭐', category: 'Achievement', description: 'Made it to the Dean\'s List', unlocked: false },
-  { id: 'honor_roll', name: 'Honor Roll', icon: '🏆', category: 'Achievement', description: 'Achieved honor roll status', unlocked: false },
-  { id: 'graduate', name: 'Graduate', icon: '🎓', category: 'Achievement', description: 'Successfully graduated', unlocked: false },
-  { id: 'scholarship', name: 'Scholar', icon: '💎', category: 'Achievement', description: 'Received scholarships', unlocked: false },
-  
+  {
+    id: 'dean_list',
+    name: "Dean's List",
+    icon: '⭐',
+    category: 'Achievement',
+    description: "Made it to the Dean's List",
+    unlocked: false,
+  },
+  {
+    id: 'honor_roll',
+    name: 'Honor Roll',
+    icon: '🏆',
+    category: 'Achievement',
+    description: 'Achieved honor roll status',
+    unlocked: false,
+  },
+  {
+    id: 'graduate',
+    name: 'Graduate',
+    icon: '🎓',
+    category: 'Achievement',
+    description: 'Successfully graduated',
+    unlocked: false,
+  },
+  {
+    id: 'scholarship',
+    name: 'Scholar',
+    icon: '💎',
+    category: 'Achievement',
+    description: 'Received scholarships',
+    unlocked: false,
+  },
+
   // Interest Stamps
-  { id: 'technology', name: 'Tech Enthusiast', icon: '💻', category: 'Interest', description: 'Passionate about technology', unlocked: false },
-  { id: 'sports', name: 'Athletic Spirit', icon: '⚽', category: 'Interest', description: 'Active in sports', unlocked: false },
-  { id: 'leadership', name: 'Natural Leader', icon: '👑', category: 'Interest', description: 'Demonstrated leadership skills', unlocked: false },
-  { id: 'community', name: 'Community Helper', icon: '🤝', category: 'Interest', description: 'Engaged in community service', unlocked: false },
-  { id: 'research', name: 'Research Pioneer', icon: '🔍', category: 'Interest', description: 'Involved in research projects', unlocked: false },
-  { id: 'international', name: 'Global Citizen', icon: '🌍', category: 'Interest', description: 'International experience', unlocked: false },
+  {
+    id: 'technology',
+    name: 'Tech Enthusiast',
+    icon: '💻',
+    category: 'Interest',
+    description: 'Passionate about technology',
+    unlocked: false,
+  },
+  {
+    id: 'sports',
+    name: 'Athletic Spirit',
+    icon: '⚽',
+    category: 'Interest',
+    description: 'Active in sports',
+    unlocked: false,
+  },
+  {
+    id: 'leadership',
+    name: 'Natural Leader',
+    icon: '👑',
+    category: 'Interest',
+    description: 'Demonstrated leadership skills',
+    unlocked: false,
+  },
+  {
+    id: 'community',
+    name: 'Community Helper',
+    icon: '🤝',
+    category: 'Interest',
+    description: 'Engaged in community service',
+    unlocked: false,
+  },
+  {
+    id: 'research',
+    name: 'Research Pioneer',
+    icon: '🔍',
+    category: 'Interest',
+    description: 'Involved in research projects',
+    unlocked: false,
+  },
+  {
+    id: 'international',
+    name: 'Global Citizen',
+    icon: '🌍',
+    category: 'Interest',
+    description: 'International experience',
+    unlocked: false,
+  },
 ];
 
 // Helper functions for transcript analysis
 const analyzeCourses = (courses: any[]): CourseAnalysis => {
   const subjects: { [key: string]: number } = {};
   let advancedCourses = 0;
-  
-  courses.forEach(course => {
+
+  courses.forEach((course) => {
     const courseName = course.name?.toLowerCase() || '';
     const courseCode = course.code?.toLowerCase() || '';
-    
+
     // Count courses by subject
-    if (courseName.includes('math') || courseName.includes('calculus') || courseName.includes('algebra') || courseCode.includes('math')) {
+    if (
+      courseName.includes('math') ||
+      courseName.includes('calculus') ||
+      courseName.includes('algebra') ||
+      courseCode.includes('math')
+    ) {
       subjects['math'] = (subjects['math'] || 0) + 1;
     }
-    if (courseName.includes('science') || courseName.includes('physics') || courseName.includes('chemistry') || courseName.includes('biology')) {
+    if (
+      courseName.includes('science') ||
+      courseName.includes('physics') ||
+      courseName.includes('chemistry') ||
+      courseName.includes('biology')
+    ) {
       subjects['science'] = (subjects['science'] || 0) + 1;
     }
-    if (courseName.includes('literature') || courseName.includes('english') || courseName.includes('writing')) {
+    if (
+      courseName.includes('literature') ||
+      courseName.includes('english') ||
+      courseName.includes('writing')
+    ) {
       subjects['literature'] = (subjects['literature'] || 0) + 1;
     }
     if (courseName.includes('history') || courseName.includes('hist')) {
       subjects['history'] = (subjects['history'] || 0) + 1;
     }
-    if (courseName.includes('art') || courseName.includes('design') || courseName.includes('drawing')) {
+    if (
+      courseName.includes('art') ||
+      courseName.includes('design') ||
+      courseName.includes('drawing')
+    ) {
       subjects['art'] = (subjects['art'] || 0) + 1;
     }
-    if (courseName.includes('music') || courseName.includes('band') || courseName.includes('orchestra')) {
+    if (
+      courseName.includes('music') ||
+      courseName.includes('band') ||
+      courseName.includes('orchestra')
+    ) {
       subjects['music'] = (subjects['music'] || 0) + 1;
     }
-    if (courseName.includes('business') || courseName.includes('economics') || courseName.includes('finance') || courseName.includes('marketing')) {
+    if (
+      courseName.includes('business') ||
+      courseName.includes('economics') ||
+      courseName.includes('finance') ||
+      courseName.includes('marketing')
+    ) {
       subjects['business'] = (subjects['business'] || 0) + 1;
     }
-    if (courseName.includes('engineering') || courseName.includes('computer') || courseName.includes('programming') || courseName.includes('tech')) {
+    if (
+      courseName.includes('engineering') ||
+      courseName.includes('computer') ||
+      courseName.includes('programming') ||
+      courseName.includes('tech')
+    ) {
       subjects['engineering'] = (subjects['engineering'] || 0) + 1;
     }
-    if (courseName.includes('sport') || courseName.includes('physical') || courseName.includes('athletics')) {
+    if (
+      courseName.includes('sport') ||
+      courseName.includes('physical') ||
+      courseName.includes('athletics')
+    ) {
       subjects['sports'] = (subjects['sports'] || 0) + 1;
     }
     if (courseName.includes('leadership') || courseName.includes('management')) {
@@ -119,18 +267,23 @@ const analyzeCourses = (courses: any[]): CourseAnalysis => {
     if (courseName.includes('research') || courseName.includes('thesis')) {
       subjects['research'] = (subjects['research'] || 0) + 1;
     }
-    
+
     // Count advanced courses (400+ level or keywords like "advanced", "senior", "capstone")
-    if (courseCode.match(/[4-9]\d\d/) || courseName.includes('advanced') || courseName.includes('senior') || courseName.includes('capstone')) {
+    if (
+      courseCode.match(/[4-9]\d\d/) ||
+      courseName.includes('advanced') ||
+      courseName.includes('senior') ||
+      courseName.includes('capstone')
+    ) {
       advancedCourses++;
     }
   });
-  
+
   return {
     subjects,
     advancedCourses,
     diversityScore: Object.keys(subjects).length,
-    totalCourses: courses.length
+    totalCourses: courses.length,
   };
 };
 
@@ -146,14 +299,14 @@ const getSubjectStampId = (subject: string): string => {
     engineering: 'engineering',
     sports: 'sports',
     leadership: 'leadership',
-    research: 'research'
+    research: 'research',
   };
   return subjectMap[subject] || subject;
 };
 
 const generateDynamicStamps = (transcriptData: any): Stamp[] => {
   const dynamicStamps: Stamp[] = [];
-  
+
   // Create stamps based on specific institution
   if (transcriptData.institution) {
     const institutionName = transcriptData.institution;
@@ -163,10 +316,10 @@ const generateDynamicStamps = (transcriptData: any): Stamp[] => {
       icon: '🏛️',
       category: 'Achievement',
       description: `Graduated from ${institutionName}`,
-      unlocked: true
+      unlocked: true,
     });
   }
-  
+
   // Create stamps based on degree type
   if (transcriptData.degree) {
     const degree = transcriptData.degree;
@@ -176,10 +329,10 @@ const generateDynamicStamps = (transcriptData: any): Stamp[] => {
       icon: '🎓',
       category: 'Achievement',
       description: `Earned ${degree}`,
-      unlocked: true
+      unlocked: true,
     });
   }
-  
+
   return dynamicStamps;
 };
 
@@ -187,12 +340,12 @@ const createTranscriptSummary = (transcriptData: any): TranscriptSummary => {
   const coursesBySubject: { [key: string]: number } = {};
   const topGrades: string[] = [];
   const achievements: string[] = [];
-  
+
   // Analyze courses if available
   if (transcriptData.courses) {
     const courseAnalysis = analyzeCourses(transcriptData.courses);
     Object.assign(coursesBySubject, courseAnalysis.subjects);
-    
+
     // Find top grades (A or A+ grades)
     transcriptData.courses.forEach((course: any) => {
       if (course.grade === 'A' || course.grade === 'A+' || course.grade === 'A-') {
@@ -200,16 +353,16 @@ const createTranscriptSummary = (transcriptData: any): TranscriptSummary => {
       }
     });
   }
-  
+
   // Determine achievements based on GPA
   const gpa = parseFloat(transcriptData.gpa || '0');
   if (gpa >= 3.9) achievements.push('Summa Cum Laude');
   else if (gpa >= 3.7) achievements.push('Magna Cum Laude');
   else if (gpa >= 3.5) achievements.push("Dean's List");
   else if (gpa >= 3.0) achievements.push('Honor Roll');
-  
+
   if (transcriptData.graduationDate) achievements.push('Graduate');
-  
+
   return {
     institution: transcriptData.institution,
     studentName: transcriptData.studentName,
@@ -219,7 +372,7 @@ const createTranscriptSummary = (transcriptData: any): TranscriptSummary => {
     graduationDate: transcriptData.graduationDate,
     coursesBySubject,
     topGrades: topGrades.slice(0, 5), // Keep top 5
-    achievements
+    achievements,
   };
 };
 
@@ -244,7 +397,7 @@ export default function DashboardScreen({ route, navigation }: any) {
       processTranscriptAnalysis(analysisResult);
     }
   }, []);
-  
+
   useEffect(() => {
     // Reload skills when screen comes into focus
     const unsubscribe = navigation.addListener('focus', () => {
@@ -262,7 +415,7 @@ export default function DashboardScreen({ route, navigation }: any) {
         // Initialize with default stamps
         const initialProgress: UserProgress = {
           totalScans: 0,
-          stamps: AVAILABLE_STAMPS.map(stamp => ({ ...stamp })),
+          stamps: AVAILABLE_STAMPS.map((stamp) => ({ ...stamp })),
           achievements: [],
         };
         setUserProgress(initialProgress);
@@ -281,7 +434,7 @@ export default function DashboardScreen({ route, navigation }: any) {
         getTaxonomySkillsWithStatus(),
         getSkillsStats(),
       ]);
-      
+
       setSkillsData(taxonomySkills);
       setSkillsStats(stats);
       console.log('Skills loaded. Total identified:', stats.totalSkills);
@@ -290,27 +443,28 @@ export default function DashboardScreen({ route, navigation }: any) {
     }
   };
 
-    const processTranscriptAnalysis = async (result: any) => {
+  const processTranscriptAnalysis = async (result: any) => {
     if (!result?.success || !result?.data) return;
 
     const transcriptData = result.data;
     const newStamps: string[] = [];
-    const updatedStamps = userProgress.stamps.map(stamp => ({ ...stamp }));
+    const updatedStamps = userProgress.stamps.map((stamp) => ({ ...stamp }));
 
     // Create dynamic stamps based on actual transcript data
     const dynamicStamps = generateDynamicStamps(transcriptData);
-    
+
     // Merge dynamic stamps with existing stamps
     const allStamps = [...AVAILABLE_STAMPS, ...dynamicStamps];
-    
+
     // Analyze transcript content to unlock stamps
     if (transcriptData.courses) {
       const courseAnalysis = analyzeCourses(transcriptData.courses);
-      
+
       // Unlock stamps based on course analysis
-      Object.keys(courseAnalysis.subjects).forEach(subject => {
+      Object.keys(courseAnalysis.subjects).forEach((subject) => {
         const count = courseAnalysis.subjects[subject];
-        if (count >= 2) { // Unlock if 2+ courses in subject
+        if (count >= 2) {
+          // Unlock if 2+ courses in subject
           unlockStamp(updatedStamps, getSubjectStampId(subject), newStamps);
         }
       });
@@ -319,7 +473,7 @@ export default function DashboardScreen({ route, navigation }: any) {
       if (courseAnalysis.advancedCourses >= 5) {
         unlockStamp(updatedStamps, 'advanced_scholar', newStamps);
       }
-      
+
       if (courseAnalysis.diversityScore >= 4) {
         unlockStamp(updatedStamps, 'well_rounded', newStamps);
       }
@@ -339,7 +493,7 @@ export default function DashboardScreen({ route, navigation }: any) {
       // Check if graduated
       if (transcriptData.graduationDate || transcriptData.degree) {
         unlockStamp(updatedStamps, 'graduate', newStamps);
-        
+
         // Check degree level
         const degree = transcriptData.degree?.toLowerCase() || '';
         if (degree.includes('master') || degree.includes('mba') || degree.includes('ms')) {
@@ -367,7 +521,7 @@ export default function DashboardScreen({ route, navigation }: any) {
 
     // Save transcript data for dashboard display
     const transcriptSummary = createTranscriptSummary(transcriptData);
-    
+
     // Update user progress with transcript data
     const newProgress: UserProgress = {
       totalScans: userProgress.totalScans + 1,
@@ -382,20 +536,18 @@ export default function DashboardScreen({ route, navigation }: any) {
 
     // Show congratulations for new stamps
     if (newStamps.length > 0) {
-      const stampNames = newStamps.map(id => 
-        allStamps.find(s => s.id === id)?.name || 'Unknown'
-      ).join(', ');
-      
-      Alert.alert(
-        '🎉 New Stamps Unlocked!',
-        `Congratulations! You've earned: ${stampNames}`,
-        [{ text: 'Awesome!', style: 'default' }]
-      );
+      const stampNames = newStamps
+        .map((id) => allStamps.find((s) => s.id === id)?.name || 'Unknown')
+        .join(', ');
+
+      Alert.alert('🎉 New Stamps Unlocked!', `Congratulations! You've earned: ${stampNames}`, [
+        { text: 'Awesome!', style: 'default' },
+      ]);
     }
   };
 
   const unlockStamp = (stamps: Stamp[], stampId: string, newStamps: string[]) => {
-    const stampIndex = stamps.findIndex(s => s.id === stampId);
+    const stampIndex = stamps.findIndex((s) => s.id === stampId);
     if (stampIndex !== -1 && !stamps[stampIndex].unlocked) {
       stamps[stampIndex].unlocked = true;
       stamps[stampIndex].dateUnlocked = new Date().toLocaleDateString();
@@ -404,21 +556,24 @@ export default function DashboardScreen({ route, navigation }: any) {
   };
 
   const categories = ['All', 'Academic', 'Achievement', 'Interest'];
-  
-  const filteredStamps = selectedCategory === 'All' 
-    ? userProgress.stamps 
-    : userProgress.stamps.filter(stamp => stamp.category === selectedCategory);
 
-  const unlockedCount = userProgress.stamps.filter(s => s.unlocked).length;
+  const filteredStamps =
+    selectedCategory === 'All'
+      ? userProgress.stamps
+      : userProgress.stamps.filter((stamp) => stamp.category === selectedCategory);
+
+  const unlockedCount = userProgress.stamps.filter((s) => s.unlocked).length;
   const totalCount = userProgress.stamps.length;
   // Skills progress: identified vs total taxonomy skills
   const totalTaxonomySkills = Array.isArray(skillsData)
-    ? skillsData.reduce((sum, group) => sum + (Array.isArray(group?.skills) ? group.skills.length : 0), 0)
+    ? skillsData.reduce(
+        (sum, group) => sum + (Array.isArray(group?.skills) ? group.skills.length : 0),
+        0
+      )
     : 0;
   const identifiedSkillsCount = skillsStats?.totalSkills || 0;
-  const progressPercentage = totalTaxonomySkills > 0
-    ? Math.round((identifiedSkillsCount / totalTaxonomySkills) * 100)
-    : 0;
+  const progressPercentage =
+    totalTaxonomySkills > 0 ? Math.round((identifiedSkillsCount / totalTaxonomySkills) * 100) : 0;
 
   if (loading) {
     return (
@@ -470,7 +625,7 @@ export default function DashboardScreen({ route, navigation }: any) {
                 <MaterialIcons name="emoji-events" size={24} color="#667eea" />
                 <Text style={styles.skillsTitle}>Your Identified Skills</Text>
               </View>
-              
+
               {/* Skills Stats */}
               <View style={styles.skillsStatsContainer}>
                 <View style={styles.skillStatItem}>
@@ -486,8 +641,8 @@ export default function DashboardScreen({ route, navigation }: any) {
               </View>
 
               {/* Category Filter for Skills */}
-              <ScrollView 
-                horizontal 
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.skillCategoryScroll}
               >
@@ -516,39 +671,49 @@ export default function DashboardScreen({ route, navigation }: any) {
 
               {/* Skills Grid */}
               {skillsData
-                .filter(({ category }) => 
-                  selectedSkillCategory === 'All' || category === selectedSkillCategory
+                .filter(
+                  ({ category }) =>
+                    selectedSkillCategory === 'All' || category === selectedSkillCategory
                 )
                 .map(({ category, skills }) => (
                   <View key={category} style={styles.categorySkillsSection}>
                     <Text style={styles.categorySkillsTitle}>{category}</Text>
                     <View style={styles.skillsGrid}>
-                      {skills.map((skill: { name: string; identified: boolean; dateIdentified?: string }) => (
-                        <Chip
-                          key={skill.name}
-                          mode="flat"
-                          selected={skill.identified}
-                          style={[
-                            styles.skillChipItem,
-                            skill.identified ? styles.skillChipIdentified : styles.skillChipUnidentified,
-                          ]}
-                          textStyle={[
-                            styles.skillChipText,
-                            skill.identified ? styles.skillChipTextIdentified : styles.skillChipTextUnidentified,
-                          ]}
-                          icon={() => skill.identified ? (
-                            <MaterialIcons name="check-circle" size={16} color="#4CAF50" />
-                          ) : null}
-                        >
-                          {skill.name}
-                        </Chip>
-                      ))}
+                      {skills.map(
+                        (skill: { name: string; identified: boolean; dateIdentified?: string }) => (
+                          <Chip
+                            key={skill.name}
+                            mode="flat"
+                            selected={skill.identified}
+                            style={[
+                              styles.skillChipItem,
+                              skill.identified
+                                ? styles.skillChipIdentified
+                                : styles.skillChipUnidentified,
+                            ]}
+                            textStyle={[
+                              styles.skillChipText,
+                              skill.identified
+                                ? styles.skillChipTextIdentified
+                                : styles.skillChipTextUnidentified,
+                            ]}
+                            icon={() =>
+                              skill.identified ? (
+                                <MaterialIcons name="check-circle" size={16} color="#4CAF50" />
+                              ) : null
+                            }
+                          >
+                            {skill.name}
+                          </Chip>
+                        )
+                      )}
                     </View>
                   </View>
                 ))}
 
               <Text style={styles.skillsHint}>
-                💡 Identified skills are highlighted in color. Keep analyzing activities to discover more!
+                💡 Identified skills are highlighted in color. Keep analyzing activities to discover
+                more!
               </Text>
             </Card.Content>
           </Card>
@@ -557,19 +722,21 @@ export default function DashboardScreen({ route, navigation }: any) {
         {/* Category Filter */}
         <View style={styles.categoryFilter}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {categories.map(category => (
+            {categories.map((category) => (
               <TouchableOpacity
                 key={category}
                 style={[
                   styles.categoryButton,
-                  selectedCategory === category && styles.categoryButtonActive
+                  selectedCategory === category && styles.categoryButtonActive,
                 ]}
                 onPress={() => setSelectedCategory(category)}
               >
-                <Text style={[
-                  styles.categoryButtonText,
-                  selectedCategory === category && styles.categoryButtonTextActive
-                ]}>
+                <Text
+                  style={[
+                    styles.categoryButtonText,
+                    selectedCategory === category && styles.categoryButtonTextActive,
+                  ]}
+                >
                   {category}
                 </Text>
               </TouchableOpacity>
@@ -579,39 +746,36 @@ export default function DashboardScreen({ route, navigation }: any) {
 
         {/* Stamps Grid */}
         <View style={styles.stampsGrid}>
-          {filteredStamps.map(stamp => (
+          {filteredStamps.map((stamp) => (
             <TouchableOpacity
               key={stamp.id}
               style={[
                 styles.stampCard,
-                stamp.unlocked ? styles.stampCardUnlocked : styles.stampCardLocked
+                stamp.unlocked ? styles.stampCardUnlocked : styles.stampCardLocked,
               ]}
               onPress={() => {
                 Alert.alert(
                   stamp.name,
-                  `${stamp.description}\n\n${stamp.unlocked 
-                    ? `Unlocked on: ${stamp.dateUnlocked}` 
-                    : 'Complete relevant courses to unlock this stamp!'
+                  `${stamp.description}\n\n${
+                    stamp.unlocked
+                      ? `Unlocked on: ${stamp.dateUnlocked}`
+                      : 'Complete relevant courses to unlock this stamp!'
                   }`
                 );
               }}
             >
-              <Text style={[
-                styles.stampIcon,
-                !stamp.unlocked && styles.stampIconLocked
-              ]}>
+              <Text style={[styles.stampIcon, !stamp.unlocked && styles.stampIconLocked]}>
                 {stamp.unlocked ? stamp.icon : '🔒'}
               </Text>
-              <Text style={[
-                styles.stampName,
-                !stamp.unlocked && styles.stampNameLocked
-              ]}>
+              <Text style={[styles.stampName, !stamp.unlocked && styles.stampNameLocked]}>
                 {stamp.name}
               </Text>
-              <View style={[
-                styles.categoryBadge,
-                { backgroundColor: getCategoryColor(stamp.category) }
-              ]}>
+              <View
+                style={[
+                  styles.categoryBadge,
+                  { backgroundColor: getCategoryColor(stamp.category) },
+                ]}
+              >
                 <Text style={styles.categoryBadgeText}>{stamp.category}</Text>
               </View>
             </TouchableOpacity>
@@ -628,7 +792,7 @@ export default function DashboardScreen({ route, navigation }: any) {
           >
             Scan Another Transcript
           </Button>
-          
+
           <Button
             mode="outlined"
             style={styles.voiceButton}
@@ -647,10 +811,14 @@ export default function DashboardScreen({ route, navigation }: any) {
 
 const getCategoryColor = (category: string) => {
   switch (category) {
-    case 'Academic': return '#4CAF50';
-    case 'Achievement': return '#FF9800';
-    case 'Interest': return '#2196F3';
-    default: return '#9E9E9E';
+    case 'Academic':
+      return '#4CAF50';
+    case 'Achievement':
+      return '#FF9800';
+    case 'Interest':
+      return '#2196F3';
+    default:
+      return '#9E9E9E';
   }
 };
 

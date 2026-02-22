@@ -14,7 +14,7 @@ export class GeminiService {
     maxRetries: number = 4,
     initialDelay: number = 2000
   ): Promise<T> {
-    let lastError: any;
+    let lastError: unknown;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         return await fn();
@@ -22,8 +22,10 @@ export class GeminiService {
         lastError = error;
         if (axios.isAxiosError(error) && error.response?.status === 429) {
           const delay = initialDelay * Math.pow(2, attempt);
-          console.log(`Rate limit hit. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          console.log(
+            `Rate limit hit. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
         throw error;
@@ -35,16 +37,26 @@ export class GeminiService {
   /**
    * PUBLIC API: TEST CONNECTION
    */
-  public static async testApiConnection(): Promise<{ success: boolean; error?: string }> {
+  public static async testApiConnection(): Promise<{
+    success: boolean;
+    error?: string;
+  }> {
     try {
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
-      const response = await axios.post(apiUrl, {
-        contents: [{ parts: [{ text: "Test" }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 10 }
-      }, { timeout: 10000 });
+      const response = await axios.post(
+        apiUrl,
+        {
+          contents: [{ parts: [{ text: 'Test' }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 10 },
+        },
+        { timeout: 10000 }
+      );
       return { success: true };
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
     }
   }
 
@@ -55,48 +67,133 @@ export class GeminiService {
     try {
       const base64Image = await this.encodeImageToBase64(imageUri);
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
-      
+
       const requestBody = {
-        contents: [{
-          parts: [
-            { text: `Analyze this academic transcript image and extract course information. Return a JSON object with fields: courses, gpa, totalCredits, institution, studentName, degree, graduationDate. Return only valid JSON.` },
-            { inline_data: { mime_type: "image/jpeg", data: base64Image } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+        contents: [
+          {
+            parts: [
+              {
+                text: `Analyze this academic transcript image and extract course information. Return a JSON object with fields: courses, gpa, totalCredits, institution, studentName, degree, graduationDate. Return only valid JSON.`,
+              },
+              { inline_data: { mime_type: 'image/jpeg', data: base64Image } },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
       };
 
-      const response = await axios.post(apiUrl, requestBody, { timeout: CONFIG.REQUEST_TIMEOUT });
+      const response = await axios.post(apiUrl, requestBody, {
+        timeout: CONFIG.REQUEST_TIMEOUT,
+      });
       const text = response.data.candidates[0].content.parts[0].text;
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      
+
       return {
         success: true,
         data: JSON.parse(jsonMatch ? jsonMatch[0] : text),
-        rawResponse: text
+        rawResponse: text,
       };
     } catch (error) {
-      return { success: false, error: 'Analysis failed', rawResponse: String(error) };
+      return {
+        success: false,
+        error: 'Analysis failed',
+        rawResponse: String(error),
+      };
+    }
+  }
+
+  /**
+   * PUBLIC API: ANALYZE ACTION IMAGE
+   * Analyzes an image of an activity/action and returns a description
+   */
+  public static async analyzeActionImage(
+    imageUri: string
+  ): Promise<{ success: boolean; rawResponse?: string; error?: string }> {
+    try {
+      const base64Image = await this.encodeImageToBase64(imageUri);
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
+
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: `Analyze this image and describe what activity or action is being shown. Focus on:
+1. What specific activity or action is depicted
+2. What skills or competencies are being demonstrated
+3. Why this activity might help someone lose track of time
+4. What this reveals about their interests and strengths
+
+Provide a thoughtful, specific description (2-3 sentences) that could serve as a response to the question: "What are you typically doing when you lose track of time?"`,
+              },
+              { inline_data: { mime_type: 'image/jpeg', data: base64Image } },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.5, maxOutputTokens: 512 },
+      };
+
+      const response = await this.retryWithBackoff(() =>
+        axios.post(apiUrl, requestBody, {
+          timeout: CONFIG.REQUEST_TIMEOUT,
+        })
+      );
+
+      const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('No analysis generated from Gemini');
+      }
+
+      return {
+        success: true,
+        rawResponse: text.trim(),
+      };
+    } catch (error) {
+      let errorMessage = 'Failed to analyze image';
+
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 429) {
+          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        } else if (error.response?.status === 413) {
+          errorMessage = 'Image is too large. Please try with a smaller image.';
+        } else if (error.response?.status === 401 || error.response?.status === 403) {
+          errorMessage = 'API key error. Please check your configuration.';
+        }
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
     }
   }
 
   /**
    * PUBLIC API: TRANSCRIBE AUDIO
    */
-  public static async transcribeAudio(audioUri: string): Promise<{ success: boolean; transcript?: string; error?: string }> {
+  public static async transcribeAudio(
+    audioUri: string
+  ): Promise<{ success: boolean; transcript?: string; error?: string }> {
     try {
-      const base64Audio = await FileSystem.readAsStringAsync(audioUri, { encoding: 'base64' as any });
+      const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
+        encoding: 'base64' as any,
+      });
       const mimeType = audioUri.includes('.m4a') ? 'audio/mp4' : 'audio/wav';
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
 
       const requestBody = {
-        contents: [{
-          parts: [
-            { text: "Please transcribe the following audio file. Return only the transcribed text." },
-            { inline_data: { mime_type: mimeType, data: base64Audio } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+        contents: [
+          {
+            parts: [
+              {
+                text: 'Please transcribe the following audio file. Return only the transcribed text.',
+              },
+              { inline_data: { mime_type: mimeType, data: base64Audio } },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
       };
 
       const response = await this.retryWithBackoff(() => axios.post(apiUrl, requestBody));
@@ -115,14 +212,23 @@ export class GeminiService {
     try {
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
       const response = await axios.post(apiUrl, {
-        contents: [{
-          parts: [{ text: `Provide a concise response to this transcript: """${transcript}"""` }]
-        }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 512 }
+        contents: [
+          {
+            parts: [
+              {
+                text: `Provide a concise response to this transcript: """${transcript}"""`,
+              },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
       });
       return response.data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     } catch (error) {
-      return '';
+      if (error instanceof axios.AxiosError) {
+        throw new Error(`Gemini API error: ${error.message}`);
+      }
+      throw error;
     }
   }
 
@@ -138,47 +244,60 @@ export class GeminiService {
     mappedCategories: any[],
     taxonomyString: string
   ): Promise<any> {
-    const history = interactions.map(i => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`).join('\n');
+    const history = interactions
+      .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
+      .join('\n');
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
 
-    const systemInstruction = `You are a sophisticated trait mapper and question generator. 
+    const systemInstruction = `You are a sophisticated trait mapper and question generator.
     1. Map answer to taxonomy. Use 'NO_MAP_WEAK_FIT' if fit is weak.
     2. Generate follow-up question.
     Respond with JSON: {"category": "...", "justification": "...", "nextQuestion": "..."}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nHISTORY: ${history}\nTAXONOMY: ${taxonomyString}`;
 
-    const response = await this.retryWithBackoff(() => axios.post(apiUrl, {
-      contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }],
-      generationConfig: { temperature: 0.5, responseMimeType: 'application/json' }
-    }));
+    const response = await this.retryWithBackoff(() =>
+      axios.post(apiUrl, {
+        contents: [{ parts: [{ text: systemInstruction + '\n\n' + userPrompt }] }],
+        generationConfig: {
+          temperature: 0.5,
+          responseMimeType: 'application/json',
+        },
+      })
+    );
 
     return JSON.parse(response.data.candidates[0].content.parts[0].text);
   }
 
   private static async encodeImageToBase64(imageUri: string): Promise<string> {
-    return await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' as any });
+    return await FileSystem.readAsStringAsync(imageUri, {
+      encoding: 'base64' as any,
+    });
   }
 
   /**
    * SYNTHESIZE NEXT QUESTION
    */
   public static async synthesizeNextQuestion(
-    interactions: Array<{ question: string; answer: string; mappedCategory: string }>,
+    interactions: Array<{
+      question: string;
+      answer: string;
+      mappedCategory: string;
+    }>,
     mappedCategories: Array<{ category: string }>,
     taxonomyString: string
   ): Promise<string> {
     try {
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
-      
+
       const history = interactions
-        .map(i => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
+        .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
         .join('\n');
-      
-      const mappedCategoriesList = mappedCategories.map(c => c.category).join(', ');
-      
+
+      const mappedCategoriesList = mappedCategories.map((c) => c.category).join(', ');
+
       const prompt = `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a new question that might help tease out which additional categories might map to me. You may (optionally) use what you've learned about me in previous answers as context in the question if it helps.
-      
+
 HISTORY:
 ${history}
 
@@ -186,23 +305,23 @@ TAXONOMY:
 ${taxonomyString}
 
 CATEGORIES MAPPED: ${mappedCategoriesList}
-      
+
 RESPOND ONLY with the text of the new question. Do not include any other text, explanation, or formatting.`;
 
       // log the actual prompt sent to the model for debugging
       console.log('Synthesizing next question with prompt:', prompt);
-      
+
       const requestBody = {
         contents: [
           {
-            parts: [{ text: prompt }]
-          }
+            parts: [{ text: prompt }],
+          },
         ],
         generationConfig: {
           temperature: 0.9,
           // how much Gemini outputs to text (not 1-to-1) - lowering this risks truncation, raising this risks response fluff and higher costs
           maxOutputTokens: 800, // changed from 200
-        }
+        },
       };
 
       // Use retry logic with exponential backoff
@@ -219,22 +338,21 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
         console.warn('Gemini response finished with MAX_TOKENS – question may be truncated.');
       }
 
-      console.log("this is the response you get: ", response);
+      console.log('this is the response you get: ', response);
 
       const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      
+
       if (!text) {
         throw new Error('No question generated from API');
       }
 
       const question = text.trim();
       console.log('Synthesized question:', question);
-      
+
       return question;
-      
     } catch (error) {
       console.error('Error synthesizing question:', error);
-      
+
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 429) {
           throw new Error('Rate limit exceeded. Please wait a moment and try again.');
@@ -246,9 +364,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
           throw new Error('Network error. Please check your internet connection.');
         }
       }
-      
+
       throw new Error('Failed to generate next question');
     }
   }
 }
-

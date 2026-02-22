@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  Text, 
-  Alert, 
-  ScrollView, 
+import {
+  View,
+  StyleSheet,
+  Text,
+  Alert,
+  ScrollView,
   Clipboard,
   TouchableOpacity,
-  Dimensions 
+  Dimensions,
 } from 'react-native';
 import { Button, ActivityIndicator, Snackbar } from 'react-native-paper';
 import { Audio } from 'expo-av';
@@ -72,30 +72,30 @@ export default function BlueScreen() {
     console.log('Stopping recording..');
     setIsRecording(false);
     setIsTranscribing(true);
-    
+
     try {
       await recording.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
-      
+
       const uri = recording.getURI();
       console.log('Recording stopped and stored at', uri);
-      
+
       if (uri) {
         showSnackbar('Processing audio...');
-        
+
         // Send to Gemini for transcription
         const result = await GeminiService.transcribeAudio(uri);
-        
+
         if (result.success && result.transcript) {
           setTranscript(result.transcript);
-          setTranscriptHistory(prev => [result.transcript!, ...prev.slice(0, 9)]);
+          setTranscriptHistory((prev) => [result.transcript!, ...prev.slice(0, 9)]);
           showSnackbar('Transcription completed!');
         } else {
           showSnackbar(`Transcription failed: ${result.error || 'Unknown error'}`);
         }
-        
+
         // Clean up the temporary file
         try {
           await FileSystem.deleteAsync(uri);
@@ -103,7 +103,6 @@ export default function BlueScreen() {
           console.log('Could not delete temporary file:', cleanupError);
         }
       }
-      
     } catch (error) {
       console.error('Error stopping recording:', error);
       showSnackbar('Error processing recording');
@@ -134,8 +133,10 @@ export default function BlueScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Text style={styles.header}>🎤 Voice Transcription</Text>
-        <Text style={styles.subtitle}>Record your voice and get AI-powered transcription via Gemini</Text>
-        
+        <Text style={styles.subtitle}>
+          Record your voice and get AI-powered transcription via Gemini
+        </Text>
+
         {/* Status Indicator */}
         <View style={styles.statusContainer}>
           {isRecording ? (
@@ -154,23 +155,27 @@ export default function BlueScreen() {
         </View>
 
         {/* Main Control Button */}
-        <Button 
-          mode="contained" 
+        <Button
+          mode="contained"
           onPress={isRecording ? stopRecording : startRecording}
           disabled={isTranscribing}
           style={[styles.button, isRecording ? styles.stopButton : styles.startButton]}
           contentStyle={styles.buttonContent}
           labelStyle={styles.buttonLabel}
         >
-          {isRecording ? '⏹️ Stop Recording' : isTranscribing ? '🔄 Processing...' : '🎤 Start Recording'}
+          {isRecording
+            ? '⏹️ Stop Recording'
+            : isTranscribing
+              ? '🔄 Processing...'
+              : '🎤 Start Recording'}
         </Button>
 
         {/* Permission Status */}
         {permissionResponse?.status !== 'granted' && (
           <View style={styles.permissionContainer}>
             <Text style={styles.permissionText}>🎤 Microphone permission required</Text>
-            <Button 
-              mode="outlined" 
+            <Button
+              mode="outlined"
               onPress={requestPermission}
               style={styles.permissionButton}
               labelStyle={styles.permissionButtonText}
@@ -205,8 +210,8 @@ export default function BlueScreen() {
           <View style={styles.historyContainer}>
             <Text style={styles.label}>📚 Recent Transcripts:</Text>
             {transcriptHistory.map((item, index) => (
-              <TouchableOpacity 
-                key={index} 
+              <TouchableOpacity
+                key={index}
                 style={styles.historyItem}
                 onPress={() => selectHistoryItem(item)}
               >
@@ -423,6 +428,3 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 });
-
-
-

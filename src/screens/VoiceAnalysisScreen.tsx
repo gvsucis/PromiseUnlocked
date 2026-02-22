@@ -1,12 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Button, Card, Title, Paragraph, ActivityIndicator } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -26,49 +19,101 @@ interface Props {
 
 const SKILLS_TAXONOMY = {
   'Human Skills': [
-    'Communication', 'Collaboration', 'Leadership', 'Empathy', 'Active Listening',
-    'Conflict Resolution', 'Networking', 'Public Speaking', 'Team Management'
+    'Communication',
+    'Collaboration',
+    'Leadership',
+    'Empathy',
+    'Active Listening',
+    'Conflict Resolution',
+    'Networking',
+    'Public Speaking',
+    'Team Management',
   ],
   'Meta-Learning': [
-    'Critical Thinking', 'Research Skills', 'Self-Reflection', 'Learning Strategies',
-    'Information Synthesis', 'Knowledge Transfer', 'Continuous Learning', 'Adaptability'
+    'Critical Thinking',
+    'Research Skills',
+    'Self-Reflection',
+    'Learning Strategies',
+    'Information Synthesis',
+    'Knowledge Transfer',
+    'Continuous Learning',
+    'Adaptability',
   ],
   'Maker & Builder': [
-    'Prototyping', 'Design Thinking', 'Craftsmanship', 'Innovation', 'Technical Skills',
-    'Project Management', 'Problem Solving', 'Creative Construction', 'Engineering'
+    'Prototyping',
+    'Design Thinking',
+    'Craftsmanship',
+    'Innovation',
+    'Technical Skills',
+    'Project Management',
+    'Problem Solving',
+    'Creative Construction',
+    'Engineering',
   ],
   'Civic Impact': [
-    'Community Engagement', 'Social Responsibility', 'Advocacy', 'Volunteer Work',
-    'Policy Understanding', 'Cultural Awareness', 'Environmental Stewardship', 'Civic Participation'
+    'Community Engagement',
+    'Social Responsibility',
+    'Advocacy',
+    'Volunteer Work',
+    'Policy Understanding',
+    'Cultural Awareness',
+    'Environmental Stewardship',
+    'Civic Participation',
   ],
   'Creative Expression': [
-    'Artistic Creation', 'Storytelling', 'Music', 'Writing', 'Visual Arts',
-    'Performance', 'Creative Problem Solving', 'Imagination', 'Aesthetic Appreciation'
+    'Artistic Creation',
+    'Storytelling',
+    'Music',
+    'Writing',
+    'Visual Arts',
+    'Performance',
+    'Creative Problem Solving',
+    'Imagination',
+    'Aesthetic Appreciation',
   ],
   'Problem-Solving': [
-    'Analytical Thinking', 'Strategic Planning', 'Troubleshooting', 'Decision Making',
-    'Systems Thinking', 'Root Cause Analysis', 'Innovation', 'Logic', 'Pattern Recognition'
+    'Analytical Thinking',
+    'Strategic Planning',
+    'Troubleshooting',
+    'Decision Making',
+    'Systems Thinking',
+    'Root Cause Analysis',
+    'Innovation',
+    'Logic',
+    'Pattern Recognition',
   ],
   'Work Experience': [
-    'Professional Skills', 'Industry Knowledge', 'Workplace Etiquette', 'Time Management',
-    'Client Relations', 'Business Acumen', 'Career Development', 'Mentorship'
+    'Professional Skills',
+    'Industry Knowledge',
+    'Workplace Etiquette',
+    'Time Management',
+    'Client Relations',
+    'Business Acumen',
+    'Career Development',
+    'Mentorship',
   ],
   'Future Self': [
-    'Goal Setting', 'Vision Creation', 'Personal Growth', 'Skill Development',
-    'Career Planning', 'Life Balance', 'Self-Improvement', 'Aspiration Mapping'
-  ]
+    'Goal Setting',
+    'Vision Creation',
+    'Personal Growth',
+    'Skill Development',
+    'Career Planning',
+    'Life Balance',
+    'Self-Improvement',
+    'Aspiration Mapping',
+  ],
 };
 
 export default function VoiceAnalysisScreen({ navigation, route }: Props) {
   const { question, context } = route.params || {};
-  
+
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState<string>('');
   const [analysis, setAnalysis] = useState<string>('');
-  const [identifiedSkills, setIdentifiedSkills] = useState<{[category: string]: string[]}>({});
+  const [identifiedSkills, setIdentifiedSkills] = useState<{ [category: string]: string[] }>({});
   const [recordingDuration, setRecordingDuration] = useState(0);
-  
+
   const recording = useRef<Audio.Recording | null>(null);
   const durationTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -111,12 +156,11 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
       recording.current = newRecording;
       setIsRecording(true);
       setRecordingDuration(0);
-      
+
       // Start duration timer
       durationTimer.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
+        setRecordingDuration((prev) => prev + 1);
       }, 1000);
-
     } catch (error) {
       console.error('Failed to start recording:', error);
       Alert.alert('Error', 'Failed to start recording. Please try again.');
@@ -135,12 +179,12 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
 
       await recording.current.stopAndUnloadAsync();
       const uri = recording.current.getURI();
-      
+
       if (uri) {
         setIsProcessing(true);
         await processAudio(uri);
       }
-      
+
       recording.current = null;
     } catch (error) {
       console.error('Failed to stop recording:', error);
@@ -152,7 +196,7 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
     try {
       // First, transcribe the audio
       const transcriptionResult = await GeminiService.transcribeAudio(audioUri);
-      
+
       if (!transcriptionResult.success || !transcriptionResult.transcript) {
         Alert.alert('Error', transcriptionResult.error || 'Failed to transcribe audio');
         setIsProcessing(false);
@@ -160,7 +204,7 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
       }
 
       setTranscript(transcriptionResult.transcript);
-      
+
       // If we came from a follow-up question (DialogueDashboard flow)
       if (question) {
         // Show success message and navigate back to DialogueDashboard
@@ -177,15 +221,14 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
         setIsProcessing(false);
         return;
       }
-      
+
       // Otherwise, continue with normal analysis for standalone voice analysis
       await analyzeTranscriptWithTaxonomy(transcriptionResult.transcript);
-      
+
       // After analysis is complete, automatically navigate to DialogueDashboard
       setTimeout(() => {
         navigation.navigate('DialogueDashboard');
       }, 1500);
-      
     } catch (error) {
       console.error('Error processing audio:', error);
       Alert.alert('Error', 'Failed to process audio. Please try again.');
@@ -200,9 +243,9 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
 Analyze the following transcript where someone is describing what they do when they lose track of time. Based on the content, identify which skills and categories from this taxonomy apply:
 
 SKILLS TAXONOMY:
-${Object.entries(SKILLS_TAXONOMY).map(([category, skills]) => 
-  `${category}: ${skills.join(', ')}`
-).join('\n')}
+${Object.entries(SKILLS_TAXONOMY)
+  .map(([category, skills]) => `${category}: ${skills.join(', ')}`)
+  .join('\n')}
 
 TRANSCRIPT: "${transcriptText}"
 
@@ -215,27 +258,27 @@ Please provide:
 Format your response as a thoughtful analysis that helps them understand their skills and interests better.`;
 
       const analysisResult = await GeminiService.processTranscriptText(analysisPrompt);
-      
+
       if (analysisResult) {
         setAnalysis(analysisResult);
-        
+
         // Extract skills mentioned in the analysis
-        const extractedSkills: {[category: string]: string[]} = {};
-        
+        const extractedSkills: { [category: string]: string[] } = {};
+
         Object.entries(SKILLS_TAXONOMY).forEach(([category, skills]) => {
-          const matchedSkills = skills.filter(skill => 
-            transcriptText.toLowerCase().includes(skill.toLowerCase()) ||
-            analysisResult.toLowerCase().includes(skill.toLowerCase())
+          const matchedSkills = skills.filter(
+            (skill) =>
+              transcriptText.toLowerCase().includes(skill.toLowerCase()) ||
+              analysisResult.toLowerCase().includes(skill.toLowerCase())
           );
-          
+
           if (matchedSkills.length > 0) {
             extractedSkills[category] = matchedSkills;
           }
         });
-        
+
         setIdentifiedSkills(extractedSkills);
       }
-      
     } catch (error) {
       console.error('Error analyzing transcript:', error);
       Alert.alert('Error', 'Failed to analyze transcript. Please try again.');
@@ -349,12 +392,14 @@ Format your response as a thoughtful analysis that helps them understand their s
         )}
 
         {(analysis || transcript) && (
-          <Card 
+          <Card
             style={styles.resultCard}
-            onPress={() => navigation.navigate('FollowUpQuestion', {
-              question: generateFollowUpQuestion(),
-              context: { transcript, analysis },
-            })}
+            onPress={() =>
+              navigation.navigate('FollowUpQuestion', {
+                question: generateFollowUpQuestion(),
+                context: { transcript, analysis },
+              })
+            }
           >
             <Card.Content>
               <View style={styles.cardTitleContainer}>
@@ -362,9 +407,7 @@ Format your response as a thoughtful analysis that helps them understand their s
                 <Title style={styles.sectionTitle}>Follow-up Question</Title>
               </View>
               <Paragraph style={styles.analysisText}>{generateFollowUpQuestion()}</Paragraph>
-              <Paragraph style={styles.tapHint}>
-                👆 Tap to answer this question
-              </Paragraph>
+              <Paragraph style={styles.tapHint}>👆 Tap to answer this question</Paragraph>
             </Card.Content>
           </Card>
         )}
@@ -391,16 +434,16 @@ Format your response as a thoughtful analysis that helps them understand their s
 
         {(transcript || analysis) && (
           <View style={styles.actionButtons}>
-            <Button 
-              mode="outlined" 
+            <Button
+              mode="outlined"
               onPress={resetSession}
               style={styles.actionButton}
               labelStyle={styles.buttonLabel}
             >
               Record Again
             </Button>
-            <Button 
-              mode="contained" 
+            <Button
+              mode="contained"
               onPress={() => navigation.navigate('Dashboard')}
               style={[styles.actionButton, styles.primaryButton]}
               labelStyle={styles.buttonLabel}

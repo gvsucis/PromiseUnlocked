@@ -1,19 +1,6 @@
 import React, { useState, useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  Dimensions,
-  ScrollView,
-  Image,
-  Modal,
-  StatusBar,
-} from 'react-native';
-import {
-  IconButton,
-  Text,
-  Button,
-  Portal,
-} from 'react-native-paper';
+import { View, StyleSheet, Dimensions, ScrollView, Image, Modal, StatusBar } from 'react-native';
+import { IconButton, Text, Button, Portal } from 'react-native-paper';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -23,14 +10,9 @@ interface ImageEditorProps {
   onCancel: () => void;
 }
 
-export default function ImageEditor({ 
-  imageUri, 
-  onSave, 
-  onCancel 
-}: ImageEditorProps) {
+export default function ImageEditor({ imageUri, onSave, onCancel }: ImageEditorProps) {
   const [scale, setScale] = useState(1);
   const scrollViewRef = useRef<ScrollView>(null);
-  
 
   const resetZoom = () => {
     setScale(1);
@@ -38,11 +20,11 @@ export default function ImageEditor({
   };
 
   const zoomIn = () => {
-    setScale(prev => Math.min(prev * 1.2, 3));
+    setScale((prev) => Math.min(prev * 1.2, 3));
   };
 
   const zoomOut = () => {
-    setScale(prev => Math.max(prev / 1.2, 0.5));
+    setScale((prev) => Math.max(prev / 1.2, 0.5));
   };
 
   const rotateImage = () => {
@@ -66,96 +48,72 @@ export default function ImageEditor({
       >
         <StatusBar hidden />
         <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Edit Image</Text>
-        <View style={styles.headerButtons}>
-          <IconButton
-            icon="rotate-right"
-            size={24}
-            onPress={rotateImage}
-            iconColor="#1976D2"
-          />
-          <IconButton
-            icon="close"
-            size={24}
-            onPress={onCancel}
-            iconColor="#f44336"
-          />
-        </View>
-      </View>
-
-      <View style={styles.imageContainer}>
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          maximumZoomScale={3}
-          minimumZoomScale={0.5}
-          showsHorizontalScrollIndicator={false}
-          showsVerticalScrollIndicator={false}
-          onScroll={(event) => {
-            // Update scale based on scroll view zoom
-            const zoomScale = event.nativeEvent.zoomScale;
-            if (zoomScale !== scale) {
-              setScale(zoomScale);
-            }
-          }}
-          scrollEventThrottle={16}
-        >
-          <View style={styles.imageWrapper}>
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.image}
-              resizeMode="contain"
-            />
+          <View style={styles.header}>
+            <Text style={styles.headerText}>Edit Image</Text>
+            <View style={styles.headerButtons}>
+              <IconButton icon="rotate-right" size={24} onPress={rotateImage} iconColor="#1976D2" />
+              <IconButton icon="close" size={24} onPress={onCancel} iconColor="#f44336" />
+            </View>
           </View>
-        </ScrollView>
-      </View>
 
-      <View style={styles.controls}>
-        <View style={styles.zoomControls}>
-          <IconButton
-            icon="magnify-minus"
-            size={24}
-            onPress={zoomOut}
-            iconColor="#1976D2"
-            disabled={scale <= 0.5}
-          />
-          <Text style={styles.zoomText}>{Math.round(scale * 100)}%</Text>
-          <IconButton
-            icon="magnify-plus"
-            size={24}
-            onPress={zoomIn}
-            iconColor="#1976D2"
-            disabled={scale >= 3}
-          />
-        </View>
-        
-        <View style={styles.actionButtons}>
-          <Button
-            mode="outlined"
-            onPress={resetZoom}
-            style={styles.resetButton}
-            icon="refresh"
-          >
-            Reset
-          </Button>
-          <Button
-            mode="contained"
-            onPress={handleSave}
-            style={styles.saveButton}
-            icon="check"
-          >
-            Use This Image
-          </Button>
-        </View>
-      </View>
+          <View style={styles.imageContainer}>
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              maximumZoomScale={3}
+              minimumZoomScale={0.5}
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+              onScroll={(event) => {
+                // Update scale based on scroll view zoom
+                const zoomScale = event.nativeEvent.zoomScale;
+                if (zoomScale !== scale) {
+                  setScale(zoomScale);
+                }
+              }}
+              scrollEventThrottle={16}
+            >
+              <View style={styles.imageWrapper}>
+                <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
+              </View>
+            </ScrollView>
+          </View>
 
-      <View style={styles.instructions}>
-        <Text style={styles.instructionText}>
-          Pinch to zoom • Drag to pan • Adjust the image as needed
-        </Text>
-      </View>
+          <View style={styles.controls}>
+            <View style={styles.zoomControls}>
+              <IconButton
+                icon="magnify-minus"
+                size={24}
+                onPress={zoomOut}
+                iconColor="#1976D2"
+                disabled={scale <= 0.5}
+              />
+              <Text style={styles.zoomText}>{Math.round(scale * 100)}%</Text>
+              <IconButton
+                icon="magnify-plus"
+                size={24}
+                onPress={zoomIn}
+                iconColor="#1976D2"
+                disabled={scale >= 3}
+              />
+            </View>
+
+            <View style={styles.actionButtons}>
+              <Button mode="outlined" onPress={resetZoom} style={styles.resetButton} icon="refresh">
+                Reset
+              </Button>
+              <Button mode="contained" onPress={handleSave} style={styles.saveButton} icon="check">
+                Use This Image
+              </Button>
+            </View>
+          </View>
+
+          <View style={styles.instructions}>
+            <Text style={styles.instructionText}>
+              Pinch to zoom • Drag to pan • Adjust the image as needed
+            </Text>
+          </View>
         </View>
       </Modal>
     </Portal>
