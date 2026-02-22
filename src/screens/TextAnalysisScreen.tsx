@@ -166,7 +166,7 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
       }
 
       // Try to extract JSON from the response
-      let jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('Could not parse analysis response');
       }
