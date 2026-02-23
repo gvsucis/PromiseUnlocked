@@ -5,8 +5,8 @@ import {
   Text,
   TextInput,
   Image,
+  Pressable,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   KeyboardAvoidingView,
   ScrollView,
   Platform,
@@ -15,20 +15,19 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 interface AnswerModalProps {
-  visible: boolean;
-  currentPrompt: string;
-  userAnswer: string;
-  setUserAnswer: (answer: string) => void;
-  selectedImage: string | null;
-  isAnswerFromVoice: boolean;
-  isAnalyzingImage: boolean;
-  onSubmit: () => void;
-  onSubmitImage: () => void;
-  onChangeImage: () => void;
-  onZoomImage: () => void;
-  onRecordAgain: () => void;
-  onDismiss: () => void;
-  onAnswerChange: (text: string) => void;
+  readonly visible: boolean;
+  readonly currentPrompt: string;
+  readonly userAnswer: string;
+  readonly selectedImage: string | null;
+  readonly isAnswerFromVoice: boolean;
+  readonly isAnalyzingImage: boolean;
+  readonly onSubmit: () => void;
+  readonly onSubmitImage: () => void;
+  readonly onChangeImage: () => void;
+  readonly onZoomImage: () => void;
+  readonly onRecordAgain: () => void;
+  readonly onDismiss: () => void;
+  readonly onAnswerChange: (text: string) => void;
 }
 
 export function AnswerModal({
@@ -60,72 +59,68 @@ export function AnswerModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <TouchableWithoutFeedback onPress={onDismiss}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={styles.modalContent}>
-                <Text style={styles.questionTitle}>Question for You</Text>
-                <ScrollView
-                  style={{ maxHeight: 200 }}
-                  contentContainerStyle={{ paddingVertical: 4 }}
-                >
-                  <Text style={styles.questionText}>{currentPrompt || "(No question loaded)"}</Text>
-                </ScrollView>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />
 
-                {selectedImage ? (
-                  /* Image Answer Mode */
-                  <>
-                    <TouchableOpacity onPress={onZoomImage}>
-                      <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+          <View style={styles.modalContent}>
+            <Text style={styles.questionTitle}>Question for You</Text>
+            <ScrollView
+              style={{ maxHeight: 200 }}
+              contentContainerStyle={{ paddingVertical: 4 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.questionText}>{currentPrompt || "(No question loaded)"}</Text>
+            </ScrollView>
+
+            {selectedImage ? (
+              <>
+                <TouchableOpacity onPress={onZoomImage}>
+                  <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+                </TouchableOpacity>
+                <View style={styles.imageActions}>
+                  <TouchableOpacity style={styles.changeImageButton} onPress={onChangeImage}>
+                    <Text style={styles.changeImageButtonText}>Change Image</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.submitButton}
+                    onPress={onSubmitImage}
+                    disabled={isAnalyzingImage}
+                  >
+                    <Text style={styles.submitButtonText}>
+                      {isAnalyzingImage ? "Analyzing..." : "Submit Image"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                {isAnswerFromVoice && (
+                  <View style={styles.voiceTranscriptionBanner}>
+                    <Ionicons name="mic" size={16} color="#4ECDC4" />
+                    <Text style={styles.voiceTranscriptionText}>Voice transcription</Text>
+                    <TouchableOpacity onPress={onRecordAgain} style={styles.recordAgainButton}>
+                      <Ionicons name="refresh" size={14} color="#4ECDC4" />
+                      <Text style={styles.recordAgainText}>Record again</Text>
                     </TouchableOpacity>
-                    <View style={styles.imageActions}>
-                      <TouchableOpacity style={styles.changeImageButton} onPress={onChangeImage}>
-                        <Text style={styles.changeImageButtonText}>Change Image</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.submitButton}
-                        onPress={onSubmitImage}
-                        disabled={isAnalyzingImage}
-                      >
-                        <Text style={styles.submitButtonText}>
-                          {isAnalyzingImage ? "Analyzing..." : "Submit Image"}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  /* Text Answer Mode */
-                  <>
-                    {isAnswerFromVoice && (
-                      <View style={styles.voiceTranscriptionBanner}>
-                        <Ionicons name="mic" size={16} color="#4ECDC4" />
-                        <Text style={styles.voiceTranscriptionText}>Voice transcription</Text>
-                        <TouchableOpacity onPress={onRecordAgain} style={styles.recordAgainButton}>
-                          <Ionicons name="refresh" size={14} color="#4ECDC4" />
-                          <Text style={styles.recordAgainText}>Record again</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                    <TextInput
-                      style={[styles.answerInput, isAnswerFromVoice && styles.answerInputVoice]}
-                      value={userAnswer}
-                      onChangeText={onAnswerChange}
-                      placeholder="Example: 'I led a team of 5 students to build a mobile app that helps local farmers track inventory. We used React Native and Firebase, and it's now used by 50+ farmers in our community.'"
-                      placeholderTextColor="#999"
-                      multiline
-                      autoCorrect={true}
-                      numberOfLines={4}
-                      textAlignVertical="top"
-                    />
-                    <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
-                      <Text style={styles.submitButtonText}>Submit Answer</Text>
-                    </TouchableOpacity>
-                  </>
+                  </View>
                 )}
-              </View>
-            </TouchableWithoutFeedback>
+                <TextInput
+                  style={[styles.answerInput, isAnswerFromVoice && styles.answerInputVoice]}
+                  value={userAnswer}
+                  onChangeText={onAnswerChange}
+                  placeholder="Example: 'I led a team of 5 students to build a mobile app that helps local farmers track inventory. We used React Native and Firebase, and it's now used by 50+ farmers in our community.'"
+                  placeholderTextColor="#999"
+                  multiline
+                  autoCorrect={true}
+                  numberOfLines={4}
+                />
+                <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
+                  <Text style={styles.submitButtonText}>Submit Answer</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -220,12 +215,15 @@ const styles = StyleSheet.create({
   answerInput: {
     borderWidth: 1,
     borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 15,
+    borderRadius: 8,
+    padding: 12,
     marginTop: 15,
-    marginBottom: 15,
-    fontSize: 15,
-    minHeight: 120,
+    marginBottom: 20,
+    fontSize: 16,
+    lineHeight: 20,
+    textAlignVertical: "top",
+    includeFontPadding: false,
+    minHeight: 110,
     backgroundColor: "#fafafa",
   },
   answerInputVoice: {

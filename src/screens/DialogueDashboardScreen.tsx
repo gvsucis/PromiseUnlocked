@@ -73,6 +73,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [weakFitJustification, setWeakFitJustification] = useState("");
   const [savedQuestion, setSavedQuestion] = useState(""); // Store question for weak-fit retry
+  const [savedAnswer, setSavedAnswer] = useState(""); // Store answer for weak-fit retry
 
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiRef = React.useRef<any>(null);
@@ -399,14 +400,14 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         setInteractions((prev) => [...prev, interaction]);
 
         // Show weak fit modal with follow-up prompt
-        setWeakFitJustification(justification);
+        setWeakFitJustification(justification ?? "");
         setUiState("weak-fit");
         return; // Don't prefetch or continue
       } else if (validCategory && !(await isCategoryMapped(categoryNameToCheck))) {
         // Successful mapping
         const newMappedCategory: MappedCategory = {
           category: categoryNameToCheck,
-          justification,
+          justification: justification ?? "",
           dateIdentified: new Date().toISOString(),
         };
 
@@ -875,6 +876,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     const q = currentPrompt;
     const a = userAnswer;
     setSavedQuestion(q); // Save for potential weak-fit retry
+    setSavedAnswer(a); // Save answer so user can add details on weak-fit
     setCurrentPrompt("");
     setUserAnswer("");
 
@@ -882,8 +884,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   };
 
   const handleWeakFitTryAgain = () => {
-    // Re-open the answer modal with the same question
+    // Re-open the answer modal with the same question and previous answer
     setCurrentPrompt(savedQuestion); // Restore the original question
+    setUserAnswer(savedAnswer); // Restore the previous answer for editing/rephrasing
     setError(""); // Clear any previous errors
     setUiState("answering");
     setWeakFitJustification("");
@@ -902,6 +905,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   const handleWeakFitNewQuestion = async () => {
     // After a weak fit, synthesize a new question then show input method modal
     setWeakFitJustification("");
+    setSavedAnswer("");
+    setSavedQuestion("");
     setError("");
 
     // Close weak-fit modal first
@@ -954,6 +959,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
             setInteractions([]);
             setCurrentPrompt("");
             setUserAnswer("");
+            setSavedQuestion("");
+            setSavedAnswer("");
             setUiState("idle");
             setError("");
             setLoadingMessage("");
@@ -1101,7 +1108,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         visible={uiState === "answering"}
         currentPrompt={currentPrompt}
         userAnswer={userAnswer}
-        setUserAnswer={setUserAnswer}
         selectedImage={selectedImage}
         isAnswerFromVoice={isAnswerFromVoice}
         isAnalyzingImage={isAnalyzingImage}
