@@ -3,16 +3,18 @@
  * Manages identified skills in AsyncStorage
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SKILLS_TAXONOMY } from './skillTaxonomyService';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SKILLS_TAXONOMY } from "./skillTaxonomyService";
 
-const SKILLS_STORAGE_KEY = '@user_identified_skills';
+const SKILLS_STORAGE_KEY = "@user_identified_skills";
+
+type SkillSource = "image" | "voice" | "text";
 
 export interface IdentifiedSkill {
   skill: string;
   category: string;
   dateIdentified: string;
-  source: 'image' | 'voice' | 'text'; // How the skill was identified
+  source: SkillSource; // How the skill was identified
   confidence?: number;
 }
 
@@ -27,7 +29,7 @@ export interface UserSkillsData {
 export async function saveIdentifiedSkill(
   skill: string,
   category: string,
-  source: 'image' | 'voice' | 'text',
+  source: SkillSource,
   confidence?: number
 ): Promise<void> {
   try {
@@ -49,12 +51,12 @@ export async function saveIdentifiedSkill(
       existingData.lastUpdated = new Date().toISOString();
 
       await AsyncStorage.setItem(SKILLS_STORAGE_KEY, JSON.stringify(existingData));
-      console.log('Skill saved:', skill);
+      console.log("Skill saved:", skill);
     } else {
-      console.log('Skill already exists:', skill);
+      console.log("Skill already exists:", skill);
     }
   } catch (error) {
-    console.error('Error saving skill:', error);
+    console.error("Error saving skill:", error);
     throw error;
   }
 }
@@ -65,14 +67,14 @@ export async function saveIdentifiedSkill(
 export async function saveIdentifiedSkills(
   skills: string[],
   categories: string[],
-  source: 'image' | 'voice' | 'text'
+  source: SkillSource
 ): Promise<void> {
   try {
     const existingData = await getUserSkills();
 
     for (let i = 0; i < skills.length; i++) {
       const skill = skills[i];
-      const category = categories[i] || 'Unknown';
+      const category = categories[i] || "Unknown";
 
       // Check if skill already exists
       const skillExists = existingData.skills.some((s) => s.skill === skill);
@@ -91,9 +93,9 @@ export async function saveIdentifiedSkills(
 
     existingData.lastUpdated = new Date().toISOString();
     await AsyncStorage.setItem(SKILLS_STORAGE_KEY, JSON.stringify(existingData));
-    console.log('Multiple skills saved:', skills.length);
+    console.log("Multiple skills saved:", skills.length);
   } catch (error) {
-    console.error('Error saving multiple skills:', error);
+    console.error("Error saving multiple skills:", error);
     throw error;
   }
 }
@@ -115,7 +117,7 @@ export async function getUserSkills(): Promise<UserSkillsData> {
       lastUpdated: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('Error getting user skills:', error);
+    console.error("Error getting user skills:", error);
     return {
       skills: [],
       lastUpdated: new Date().toISOString(),
@@ -157,9 +159,9 @@ export async function removeSkill(skillName: string): Promise<void> {
     data.lastUpdated = new Date().toISOString();
 
     await AsyncStorage.setItem(SKILLS_STORAGE_KEY, JSON.stringify(data));
-    console.log('Skill removed:', skillName);
+    console.log("Skill removed:", skillName);
   } catch (error) {
-    console.error('Error removing skill:', error);
+    console.error("Error removing skill:", error);
     throw error;
   }
 }
@@ -170,9 +172,9 @@ export async function removeSkill(skillName: string): Promise<void> {
 export async function clearAllSkills(): Promise<void> {
   try {
     await AsyncStorage.removeItem(SKILLS_STORAGE_KEY);
-    console.log('All skills cleared');
+    console.log("All skills cleared");
   } catch (error) {
-    console.error('Error clearing skills:', error);
+    console.error("Error clearing skills:", error);
     throw error;
   }
 }
@@ -224,13 +226,13 @@ export async function getTaxonomySkillsWithStatus(): Promise<
   }[]
 > {
   const userData = await getUserSkills();
-  const identifiedSkillNames = userData.skills.map((s) => s.skill);
+  const identifiedSkillNames = new Set(userData.skills.map((s) => s.skill));
 
   const result = Object.entries(SKILLS_TAXONOMY).map(([category, skills]) => ({
     category,
     skills: skills.map((skillName) => ({
       name: skillName,
-      identified: identifiedSkillNames.includes(skillName),
+      identified: identifiedSkillNames.has(skillName),
       dateIdentified: userData.skills.find((s) => s.skill === skillName)?.dateIdentified,
     })),
   }));

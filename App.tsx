@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Provider as PaperProvider } from 'react-native-paper';
@@ -19,11 +19,14 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import { Limelight } from '@getlimelight/sdk';
 
-Limelight.connect();
-
 const Stack = createStackNavigator<RootStackParamList>();
 
 export default function App() {
+  useEffect(() => {
+    // Initialize Limelight SDK after component mounts
+    Limelight.connect();
+  }, []);
+
   return (
     <PaperProvider>
       <NavigationContainer>

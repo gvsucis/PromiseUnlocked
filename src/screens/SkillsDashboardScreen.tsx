@@ -1,26 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from 'react-native';
-import { Text, Card, Button, ActivityIndicator, Chip, ProgressBar } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons } from '@expo/vector-icons';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../types/navigation';
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
+import { Text, Card, Button, ActivityIndicator, Chip, ProgressBar } from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RouteProp } from "@react-navigation/native";
+import { RootStackParamList } from "../types/navigation";
 import {
   getUserSkills,
   getSkillsStats,
   getTaxonomySkillsWithStatus,
   IdentifiedSkill,
-} from '../services/userSkillsService';
-import { SKILLS_TAXONOMY } from '../services/skillTaxonomyService';
+} from "../services/userSkillsService";
+import { SKILLS_TAXONOMY } from "../services/skillTaxonomyService";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 type SkillsDashboardScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
-  'SkillsDashboard'
+  "SkillsDashboard"
 >;
-type SkillsDashboardScreenRouteProp = RouteProp<RootStackParamList, 'SkillsDashboard'>;
+type SkillsDashboardScreenRouteProp = RouteProp<RootStackParamList, "SkillsDashboard">;
 
 interface Props {
   navigation: SkillsDashboardScreenNavigationProp;
@@ -32,9 +32,9 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
   const [userSkills, setUserSkills] = useState<IdentifiedSkill[]>([]);
   const [skillsStats, setSkillsStats] = useState<any>(null);
   const [taxonomySkills, setTaxonomySkills] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [selectedView, setSelectedView] = useState<'overview' | 'taxonomy' | 'timeline'>(
-    'overview'
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [selectedView, setSelectedView] = useState<"overview" | "taxonomy" | "timeline">(
+    "overview"
   );
 
   // No route params expected for SkillsDashboard
@@ -44,7 +44,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener("focus", () => {
       loadSkillsData();
     });
     return unsubscribe;
@@ -63,8 +63,8 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
       setSkillsStats(stats);
       setTaxonomySkills(taxonomy);
     } catch (error) {
-      console.error('Error loading skills:', error);
-      Alert.alert('Error', 'Failed to load skills data');
+      console.error("Error loading skills:", error);
+      Alert.alert("Error", "Failed to load skills data");
     } finally {
       setLoading(false);
     }
@@ -72,39 +72,39 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
 
   const getCategoryIcon = (category: string): string => {
     const icons: { [key: string]: string } = {
-      'Human Skills': 'people',
-      'Meta-Learning': 'psychology',
-      'Maker & Builder': 'construction',
-      'Civic Impact': 'public',
-      'Creative Expression': 'palette',
-      'Problem-Solving': 'lightbulb',
-      'Work Experience': 'work',
-      'Future Self': 'rocket-launch',
+      "Human Skills": "people",
+      "Meta-Learning": "psychology",
+      "Maker & Builder": "construction",
+      "Civic Impact": "public",
+      "Creative Expression": "palette",
+      "Problem-Solving": "lightbulb",
+      "Work Experience": "work",
+      "Future Self": "rocket-launch",
     };
-    return icons[category] || 'star';
+    return icons[category] || "star";
   };
 
   const getCategoryColor = (category: string): string => {
     const colors: { [key: string]: string } = {
-      'Human Skills': '#FF6B6B',
-      'Meta-Learning': '#4ECDC4',
-      'Maker & Builder': '#95E1D3',
-      'Civic Impact': '#F38181',
-      'Creative Expression': '#AA96DA',
-      'Problem-Solving': '#FCBAD3',
-      'Work Experience': '#A8D8EA',
-      'Future Self': '#FFCB77',
+      "Human Skills": "#FF6B6B",
+      "Meta-Learning": "#4ECDC4",
+      "Maker & Builder": "#95E1D3",
+      "Civic Impact": "#F38181",
+      "Creative Expression": "#AA96DA",
+      "Problem-Solving": "#FCBAD3",
+      "Work Experience": "#A8D8EA",
+      "Future Self": "#FFCB77",
     };
-    return colors[category] || '#667eea';
+    return colors[category] || "#667eea";
   };
 
   const getSourceIcon = (source: string): string => {
     const icons: { [key: string]: string } = {
-      image: 'photo-camera',
-      voice: 'mic',
-      text: 'edit',
+      image: "photo-camera",
+      voice: "mic",
+      text: "edit",
     };
-    return icons[source] || 'help';
+    return icons[source] || "help";
   };
 
   const getTotalSkillsInTaxonomy = (): number => {
@@ -133,19 +133,19 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
     if (diffDays < 7) return `${diffDays} days ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
     return date.toLocaleDateString();
   };
 
   const filteredSkills =
-    selectedCategory === 'All'
+    selectedCategory === "All"
       ? userSkills
       : userSkills.filter((s) => s.category === selectedCategory);
 
-  const categories = ['All', ...Object.keys(SKILLS_TAXONOMY)];
+  const categories = ["All", ...Object.keys(SKILLS_TAXONOMY)];
 
   if (loading) {
     return (
@@ -157,14 +157,14 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
   }
 
   return (
-    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
           <MaterialIcons name="emoji-events" size={40} color="#fff" />
           <Text style={styles.title}>Your Skills Journey</Text>
           <Text style={styles.subtitle}>
-            {userSkills.length} {userSkills.length === 1 ? 'skill' : 'skills'} identified
+            {userSkills.length} {userSkills.length === 1 ? "skill" : "skills"} identified
           </Text>
         </View>
 
@@ -173,18 +173,18 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
           <Card.Content>
             <View style={styles.viewSelector}>
               <TouchableOpacity
-                style={[styles.viewButton, selectedView === 'overview' && styles.viewButtonActive]}
-                onPress={() => setSelectedView('overview')}
+                style={[styles.viewButton, selectedView === "overview" && styles.viewButtonActive]}
+                onPress={() => setSelectedView("overview")}
               >
                 <MaterialIcons
                   name="dashboard"
                   size={20}
-                  color={selectedView === 'overview' ? '#fff' : '#667eea'}
+                  color={selectedView === "overview" ? "#fff" : "#667eea"}
                 />
                 <Text
                   style={[
                     styles.viewButtonText,
-                    selectedView === 'overview' && styles.viewButtonTextActive,
+                    selectedView === "overview" && styles.viewButtonTextActive,
                   ]}
                 >
                   Overview
@@ -192,18 +192,18 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.viewButton, selectedView === 'taxonomy' && styles.viewButtonActive]}
-                onPress={() => setSelectedView('taxonomy')}
+                style={[styles.viewButton, selectedView === "taxonomy" && styles.viewButtonActive]}
+                onPress={() => setSelectedView("taxonomy")}
               >
                 <MaterialIcons
                   name="grid-view"
                   size={20}
-                  color={selectedView === 'taxonomy' ? '#fff' : '#667eea'}
+                  color={selectedView === "taxonomy" ? "#fff" : "#667eea"}
                 />
                 <Text
                   style={[
                     styles.viewButtonText,
-                    selectedView === 'taxonomy' && styles.viewButtonTextActive,
+                    selectedView === "taxonomy" && styles.viewButtonTextActive,
                   ]}
                 >
                   All Skills
@@ -211,18 +211,18 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.viewButton, selectedView === 'timeline' && styles.viewButtonActive]}
-                onPress={() => setSelectedView('timeline')}
+                style={[styles.viewButton, selectedView === "timeline" && styles.viewButtonActive]}
+                onPress={() => setSelectedView("timeline")}
               >
                 <MaterialIcons
                   name="timeline"
                   size={20}
-                  color={selectedView === 'timeline' ? '#fff' : '#667eea'}
+                  color={selectedView === "timeline" ? "#fff" : "#667eea"}
                 />
                 <Text
                   style={[
                     styles.viewButtonText,
-                    selectedView === 'timeline' && styles.viewButtonTextActive,
+                    selectedView === "timeline" && styles.viewButtonTextActive,
                   ]}
                 >
                   Timeline
@@ -265,7 +265,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
         </Card>
 
         {/* Overview View */}
-        {selectedView === 'overview' && (
+        {selectedView === "overview" && (
           <>
             {/* Categories Overview */}
             <Card style={styles.categoriesCard}>
@@ -342,7 +342,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
         )}
 
         {/* Taxonomy View */}
-        {selectedView === 'taxonomy' && (
+        {selectedView === "taxonomy" && (
           <>
             {/* Category Filter */}
             <Card style={styles.filterCard}>
@@ -351,7 +351,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                   {categories.map((category) => (
                     <Chip
                       key={category}
-                      mode={selectedCategory === category ? 'flat' : 'outlined'}
+                      mode={selectedCategory === category ? "flat" : "outlined"}
                       selected={selectedCategory === category}
                       onPress={() => setSelectedCategory(category)}
                       style={styles.filterChip}
@@ -366,7 +366,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
 
             {/* All Skills Grid */}
             {taxonomySkills
-              .filter(({ category }) => selectedCategory === 'All' || category === selectedCategory)
+              .filter(({ category }) => selectedCategory === "All" || category === selectedCategory)
               .map(({ category, skills }) => (
                 <Card key={category} style={styles.taxonomyCard}>
                   <Card.Content>
@@ -423,7 +423,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
         )}
 
         {/* Timeline View */}
-        {selectedView === 'timeline' && (
+        {selectedView === "timeline" && (
           <Card style={styles.timelineCard}>
             <Card.Content>
               <View style={styles.sectionHeader}>
@@ -486,8 +486,8 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
             <Button
               mode="contained"
               icon="camera"
-              onPress={() => navigation.navigate('Home')}
-              style={[styles.actionButton, { backgroundColor: '#FF6B6B' }]}
+              onPress={() => navigation.navigate("Home")}
+              style={[styles.actionButton, { backgroundColor: "#FF6B6B" }]}
               labelStyle={styles.actionButtonLabel}
             >
               Analyze with Photo
@@ -496,8 +496,8 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
             <Button
               mode="contained"
               icon="mic"
-              onPress={() => navigation.navigate('VoiceAnalysis')}
-              style={[styles.actionButton, { backgroundColor: '#4ECDC4' }]}
+              onPress={() => navigation.navigate("VoiceAnalysis")}
+              style={[styles.actionButton, { backgroundColor: "#4ECDC4" }]}
               labelStyle={styles.actionButtonLabel}
             >
               Analyze with Voice
@@ -506,8 +506,8 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
             <Button
               mode="contained"
               icon="edit"
-              onPress={() => navigation.navigate('TextAnalysis')}
-              style={[styles.actionButton, { backgroundColor: '#45B7D1' }]}
+              onPress={() => navigation.navigate("TextAnalysis")}
+              style={[styles.actionButton, { backgroundColor: "#45B7D1" }]}
               labelStyle={styles.actionButtonLabel}
             >
               Analyze with Text
@@ -532,12 +532,12 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
 
 function getMotivationalMessage(skillCount: number): string {
   if (skillCount < 5)
-    return 'Great start! Every skill you discover is a step toward understanding yourself better.';
+    return "Great start! Every skill you discover is a step toward understanding yourself better.";
   if (skillCount < 10)
     return "You're building momentum! Keep exploring what makes you lose track of time.";
   if (skillCount < 20)
     return "Impressive collection! You're uncovering the patterns in your passions.";
-  if (skillCount < 30) return 'Amazing progress! Your skills map is taking shape beautifully.';
+  if (skillCount < 30) return "Amazing progress! Your skills map is taking shape beautifully.";
   return "Wow! You're a skill-discovering champion! Your self-awareness is truly remarkable.";
 }
 
@@ -547,14 +547,14 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#667eea',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#667eea",
   },
   loadingText: {
     marginTop: 15,
     fontSize: 16,
-    color: '#fff',
+    color: "#fff",
   },
   scrollView: {
     flex: 1,
@@ -564,18 +564,18 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
     marginTop: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: "rgba(255, 255, 255, 0.9)",
     marginTop: 5,
   },
   viewSelectorCard: {
@@ -583,62 +583,62 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   viewSelector: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     gap: 10,
   },
   viewButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 5,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   viewButtonActive: {
-    backgroundColor: '#667eea',
+    backgroundColor: "#667eea",
   },
   viewButtonText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#667eea',
+    fontWeight: "600",
+    color: "#667eea",
   },
   viewButtonTextActive: {
-    color: '#fff',
+    color: "#fff",
   },
   progressCard: {
     marginBottom: 15,
     elevation: 4,
   },
   progressHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     marginBottom: 15,
   },
   progressTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
   statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginBottom: 20,
   },
   statBox: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   statNumber: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#667eea',
+    fontWeight: "bold",
+    color: "#667eea",
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginTop: 5,
   },
   progressBar: {
@@ -648,48 +648,48 @@ const styles = StyleSheet.create({
   },
   progressHint: {
     fontSize: 13,
-    color: '#666',
-    textAlign: 'center',
-    fontStyle: 'italic',
+    color: "#666",
+    textAlign: "center",
+    fontStyle: "italic",
   },
   categoriesCard: {
     marginBottom: 15,
     elevation: 4,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     marginBottom: 15,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
   categoryProgressItem: {
     marginBottom: 15,
   },
   categoryProgressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   categoryProgressTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   categoryProgressName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   categoryProgressNumbers: {
     fontSize: 13,
-    color: '#666',
-    fontWeight: '600',
+    color: "#666",
+    fontWeight: "600",
   },
   categoryProgressBar: {
     height: 8,
@@ -700,16 +700,16 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   recentSkillItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
   },
   recentSkillLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     flex: 1,
   },
@@ -717,25 +717,25 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   recentSkillInfo: {
     flex: 1,
   },
   recentSkillName: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   recentSkillCategory: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginTop: 2,
   },
   recentSkillDate: {
     fontSize: 12,
-    color: '#999',
+    color: "#999",
   },
   filterCard: {
     marginBottom: 15,
@@ -752,18 +752,18 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   taxonomyCategoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     marginBottom: 15,
   },
   taxonomyCategoryTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   taxonomySkillsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   taxonomySkillChip: {
@@ -771,48 +771,48 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   taxonomySkillChipUnidentified: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: "#e0e0e0",
   },
   taxonomySkillChipText: {
     fontSize: 13,
   },
   taxonomySkillChipTextIdentified: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
   },
   taxonomySkillChipTextUnidentified: {
-    color: '#999',
+    color: "#999",
   },
   timelineCard: {
     marginBottom: 15,
     elevation: 4,
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
   },
   emptyStateText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
+    fontWeight: "600",
+    color: "#666",
     marginTop: 15,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#999',
+    color: "#999",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   timelineList: {
     paddingTop: 10,
   },
   timelineItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 20,
   },
   timelineDot: {
     width: 40,
-    alignItems: 'center',
+    alignItems: "center",
     paddingTop: 5,
   },
   timelineDotInner: {
@@ -820,34 +820,34 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: "#fff",
   },
   timelineContent: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
     padding: 12,
     borderRadius: 8,
     marginLeft: 10,
   },
   timelineSkillHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 5,
   },
   timelineSkillName: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   timelineSkillCategory: {
     fontSize: 13,
-    color: '#667eea',
+    color: "#667eea",
     marginBottom: 5,
   },
   timelineSkillDate: {
     fontSize: 12,
-    color: '#999',
+    color: "#999",
   },
   actionsCard: {
     marginBottom: 15,
@@ -855,28 +855,28 @@ const styles = StyleSheet.create({
   },
   actionsTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
   actionButton: {
     marginBottom: 10,
   },
   actionButtonLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   motivationCard: {
     marginBottom: 15,
     elevation: 4,
-    backgroundColor: '#FFF9E6',
+    backgroundColor: "#FFF9E6",
   },
   motivationText: {
     fontSize: 15,
-    color: '#666',
-    fontStyle: 'italic',
-    textAlign: 'center',
+    color: "#666",
+    fontStyle: "italic",
+    textAlign: "center",
     lineHeight: 22,
   },
 });

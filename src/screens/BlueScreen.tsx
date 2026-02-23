@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   View,
   StyleSheet,
@@ -8,22 +8,22 @@ import {
   Clipboard,
   TouchableOpacity,
   Dimensions,
-} from 'react-native';
-import { Button, ActivityIndicator, Snackbar } from 'react-native-paper';
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system/legacy';
-import { GeminiService } from '../services/geminiService';
+} from "react-native";
+import { Button, ActivityIndicator, Snackbar } from "react-native-paper";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
+import { GeminiService } from "../services/geminiService";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function BlueScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState("");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
   const [permissionResponse, requestPermission] = Audio.usePermissions();
 
   useEffect(() => {
@@ -41,8 +41,8 @@ export default function BlueScreen() {
 
   const startRecording = async () => {
     try {
-      if (permissionResponse?.status !== 'granted') {
-        console.log('Requesting permission..');
+      if (permissionResponse?.status !== "granted") {
+        console.log("Requesting permission..");
         await requestPermission();
         return;
       }
@@ -52,24 +52,24 @@ export default function BlueScreen() {
         playsInSilentModeIOS: true,
       });
 
-      console.log('Starting recording..');
+      console.log("Starting recording..");
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       setRecording(recording);
       setIsRecording(true);
-      showSnackbar('Recording started...');
-      console.log('Recording started');
+      showSnackbar("Recording started...");
+      console.log("Recording started");
     } catch (err) {
-      console.error('Failed to start recording', err);
-      showSnackbar('Failed to start recording');
+      console.error("Failed to start recording", err);
+      showSnackbar("Failed to start recording");
     }
   };
 
   const stopRecording = async () => {
     if (!recording) return;
 
-    console.log('Stopping recording..');
+    console.log("Stopping recording..");
     setIsRecording(false);
     setIsTranscribing(true);
 
@@ -80,10 +80,10 @@ export default function BlueScreen() {
       });
 
       const uri = recording.getURI();
-      console.log('Recording stopped and stored at', uri);
+      console.log("Recording stopped and stored at", uri);
 
       if (uri) {
-        showSnackbar('Processing audio...');
+        showSnackbar("Processing audio...");
 
         // Send to Gemini for transcription
         const result = await GeminiService.transcribeAudio(uri);
@@ -91,21 +91,21 @@ export default function BlueScreen() {
         if (result.success && result.transcript) {
           setTranscript(result.transcript);
           setTranscriptHistory((prev) => [result.transcript!, ...prev.slice(0, 9)]);
-          showSnackbar('Transcription completed!');
+          showSnackbar("Transcription completed!");
         } else {
-          showSnackbar(`Transcription failed: ${result.error || 'Unknown error'}`);
+          showSnackbar(`Transcription failed: ${result.error || "Unknown error"}`);
         }
 
         // Clean up the temporary file
         try {
           await FileSystem.deleteAsync(uri);
         } catch (cleanupError) {
-          console.log('Could not delete temporary file:', cleanupError);
+          console.log("Could not delete temporary file:", cleanupError);
         }
       }
     } catch (error) {
-      console.error('Error stopping recording:', error);
-      showSnackbar('Error processing recording');
+      console.error("Error stopping recording:", error);
+      showSnackbar("Error processing recording");
     } finally {
       setRecording(null);
       setIsTranscribing(false);
@@ -113,20 +113,20 @@ export default function BlueScreen() {
   };
 
   const clearTranscript = () => {
-    setTranscript('');
-    showSnackbar('Transcript cleared');
+    setTranscript("");
+    showSnackbar("Transcript cleared");
   };
 
   const copyToClipboard = async () => {
     if (transcript) {
       await Clipboard.setString(transcript);
-      showSnackbar('Text copied to clipboard!');
+      showSnackbar("Text copied to clipboard!");
     }
   };
 
   const selectHistoryItem = (item: string) => {
     setTranscript(item);
-    showSnackbar('Previous transcript selected');
+    showSnackbar("Previous transcript selected");
   };
 
   return (
@@ -164,14 +164,14 @@ export default function BlueScreen() {
           labelStyle={styles.buttonLabel}
         >
           {isRecording
-            ? '⏹️ Stop Recording'
+            ? "⏹️ Stop Recording"
             : isTranscribing
-              ? '🔄 Processing...'
-              : '🎤 Start Recording'}
+              ? "🔄 Processing..."
+              : "🎤 Start Recording"}
         </Button>
 
         {/* Permission Status */}
-        {permissionResponse?.status !== 'granted' && (
+        {permissionResponse?.status !== "granted" && (
           <View style={styles.permissionContainer}>
             <Text style={styles.permissionText}>🎤 Microphone permission required</Text>
             <Button
@@ -228,11 +228,11 @@ export default function BlueScreen() {
         <View style={styles.instructionsContainer}>
           <Text style={styles.instructionsTitle}>💡 How to use:</Text>
           <Text style={styles.instructionsText}>
-            1. Grant microphone permission if prompted{'\n'}
-            2. Tap "Start Recording" and begin speaking{'\n'}
-            3. Tap "Stop Recording" when finished{'\n'}
-            4. Wait for AI transcription via Gemini{'\n'}
-            5. Copy or clear text as needed{'\n'}
+            1. Grant microphone permission if prompted{"\n"}
+            2. Tap "Start Recording" and begin speaking{"\n"}
+            3. Tap "Stop Recording" when finished{"\n"}
+            4. Wait for AI transcription via Gemini{"\n"}
+            5. Copy or clear text as needed{"\n"}
             6. Access recent transcripts from history
           </Text>
         </View>
@@ -253,42 +253,42 @@ export default function BlueScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
   },
   scrollContent: {
     flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
+    alignItems: "center",
+    justifyContent: "flex-start",
     padding: 20,
     paddingTop: 40,
   },
   header: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   subtitle: {
-    color: '#bbdefb',
+    color: "#bbdefb",
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 30,
     paddingHorizontal: 20,
   },
   statusContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
     minHeight: 60,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   listeningIndicator: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   statusText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '500',
+    fontWeight: "500",
     marginTop: 10,
   },
   button: {
@@ -300,131 +300,131 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   startButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   stopButton: {
-    backgroundColor: '#f44336',
+    backgroundColor: "#f44336",
   },
 
   transcriptContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     padding: 20,
     borderRadius: 15,
     marginVertical: 20,
     width: width * 0.9,
     maxHeight: 300,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   transcriptHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 15,
   },
   transcriptActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   actionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 15,
     marginLeft: 8,
   },
   actionButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   transcriptScrollView: {
     maxHeight: 200,
   },
   transcriptText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
     lineHeight: 26,
-    textAlign: 'left',
+    textAlign: "left",
   },
   historyContainer: {
     width: width * 0.9,
     marginVertical: 20,
   },
   historyItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     padding: 12,
     borderRadius: 8,
     marginVertical: 4,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   historyText: {
-    color: '#e3f2fd',
+    color: "#e3f2fd",
     fontSize: 14,
     flex: 1,
     marginRight: 10,
   },
   historyIndex: {
-    color: '#bbdefb',
+    color: "#bbdefb",
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   instructionsContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     padding: 20,
     borderRadius: 15,
     marginTop: 20,
     width: width * 0.9,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   instructionsTitle: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   instructionsText: {
-    color: '#e3f2fd',
+    color: "#e3f2fd",
     fontSize: 14,
     lineHeight: 22,
   },
   label: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   snackbar: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   permissionContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     padding: 20,
     borderRadius: 15,
     marginVertical: 20,
     width: width * 0.9,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   permissionText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 15,
   },
   permissionButton: {
-    borderColor: '#fff',
+    borderColor: "#fff",
   },
   permissionButtonText: {
-    color: '#fff',
+    color: "#fff",
   },
 });

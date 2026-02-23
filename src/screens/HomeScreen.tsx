@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   StyleSheet,
@@ -7,33 +7,33 @@ import {
   Image,
   Dimensions,
   TouchableOpacity,
-} from 'react-native';
-import { Button, Card, Title, Paragraph, ActivityIndicator, Snackbar } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../types/navigation';
+} from "react-native";
+import { Button, Card, Title, Paragraph, ActivityIndicator, Snackbar } from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RootStackParamList } from "../types/navigation";
 
-import { ImagePickerService } from '../services/imagePickerService';
-import { GeminiService } from '../services/geminiService';
-import { AnalysisResult } from '../types';
-import ZoomableImageView from '../components/ZoomableImageView';
-import ImageEditor from '../components/ImageEditor';
+import { ImagePickerService } from "../services/imagePickerService";
+import { GeminiService } from "../services/geminiService";
+import { AnalysisResult } from "../types";
+import ZoomableImageView from "../components/ZoomableImageView";
+import ImageEditor from "../components/ImageEditor";
 
 // Using shared RootStackParamList
 
-type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
+type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, "Home">;
 
 interface Props {
   navigation: HomeScreenNavigationProp;
 }
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function HomeScreen({ navigation }: Props) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
   const [zoomViewerVisible, setZoomViewerVisible] = useState(false);
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [tempImageUri, setTempImageUri] = useState<string | null>(null);
@@ -48,8 +48,8 @@ export default function HomeScreen({ navigation }: Props) {
       const hasPermissions = await ImagePickerService.requestPermissions();
       if (!hasPermissions) {
         Alert.alert(
-          'Permissions Required',
-          'Camera and photo library permissions are required to use this feature.'
+          "Permissions Required",
+          "Camera and photo library permissions are required to use this feature."
         );
         return;
       }
@@ -67,13 +67,13 @@ export default function HomeScreen({ navigation }: Props) {
         setShowImageEditor(!allowEditing);
         if (allowEditing) {
           setSelectedImage(result.imageUri);
-          showSnackbar('Image selected successfully!');
+          showSnackbar("Image selected successfully!");
         }
       } else {
-        showSnackbar(result.error || 'Failed to select image');
+        showSnackbar(result.error || "Failed to select image");
       }
     } catch (error) {
-      showSnackbar('An error occurred while selecting image');
+      showSnackbar("An error occurred while selecting image");
     }
   };
 
@@ -81,7 +81,7 @@ export default function HomeScreen({ navigation }: Props) {
     setSelectedImage(editedImageUri);
     setShowImageEditor(false);
     setTempImageUri(null);
-    showSnackbar('Image ready for analysis!');
+    showSnackbar("Image ready for analysis!");
   };
 
   const handleImageEditorCancel = () => {
@@ -91,7 +91,7 @@ export default function HomeScreen({ navigation }: Props) {
 
   const handleAnalyzeTranscript = async () => {
     if (!selectedImage) {
-      showSnackbar('Please select an image first');
+      showSnackbar("Please select an image first");
       return;
     }
 
@@ -100,36 +100,36 @@ export default function HomeScreen({ navigation }: Props) {
       const result = await GeminiService.analyzeActionImage(selectedImage);
 
       if (result.success) {
-        navigation.navigate('Result', { result });
+        navigation.navigate("Result", { result });
       } else {
-        console.log('Analysis failed with error:', result.error);
-        console.log('Raw response:', result.rawResponse);
+        console.log("Analysis failed with error:", result.error);
+        console.log("Raw response:", result.rawResponse);
 
-        let errorMessage = result.error || 'Failed to analyze transcript.';
+        let errorMessage = result.error || "Failed to analyze transcript.";
 
         // Provide more specific error messages
-        if (result.error?.includes('404')) {
+        if (result.error?.includes("404")) {
           errorMessage =
-            'API endpoint not found. Please check your internet connection and try again.';
-        } else if (result.error?.includes('413') || result.error?.includes('too large')) {
-          errorMessage = 'Image is too large. Please try with a smaller image.';
-        } else if (result.error?.includes('401') || result.error?.includes('403')) {
-          errorMessage = 'API key error. Please check your configuration.';
-        } else if (result.error?.includes('Network Error')) {
-          errorMessage = 'Network connection error. Please check your internet connection.';
+            "API endpoint not found. Please check your internet connection and try again.";
+        } else if (result.error?.includes("413") || result.error?.includes("too large")) {
+          errorMessage = "Image is too large. Please try with a smaller image.";
+        } else if (result.error?.includes("401") || result.error?.includes("403")) {
+          errorMessage = "API key error. Please check your configuration.";
+        } else if (result.error?.includes("Network Error")) {
+          errorMessage = "Network connection error. Please check your internet connection.";
         }
 
         Alert.alert(
-          'Analysis Failed',
-          errorMessage + '\n\nPlease try again with a clearer image.',
-          [{ text: 'OK' }]
+          "Analysis Failed",
+          errorMessage + "\n\nPlease try again with a clearer image.",
+          [{ text: "OK" }]
         );
       }
     } catch (error) {
       Alert.alert(
-        'Error',
-        'An unexpected error occurred. Please check your internet connection and try again.',
-        [{ text: 'OK' }]
+        "Error",
+        "An unexpected error occurred. Please check your internet connection and try again.",
+        [{ text: "OK" }]
       );
     } finally {
       setIsAnalyzing(false);
@@ -142,16 +142,16 @@ export default function HomeScreen({ navigation }: Props) {
       const result = await GeminiService.testApiConnection();
 
       if (result.success) {
-        Alert.alert('API Test Successful', 'Connection to Gemini API is working properly.', [
-          { text: 'OK' },
+        Alert.alert("API Test Successful", "Connection to Gemini API is working properly.", [
+          { text: "OK" },
         ]);
       } else {
-        Alert.alert('API Test Failed', result.error || 'Failed to connect to Gemini API.', [
-          { text: 'OK' },
+        Alert.alert("API Test Failed", result.error || "Failed to connect to Gemini API.", [
+          { text: "OK" },
         ]);
       }
     } catch (error) {
-      Alert.alert('Test Error', 'An unexpected error occurred during API test.', [{ text: 'OK' }]);
+      Alert.alert("Test Error", "An unexpected error occurred during API test.", [{ text: "OK" }]);
     } finally {
       setIsAnalyzing(false);
     }
@@ -159,12 +159,12 @@ export default function HomeScreen({ navigation }: Props) {
 
   const clearImage = () => {
     setSelectedImage(null);
-    showSnackbar('Image cleared');
+    showSnackbar("Image cleared");
   };
 
   return (
     <ScrollView style={styles.container}>
-      <LinearGradient colors={['#2196F3', '#1976D2']} style={styles.gradient}>
+      <LinearGradient colors={["#2196F3", "#1976D2"]} style={styles.gradient}>
         <View style={styles.content}>
           <Card style={styles.card}>
             <Card.Content>
@@ -219,9 +219,9 @@ export default function HomeScreen({ navigation }: Props) {
               ) : (
                 <View style={styles.uploadContainer}>
                   <Paragraph style={styles.uploadText}>
-                    Choose how you'd like to upload your transcript:{'\n'}• Choose Full Image:
-                    Select entire image without cropping{'\n'}• Choose & Crop: Select and crop image
-                    in picker{'\n'}• Take Photo: Capture new photo with camera
+                    Choose how you'd like to upload your transcript:{"\n"}• Choose Full Image:
+                    Select entire image without cropping{"\n"}• Choose & Crop: Select and crop image
+                    in picker{"\n"}• Take Photo: Capture new photo with camera
                   </Paragraph>
 
                   <View style={styles.buttonContainer}>
@@ -261,7 +261,7 @@ export default function HomeScreen({ navigation }: Props) {
                   onPress={handleAnalyzeTranscript}
                   disabled={isAnalyzing}
                   style={styles.analyzeButton}
-                  icon={isAnalyzing ? undefined : 'brain'}
+                  icon={isAnalyzing ? undefined : "brain"}
                 >
                   {isAnalyzing ? (
                     <View style={styles.loadingContainer}>
@@ -269,14 +269,14 @@ export default function HomeScreen({ navigation }: Props) {
                       <Paragraph style={styles.loadingText}>Analyzing activity...</Paragraph>
                     </View>
                   ) : (
-                    'Analyze Activity'
+                    "Analyze Activity"
                   )}
                 </Button>
               )}
 
               <Button
                 mode="outlined"
-                onPress={() => navigation.navigate('Blue')}
+                onPress={() => navigation.navigate("Blue")}
                 style={[styles.testButton, { marginTop: 8 }]}
                 icon="arrow-right"
               >
@@ -285,7 +285,7 @@ export default function HomeScreen({ navigation }: Props) {
 
               <Button
                 mode="outlined"
-                onPress={() => navigation.navigate('Dashboard')}
+                onPress={() => navigation.navigate("Dashboard")}
                 style={styles.testButton}
                 icon="view-dashboard"
               >
@@ -308,9 +308,9 @@ export default function HomeScreen({ navigation }: Props) {
             <Card.Content>
               <Title style={styles.sectionTitle}>How it works</Title>
               <Paragraph style={styles.infoText}>
-                1. Take a photo or select an image of your academic transcript{'\n'}
-                2. Our AI will analyze the image and extract course information{'\n'}
-                3. View detailed results including grades, GPA, and course details{'\n'}
+                1. Take a photo or select an image of your academic transcript{"\n"}
+                2. Our AI will analyze the image and extract course information{"\n"}
+                3. View detailed results including grades, GPA, and course details{"\n"}
                 4. All data is processed securely and not stored
               </Paragraph>
             </Card.Content>
@@ -328,7 +328,7 @@ export default function HomeScreen({ navigation }: Props) {
       </Snackbar>
 
       <ZoomableImageView
-        imageUri={selectedImage || ''}
+        imageUri={selectedImage || ""}
         visible={zoomViewerVisible}
         onClose={() => setZoomViewerVisible(false)}
       />
@@ -347,7 +347,7 @@ export default function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   gradient: {
     flex: 1,
@@ -360,14 +360,14 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   title: {
-    textAlign: 'center',
-    color: '#1976D2',
+    textAlign: "center",
+    color: "#1976D2",
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   subtitle: {
-    textAlign: 'center',
-    color: '#666',
+    textAlign: "center",
+    color: "#666",
     marginTop: 8,
   },
   imageCard: {
@@ -375,35 +375,35 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   sectionTitle: {
-    color: '#1976D2',
+    color: "#1976D2",
     marginBottom: 16,
   },
   uploadContainer: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   uploadText: {
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 20,
-    color: '#666',
+    color: "#666",
   },
   buttonContainer: {
-    width: '100%',
+    width: "100%",
   },
   button: {
     marginVertical: 8,
     paddingVertical: 8,
   },
   galleryButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   galleryCropButton: {
-    backgroundColor: '#9C27B0',
+    backgroundColor: "#9C27B0",
   },
   cameraButton: {
-    backgroundColor: '#FF9800',
+    backgroundColor: "#FF9800",
   },
   imageContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 16,
   },
   image: {
@@ -413,40 +413,40 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   clearButton: {
-    borderColor: '#f44336',
+    borderColor: "#f44336",
   },
   imageButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
     marginTop: 8,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   viewButton: {
-    borderColor: '#2196F3',
+    borderColor: "#2196F3",
     marginBottom: 8,
   },
   editButton: {
-    borderColor: '#FF9800',
+    borderColor: "#FF9800",
     marginBottom: 8,
   },
   analyzeButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
     marginTop: 16,
     paddingVertical: 8,
   },
   testButton: {
     marginTop: 8,
     paddingVertical: 8,
-    borderColor: '#666',
+    borderColor: "#666",
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingText: {
-    color: '#fff',
+    color: "#fff",
     marginLeft: 8,
   },
   infoCard: {
@@ -454,10 +454,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   infoText: {
-    color: '#666',
+    color: "#666",
     lineHeight: 20,
   },
   snackbar: {
-    backgroundColor: '#333',
+    backgroundColor: "#333",
   },
 });

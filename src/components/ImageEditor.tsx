@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { View, StyleSheet, Dimensions, ScrollView, Image, Modal, StatusBar } from 'react-native';
-import { IconButton, Text, Button, Portal } from 'react-native-paper';
+import React, { useState, useRef } from "react";
+import { View, StyleSheet, Dimensions, ScrollView, Image, Modal, StatusBar } from "react-native";
+import { IconButton, Text, Button, Portal } from "react-native-paper";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 interface ImageEditorProps {
   imageUri: string;
@@ -123,88 +123,88 @@ export default function ImageEditor({ imageUri, onSave, onCancel }: ImageEditorP
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: "#e0e0e0",
   },
   headerText: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1976D2',
+    fontWeight: "bold",
+    color: "#1976D2",
   },
   headerButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   imageContainer: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   imageWrapper: {
     width: screenWidth,
     height: screenHeight * 0.6,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   image: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   controls: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: "#e0e0e0",
   },
   zoomControls: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
   },
   zoomText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginHorizontal: 20,
-    color: '#1976D2',
+    color: "#1976D2",
   },
   actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   resetButton: {
     flex: 1,
     marginRight: 8,
-    borderColor: '#666',
+    borderColor: "#666",
   },
   saveButton: {
     flex: 1,
     marginLeft: 8,
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   instructions: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
   instructionText: {
-    textAlign: 'center',
-    color: '#666',
+    textAlign: "center",
+    color: "#666",
     fontSize: 14,
   },
 });
