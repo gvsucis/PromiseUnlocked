@@ -3,8 +3,8 @@
  * Manages identified skills in AsyncStorage
  */
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SKILLS_TAXONOMY } from "./skillTaxonomyService";
+import { getJSONFromStorage, removeFromStorage, setJSONInStorage } from "../util/asyncStorage";
 
 const SKILLS_STORAGE_KEY = "@user_identified_skills";
 
@@ -38,23 +38,24 @@ export async function saveIdentifiedSkill(
     // Check if skill already exists
     const skillExists = existingData.skills.some((s) => s.skill === skill);
 
-    if (!skillExists) {
-      const newSkill: IdentifiedSkill = {
-        skill,
-        category,
-        dateIdentified: new Date().toISOString(),
-        source,
-        confidence,
-      };
-
-      existingData.skills.push(newSkill);
-      existingData.lastUpdated = new Date().toISOString();
-
-      await AsyncStorage.setItem(SKILLS_STORAGE_KEY, JSON.stringify(existingData));
-      console.log("Skill saved:", skill);
-    } else {
+    if (skillExists) {
       console.log("Skill already exists:", skill);
+      return;
     }
+
+    const newSkill: IdentifiedSkill = {
+      skill,
+      category,
+      dateIdentified: new Date().toISOString(),
+      source,
+      confidence,
+    };
+
+    existingData.skills.push(newSkill);
+    existingData.lastUpdated = new Date().toISOString();
+
+    await setJSONInStorage(SKILLS_STORAGE_KEY, existingData);
+    console.log("Skill saved:", skill);
   } catch (error) {
     console.error("Error saving skill:", error);
     throw error;
@@ -79,20 +80,22 @@ export async function saveIdentifiedSkills(
       // Check if skill already exists
       const skillExists = existingData.skills.some((s) => s.skill === skill);
 
-      if (!skillExists) {
-        const newSkill: IdentifiedSkill = {
-          skill,
-          category,
-          dateIdentified: new Date().toISOString(),
-          source,
-        };
-
-        existingData.skills.push(newSkill);
+      if (skillExists) {
+        continue;
       }
+
+      const newSkill: IdentifiedSkill = {
+        skill,
+        category,
+        dateIdentified: new Date().toISOString(),
+        source,
+      };
+
+      existingData.skills.push(newSkill);
     }
 
     existingData.lastUpdated = new Date().toISOString();
-    await AsyncStorage.setItem(SKILLS_STORAGE_KEY, JSON.stringify(existingData));
+    await setJSONInStorage(SKILLS_STORAGE_KEY, existingData);
     console.log("Multiple skills saved:", skills.length);
   } catch (error) {
     console.error("Error saving multiple skills:", error);
@@ -104,25 +107,10 @@ export async function saveIdentifiedSkills(
  * Get all user's identified skills
  */
 export async function getUserSkills(): Promise<UserSkillsData> {
-  try {
-    const data = await AsyncStorage.getItem(SKILLS_STORAGE_KEY);
-
-    if (data) {
-      return JSON.parse(data);
-    }
-
-    // Return empty data if none exists
-    return {
-      skills: [],
-      lastUpdated: new Date().toISOString(),
-    };
-  } catch (error) {
-    console.error("Error getting user skills:", error);
-    return {
-      skills: [],
-      lastUpdated: new Date().toISOString(),
-    };
-  }
+  return getJSONFromStorage(SKILLS_STORAGE_KEY, {
+    skills: [],
+    lastUpdated: new Date().toISOString(),
+  });
 }
 
 /**
@@ -158,7 +146,7 @@ export async function removeSkill(skillName: string): Promise<void> {
     data.skills = data.skills.filter((s) => s.skill !== skillName);
     data.lastUpdated = new Date().toISOString();
 
-    await AsyncStorage.setItem(SKILLS_STORAGE_KEY, JSON.stringify(data));
+    await setJSONInStorage(SKILLS_STORAGE_KEY, data);
     console.log("Skill removed:", skillName);
   } catch (error) {
     console.error("Error removing skill:", error);
@@ -171,7 +159,7 @@ export async function removeSkill(skillName: string): Promise<void> {
  */
 export async function clearAllSkills(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(SKILLS_STORAGE_KEY);
+    await removeFromStorage(SKILLS_STORAGE_KEY);
     console.log("All skills cleared");
   } catch (error) {
     console.error("Error clearing skills:", error);

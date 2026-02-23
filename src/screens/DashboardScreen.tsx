@@ -10,8 +10,8 @@ import {
 } from "react-native";
 import { Button, Card, ActivityIndicator, Chip } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getTaxonomySkillsWithStatus, getSkillsStats } from "../services/userSkillsService";
+import { getJSONFromStorage, setJSONInStorage } from "../util/asyncStorage";
 
 const { width } = Dimensions.get("window");
 
@@ -408,9 +408,9 @@ export default function DashboardScreen({ route, navigation }: any) {
 
   const loadUserProgress = async () => {
     try {
-      const savedProgress = await AsyncStorage.getItem("userProgress");
+      const savedProgress = await getJSONFromStorage<UserProgress | null>("userProgress", null);
       if (savedProgress) {
-        setUserProgress(JSON.parse(savedProgress));
+        setUserProgress(savedProgress);
       } else {
         // Initialize with default stamps
         const initialProgress: UserProgress = {
@@ -419,7 +419,7 @@ export default function DashboardScreen({ route, navigation }: any) {
           achievements: [],
         };
         setUserProgress(initialProgress);
-        await AsyncStorage.setItem("userProgress", JSON.stringify(initialProgress));
+        await setJSONInStorage("userProgress", initialProgress);
       }
     } catch (error) {
       console.error("Error loading user progress:", error);
@@ -532,7 +532,7 @@ export default function DashboardScreen({ route, navigation }: any) {
     };
 
     setUserProgress(newProgress);
-    await AsyncStorage.setItem("userProgress", JSON.stringify(newProgress));
+    await setJSONInStorage("userProgress", newProgress);
 
     // Show congratulations for new stamps
     if (newStamps.length > 0) {
