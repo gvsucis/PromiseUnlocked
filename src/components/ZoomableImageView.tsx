@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Dimensions, Modal, ScrollView, StatusBar, Image } from 'react-native';
-import { IconButton, Portal, Text } from 'react-native-paper';
+import React, { useState } from "react";
+import { View, StyleSheet, Dimensions, Modal, ScrollView, StatusBar, Image } from "react-native";
+import { IconButton, Portal, Text } from "react-native-paper";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 interface ZoomableImageViewProps {
   imageUri: string;
@@ -68,38 +68,38 @@ export default function ZoomableImageView({ imageUri, visible, onClose }: Zoomab
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 50,
     paddingBottom: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
   },
   headerText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   headerButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   imageContainer: {
     width: screenWidth,
     height: screenHeight * 0.7,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   image: {
     width: screenWidth,
@@ -108,18 +108,18 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 16,
     paddingBottom: 30,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
   },
   instructions: {
-    color: '#fff',
-    textAlign: 'center',
+    color: "#fff",
+    textAlign: "center",
     fontSize: 14,
     opacity: 0.8,
     marginBottom: 8,
   },
   scaleText: {
-    color: '#fff',
-    textAlign: 'center',
+    color: "#fff",
+    textAlign: "center",
     fontSize: 12,
     opacity: 0.6,
   },

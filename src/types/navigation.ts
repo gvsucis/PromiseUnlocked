@@ -1,4 +1,4 @@
-import { AnalysisResult } from './index';
+import { AnalysisResult } from "./index";
 
 export type RootStackParamList = {
   Login: undefined;

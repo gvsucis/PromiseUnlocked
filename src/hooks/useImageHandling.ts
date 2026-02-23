@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { Alert } from 'react-native';
-import { ImagePickerService } from '../services/imagePickerService';
-import { GeminiService } from '../services/geminiService';
-import { INITIAL_PROMPT } from '../services/categoryTaxonomyService';
-import { DialogueState } from './useDialogueState';
+import { useState } from "react";
+import { Alert } from "react-native";
+import { ImagePickerService } from "../services/imagePickerService";
+import { GeminiService } from "../services/geminiService";
+import { INITIAL_PROMPT } from "../services/categoryTaxonomyService";
+import { DialogueState } from "./useDialogueState";
 
 interface UseImageHandlingProps {
   dialogueState: DialogueState;
@@ -30,7 +30,7 @@ export function useImageHandling({ dialogueState, mapAnswerToCategory }: UseImag
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
 
   const handleImageInputPress = async () => {
-    setError('');
+    setError("");
 
     // Get the question
     if (mappedCategories.length === 0) {
@@ -41,27 +41,27 @@ export function useImageHandling({ dialogueState, mapAnswerToCategory }: UseImag
       setSavedQuestion(prefetchedQuestion);
       setPrefetchedQuestion(null);
     } else {
-      console.error('No question available when image input was selected');
-      setError('No question available. Please try again.');
+      console.error("No question available when image input was selected");
+      setError("No question available. Please try again.");
       return;
     }
 
     // Show image source selection dialog
     Alert.alert(
-      'Choose Image Source',
-      'How would you like to add your image?',
+      "Choose Image Source",
+      "How would you like to add your image?",
       [
         {
-          text: 'Take Photo',
+          text: "Take Photo",
           onPress: () => handleImageSelection(true), // Use camera
         },
         {
-          text: 'Choose from Gallery',
+          text: "Choose from Gallery",
           onPress: () => handleImageSelection(false), // Use gallery
         },
         {
-          text: 'Cancel',
-          style: 'cancel',
+          text: "Cancel",
+          style: "cancel",
         },
       ],
       { cancelable: true }
@@ -73,8 +73,8 @@ export function useImageHandling({ dialogueState, mapAnswerToCategory }: UseImag
       const hasPermissions = await ImagePickerService.requestPermissions();
       if (!hasPermissions) {
         Alert.alert(
-          'Permissions Required',
-          'Camera and photo library permissions are required to use this feature.'
+          "Permissions Required",
+          "Camera and photo library permissions are required to use this feature."
         );
         return;
       }
@@ -90,10 +90,10 @@ export function useImageHandling({ dialogueState, mapAnswerToCategory }: UseImag
         setTempImageUri(result.imageUri);
         setShowImageEditor(true);
       } else if (result.error) {
-        Alert.alert('Error', result.error);
+        Alert.alert("Error", result.error);
       }
     } catch (error) {
-      Alert.alert('Error', 'An error occurred while selecting image');
+      Alert.alert("Error", "An error occurred while selecting image");
     }
   };
 
@@ -101,31 +101,31 @@ export function useImageHandling({ dialogueState, mapAnswerToCategory }: UseImag
     setSelectedImage(editedImageUri);
     setShowImageEditor(false);
     setTempImageUri(null);
-    setUiState('answering'); // Show the answer modal with image preview
+    setUiState("answering"); // Show the answer modal with image preview
   };
 
   const handleImageEditorCancel = () => {
     setShowImageEditor(false);
     setTempImageUri(null);
-    setUiState('idle');
+    setUiState("idle");
   };
 
   const handleSubmitImage = async () => {
     if (!selectedImage || !currentPrompt) {
-      Alert.alert('Error', 'Missing image or question');
+      Alert.alert("Error", "Missing image or question");
       return;
     }
 
     setIsAnalyzingImage(true);
-    setUiState('loading');
-    setLoadingMessage('Analyzing your image response...');
+    setUiState("loading");
+    setLoadingMessage("Analyzing your image response...");
 
     try {
       // Analyze the image with Gemini
       const analysisResult = await GeminiService.analyzeActionImage(selectedImage);
 
       if (!analysisResult.success || !analysisResult.rawResponse) {
-        throw new Error(analysisResult.error || 'Failed to analyze image');
+        throw new Error(analysisResult.error || "Failed to analyze image");
       }
 
       // Use the image analysis description as the answer
@@ -137,9 +137,9 @@ export function useImageHandling({ dialogueState, mapAnswerToCategory }: UseImag
       // Map the answer to a category
       await mapAnswerToCategory(currentPrompt, answer);
     } catch (error) {
-      console.error('Error processing image:', error);
-      Alert.alert('Error', 'Failed to process image. Please try again.');
-      setUiState('idle');
+      console.error("Error processing image:", error);
+      Alert.alert("Error", "Failed to process image. Please try again.");
+      setUiState("idle");
     } finally {
       setIsAnalyzingImage(false);
     }

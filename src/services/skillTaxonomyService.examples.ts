@@ -9,17 +9,17 @@ import {
   mapSkillsToTaxonomy,
   normalizeSkills,
   SKILLS_TAXONOMY,
-} from '../services/skillTaxonomyService';
+} from "../services/skillTaxonomyService";
 
 // Example 1: Map a single user skill to the taxonomy
 export function example1_SingleSkillMapping() {
-  const userInput = 'programming';
+  const userInput = "programming";
   const result = mapSkillToTaxonomy(userInput);
 
-  console.log('Input:', userInput);
-  console.log('Mapped to:', result.skill);
-  console.log('Category:', result.category);
-  console.log('Confidence:', result.confidence);
+  console.log("Input:", userInput);
+  console.log("Mapped to:", result.skill);
+  console.log("Category:", result.category);
+  console.log("Confidence:", result.confidence);
 
   // Output:
   // Input: programming
@@ -31,17 +31,17 @@ export function example1_SingleSkillMapping() {
 // Example 2: Map multiple skills with variations
 export function example2_MultipleSkillsMapping() {
   const userSkills = [
-    'teamwork',
-    'coding',
-    'public speaking',
-    'managing projects',
-    'creative thinking',
+    "teamwork",
+    "coding",
+    "public speaking",
+    "managing projects",
+    "creative thinking",
   ];
 
   const results = mapSkillsToTaxonomy(userSkills);
 
-  console.log('User Skills:', userSkills);
-  console.log('Mapped Results:');
+  console.log("User Skills:", userSkills);
+  console.log("Mapped Results:");
   results.forEach((r) => {
     console.log(`  - ${r.skill} (${r.category}) - ${Math.round(r.confidence * 100)}%`);
   });
@@ -59,18 +59,18 @@ export function example2_MultipleSkillsMapping() {
 // Example 3: Normalize skills (removes duplicates and low-confidence matches)
 export function example3_NormalizeSkills() {
   const userSkills = [
-    'communication',
-    'communicating', // Duplicate/similar
-    'teamwork',
-    'collaboration', // Similar to teamwork
-    'random skill xyz', // Low confidence
-    'leadership',
+    "communication",
+    "communicating", // Duplicate/similar
+    "teamwork",
+    "collaboration", // Similar to teamwork
+    "random skill xyz", // Low confidence
+    "leadership",
   ];
 
   const normalized = normalizeSkills(userSkills);
 
-  console.log('Input:', userSkills);
-  console.log('Normalized:', normalized);
+  console.log("Input:", userSkills);
+  console.log("Normalized:", normalized);
 
   // Output:
   // Input: ["communication", "communicating", "teamwork", "collaboration", "random skill xyz", "leadership"]
@@ -82,10 +82,10 @@ export function example3_NormalizeSkills() {
 export function example4_ProcessAPIResponse(apiResponse: any) {
   // Simulate API returning skills that might not match taxonomy exactly
   const rawSkills = apiResponse.primary_skills || [
-    'problem solving',
-    'creative design',
-    'team collaboration',
-    'public presentations',
+    "problem solving",
+    "creative design",
+    "team collaboration",
+    "public presentations",
   ];
 
   // Normalize to match taxonomy
@@ -107,21 +107,21 @@ export function example5_InteractiveSelection(userInput: string) {
 
   if (mapped.confidence > 0.8) {
     return {
-      status: 'high_confidence',
+      status: "high_confidence",
       message: `Great match! We found "${mapped.skill}" in our ${mapped.category} category.`,
       skill: mapped.skill,
       category: mapped.category,
     };
   } else if (mapped.confidence > 0.5) {
     return {
-      status: 'medium_confidence',
+      status: "medium_confidence",
       message: `Did you mean "${mapped.skill}"? (from ${mapped.category})`,
       skill: mapped.skill,
       category: mapped.category,
     };
   } else {
     return {
-      status: 'low_confidence',
+      status: "low_confidence",
       message: `We couldn't find a good match. Try selecting from our skills taxonomy.`,
       skill: null,
       category: null,

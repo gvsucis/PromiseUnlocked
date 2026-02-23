@@ -10,7 +10,7 @@
     }
   },
   "rules": {
-    "quotes": ["error", "single", { "avoidEscape": true, "allowTemplateLiterals": true }],
+    "quotes": ["error", "double", { "avoidEscape": true, "allowTemplateLiterals": true }],
     "semi": ["error", "always"],
     "no-console": "off",
     "no-unused-vars": "off",

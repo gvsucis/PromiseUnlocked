@@ -2,133 +2,13 @@
  * Skills Taxonomy Service
  * Provides utilities for skill mapping, normalization, and matching
  */
+import { SKILLS_TAXONOMY, SKILL_SYNONYMS } from "../config/skillsTaxonomy";
+export { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
-export const SKILLS_TAXONOMY = {
-  'Human Skills': [
-    'Communication',
-    'Collaboration',
-    'Leadership',
-    'Empathy',
-    'Active Listening',
-    'Conflict Resolution',
-    'Networking',
-    'Public Speaking',
-    'Team Management',
-  ],
-  'Meta-Learning': [
-    'Critical Thinking',
-    'Research Skills',
-    'Self-Reflection',
-    'Learning Strategies',
-    'Information Synthesis',
-    'Knowledge Transfer',
-    'Continuous Learning',
-    'Adaptability',
-  ],
-  'Maker & Builder': [
-    'Prototyping',
-    'Design Thinking',
-    'Craftsmanship',
-    'Innovation',
-    'Technical Skills',
-    'Project Management',
-    'Problem Solving',
-    'Creative Construction',
-    'Engineering',
-  ],
-  'Civic Impact': [
-    'Community Engagement',
-    'Social Responsibility',
-    'Advocacy',
-    'Volunteer Work',
-    'Policy Understanding',
-    'Cultural Awareness',
-    'Environmental Stewardship',
-    'Civic Participation',
-  ],
-  'Creative Expression': [
-    'Artistic Creation',
-    'Storytelling',
-    'Music',
-    'Writing',
-    'Visual Arts',
-    'Performance',
-    'Creative Problem Solving',
-    'Imagination',
-    'Aesthetic Appreciation',
-  ],
-  'Problem-Solving': [
-    'Analytical Thinking',
-    'Strategic Planning',
-    'Troubleshooting',
-    'Decision Making',
-    'Systems Thinking',
-    'Root Cause Analysis',
-    'Innovation',
-    'Logic',
-    'Pattern Recognition',
-  ],
-  'Work Experience': [
-    'Professional Skills',
-    'Industry Knowledge',
-    'Workplace Etiquette',
-    'Time Management',
-    'Client Relations',
-    'Business Acumen',
-    'Career Development',
-    'Mentorship',
-  ],
-  'Future Self': [
-    'Goal Setting',
-    'Vision Creation',
-    'Personal Growth',
-    'Skill Development',
-    'Career Planning',
-    'Life Balance',
-    'Self-Improvement',
-    'Aspiration Mapping',
-  ],
-};
-
-// Common skill variations and synonyms
-const SKILL_SYNONYMS: Record<string, string[]> = {
-  Communication: [
-    'communicating',
-    'speaking',
-    'talking',
-    'expressing',
-    'communication skills',
-    'verbal communication',
-  ],
-  Collaboration: ['collaborating', 'teamwork', 'working together', 'cooperative work', 'team work'],
-  Leadership: ['leading', 'managing people', 'guiding', 'mentoring', 'leading teams'],
-  'Critical Thinking': [
-    'analyzing',
-    'critical analysis',
-    'thinking critically',
-    'analytical skills',
-    'reasoning',
-  ],
-  'Problem Solving': [
-    'solving problems',
-    'troubleshooting',
-    'finding solutions',
-    'problem resolution',
-  ],
-  Creativity: ['being creative', 'creative thinking', 'innovation', 'creative work'],
-  'Design Thinking': ['designing', 'design', 'user experience', 'ux design', 'design process'],
-  'Project Management': [
-    'managing projects',
-    'project planning',
-    'organizing work',
-    'project coordination',
-  ],
-  'Technical Skills': ['coding', 'programming', 'technical work', 'technology', 'tech skills'],
-  'Public Speaking': ['presenting', 'presentations', 'speaking publicly', 'giving talks'],
-  Writing: ['written communication', 'content creation', 'authoring', 'composing'],
-  'Research Skills': ['researching', 'investigation', 'studying', 'gathering information'],
-  'Time Management': ['managing time', 'scheduling', 'planning', 'organizing time'],
-  'Goal Setting': ['setting goals', 'planning goals', 'objective setting', 'target setting'],
+type SkillMatch = {
+  skill: string;
+  category: string;
+  confidence: number;
 };
 
 /**
@@ -173,7 +53,7 @@ function calculateSimilarity(str1: string, str2: string): number {
   const s2 = str2.toLowerCase().trim();
 
   // Exact match
-  if (s1 === s2) return 1.0;
+  if (s1 === s2) return 1;
 
   // Check if one contains the other
   if (s1.includes(s2) || s2.includes(s1)) {
@@ -187,37 +67,28 @@ function calculateSimilarity(str1: string, str2: string): number {
   return 1 - distance / maxLength;
 }
 
-/**
- * Map a user-provided skill to the most accurate skill in the taxonomy
- * Returns the best matching skill from the taxonomy
- */
-export function mapSkillToTaxonomy(userSkill: string): {
-  skill: string;
-  category: string;
-  confidence: number;
-} {
-  const normalizedInput = userSkill.toLowerCase().trim();
+function getSkillMaxSimilarity(normalizedInput: string, skill: string): number {
+  let maxSimilarity = calculateSimilarity(normalizedInput, skill);
+  const synonyms = SKILL_SYNONYMS[skill] ?? [];
 
-  let bestMatch = {
-    skill: '',
-    category: '',
+  for (const synonym of synonyms) {
+    const synonymSimilarity = calculateSimilarity(normalizedInput, synonym);
+    maxSimilarity = Math.max(maxSimilarity, synonymSimilarity);
+  }
+
+  return maxSimilarity;
+}
+
+function getBestDirectMatch(normalizedInput: string): SkillMatch {
+  let bestMatch: SkillMatch = {
+    skill: "",
+    category: "",
     confidence: 0,
   };
 
-  // Check each category and skill in the taxonomy
   for (const [category, skills] of Object.entries(SKILLS_TAXONOMY)) {
     for (const skill of skills) {
-      let maxSimilarity = calculateSimilarity(normalizedInput, skill);
-
-      // Check synonyms
-      if (SKILL_SYNONYMS[skill]) {
-        for (const synonym of SKILL_SYNONYMS[skill]) {
-          const synonymSimilarity = calculateSimilarity(normalizedInput, synonym);
-          maxSimilarity = Math.max(maxSimilarity, synonymSimilarity);
-        }
-      }
-
-      // Update best match if this is better
+      const maxSimilarity = getSkillMaxSimilarity(normalizedInput, skill);
       if (maxSimilarity > bestMatch.confidence) {
         bestMatch = {
           skill,
@@ -228,23 +99,25 @@ export function mapSkillToTaxonomy(userSkill: string): {
     }
   }
 
-  // If confidence is too low, try partial word matching
-  if (bestMatch.confidence < 0.5) {
-    const words = normalizedInput.split(/\s+/);
-    for (const word of words) {
-      if (word.length < 3) continue; // Skip very short words
+  return bestMatch;
+}
 
-      for (const [category, skills] of Object.entries(SKILLS_TAXONOMY)) {
-        for (const skill of skills) {
-          if (skill.toLowerCase().includes(word) || word.includes(skill.toLowerCase())) {
-            const partialSimilarity = 0.6; // Give partial matches a moderate confidence
-            if (partialSimilarity > bestMatch.confidence) {
-              bestMatch = {
-                skill,
-                category,
-                confidence: partialSimilarity,
-              };
-            }
+function getBestPartialWordMatch(normalizedInput: string, currentBest: SkillMatch): SkillMatch {
+  const words = normalizedInput.split(/\s+/).filter((word) => word.length >= 3);
+  let bestMatch = currentBest;
+
+  for (const word of words) {
+    for (const [category, skills] of Object.entries(SKILLS_TAXONOMY)) {
+      for (const skill of skills) {
+        const normalizedSkill = skill.toLowerCase();
+        if (normalizedSkill.includes(word) || word.includes(normalizedSkill)) {
+          const partialSimilarity = 0.6;
+          if (partialSimilarity > bestMatch.confidence) {
+            bestMatch = {
+              skill,
+              category,
+              confidence: partialSimilarity,
+            };
           }
         }
       }
@@ -252,6 +125,25 @@ export function mapSkillToTaxonomy(userSkill: string): {
   }
 
   return bestMatch;
+}
+
+/**
+ * Map a user-provided skill to the most accurate skill in the taxonomy
+ * Returns the best matching skill from the taxonomy
+ */
+export function mapSkillToTaxonomy(userSkill: string): {
+  skill: string;
+  category: string;
+  confidence: number;
+} {
+  const normalizedInput = userSkill.toLowerCase().trim();
+  const bestDirectMatch = getBestDirectMatch(normalizedInput);
+
+  if (bestDirectMatch.confidence < 0.5) {
+    return getBestPartialWordMatch(normalizedInput, bestDirectMatch);
+  }
+
+  return bestDirectMatch;
 }
 
 /**
@@ -289,7 +181,8 @@ export function getAllSkills(): string[] {
  * Get all skills for a specific category
  */
 export function getSkillsByCategory(category: string): string[] {
-  return SKILLS_TAXONOMY[category as keyof typeof SKILLS_TAXONOMY] || [];
+  const skills = SKILLS_TAXONOMY[category];
+  return skills ?? [];
 }
 
 /**
