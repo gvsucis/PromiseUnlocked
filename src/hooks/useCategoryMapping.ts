@@ -218,6 +218,7 @@ export function useCategoryMapping({
       );
 
       const { category: rawCategory, justification, nextQuestion } = result;
+      const safeJustification = justification ?? "";
 
       // Validate category
       const validCategory = findValidCategory(rawCategory);
@@ -226,7 +227,7 @@ export function useCategoryMapping({
       let mappingResult = "NO_CHANGE";
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
-        await handleWeakFit(question, answer, justification);
+        await handleWeakFit(question, answer, safeJustification);
         return;
       }
 
@@ -235,7 +236,7 @@ export function useCategoryMapping({
           question,
           answer,
           categoryNameToCheck,
-          justification
+          safeJustification
         );
       } else if (await isCategoryMapped(categoryNameToCheck)) {
         await handleAlreadyMapped(question, answer);
