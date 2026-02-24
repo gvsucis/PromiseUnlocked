@@ -2,7 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD9KKN0M--DKCwdi5WkLn6dLkycRlHqva8", //FIXME
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: "promise-unlocked-sign-up-888a0.firebaseapp.com",
   projectId: "promise-unlocked-sign-up-888a0",
   storageBucket: "promise-unlocked-sign-up-888a0.appspot.com",
