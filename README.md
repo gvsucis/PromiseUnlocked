@@ -29,6 +29,7 @@ All three paths are evaluated against a skills taxonomy, and results are present
 - expo-linear-gradient (visuals)
 - expo-file-system (base64 image/audio handling)
 - axios (networking)
+- firebase (authentication)
 
 ## Project structure
 
@@ -80,6 +81,7 @@ TranscriptAnalyzer/
 3. Configure Gemini
 
 - Copy `src/config/env.example.ts` to `src/config/env.ts`
+- Add `FIREBASE_API_KEY`: Firebase Web API key (Project Settings → General → Web API Key)
 - Replace `GEMINI_API_KEY` with your key from Google AI Studio
 - Keep `GEMINI_API_URL` as provided unless you have a custom endpoint
 
@@ -129,6 +131,7 @@ Common scripts (if present in `package.json`):
 ## Configuration details
 
 - `src/config/env.ts`
+  - `FIREBASE_API_KEY`: Your Firebase Web API key (required)
   - `GEMINI_API_KEY`: Your API key (required)
   - `GEMINI_API_URL`: Defaults to Gemini 2.0 Flash generateContent endpoint
   - Image constraints: `MAX_IMAGE_SIZE`, `IMAGE_QUALITY`, `IMAGE_ASPECT_RATIO`
