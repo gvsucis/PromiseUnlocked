@@ -1,6 +1,6 @@
 /**
  * Skill Taxonomy Service - Usage Examples
- * 
+ *
  * This file demonstrates how to use the skill mapping functionality
  */
 
@@ -9,18 +9,18 @@ import {
   mapSkillsToTaxonomy,
   normalizeSkills,
   SKILLS_TAXONOMY,
-} from '../services/skillTaxonomyService';
+} from "../services/skillTaxonomyService";
 
 // Example 1: Map a single user skill to the taxonomy
 export function example1_SingleSkillMapping() {
   const userInput = "programming";
   const result = mapSkillToTaxonomy(userInput);
-  
-  console.log('Input:', userInput);
-  console.log('Mapped to:', result.skill);
-  console.log('Category:', result.category);
-  console.log('Confidence:', result.confidence);
-  
+
+  console.log("Input:", userInput);
+  console.log("Mapped to:", result.skill);
+  console.log("Category:", result.category);
+  console.log("Confidence:", result.confidence);
+
   // Output:
   // Input: programming
   // Mapped to: Technical Skills
@@ -35,17 +35,17 @@ export function example2_MultipleSkillsMapping() {
     "coding",
     "public speaking",
     "managing projects",
-    "creative thinking"
+    "creative thinking",
   ];
-  
+
   const results = mapSkillsToTaxonomy(userSkills);
-  
-  console.log('User Skills:', userSkills);
-  console.log('Mapped Results:');
-  results.forEach(r => {
+
+  console.log("User Skills:", userSkills);
+  console.log("Mapped Results:");
+  results.forEach((r) => {
     console.log(`  - ${r.skill} (${r.category}) - ${Math.round(r.confidence * 100)}%`);
   });
-  
+
   // Output:
   // User Skills: ["teamwork", "coding", "public speaking", "managing projects", "creative thinking"]
   // Mapped Results:
@@ -60,18 +60,18 @@ export function example2_MultipleSkillsMapping() {
 export function example3_NormalizeSkills() {
   const userSkills = [
     "communication",
-    "communicating",  // Duplicate/similar
+    "communicating", // Duplicate/similar
     "teamwork",
-    "collaboration",  // Similar to teamwork
+    "collaboration", // Similar to teamwork
     "random skill xyz", // Low confidence
-    "leadership"
+    "leadership",
   ];
-  
+
   const normalized = normalizeSkills(userSkills);
-  
-  console.log('Input:', userSkills);
-  console.log('Normalized:', normalized);
-  
+
+  console.log("Input:", userSkills);
+  console.log("Normalized:", normalized);
+
   // Output:
   // Input: ["communication", "communicating", "teamwork", "collaboration", "random skill xyz", "leadership"]
   // Normalized: ["Communication", "Collaboration", "Leadership"]
@@ -85,43 +85,43 @@ export function example4_ProcessAPIResponse(apiResponse: any) {
     "problem solving",
     "creative design",
     "team collaboration",
-    "public presentations"
+    "public presentations",
   ];
-  
+
   // Normalize to match taxonomy
   const normalizedSkills = normalizeSkills(rawSkills);
-  
+
   // Update the response
   const processedResponse = {
     ...apiResponse,
     primary_skills: normalizedSkills,
     original_skills: rawSkills, // Keep original for reference
   };
-  
+
   return processedResponse;
 }
 
 // Example 5: Interactive skill selector (for UI components)
 export function example5_InteractiveSelection(userInput: string) {
   const mapped = mapSkillToTaxonomy(userInput);
-  
+
   if (mapped.confidence > 0.8) {
     return {
-      status: 'high_confidence',
+      status: "high_confidence",
       message: `Great match! We found "${mapped.skill}" in our ${mapped.category} category.`,
       skill: mapped.skill,
       category: mapped.category,
     };
   } else if (mapped.confidence > 0.5) {
     return {
-      status: 'medium_confidence',
+      status: "medium_confidence",
       message: `Did you mean "${mapped.skill}"? (from ${mapped.category})`,
       skill: mapped.skill,
       category: mapped.category,
     };
   } else {
     return {
-      status: 'low_confidence',
+      status: "low_confidence",
       message: `We couldn't find a good match. Try selecting from our skills taxonomy.`,
       skill: null,
       category: null,
@@ -132,11 +132,11 @@ export function example5_InteractiveSelection(userInput: string) {
 // Example 6: Get suggestions based on partial input
 export function example6_GetSuggestions(partialInput: string) {
   const allSkills = Object.values(SKILLS_TAXONOMY).flat();
-  
+
   const suggestions = allSkills
-    .filter(skill => skill.toLowerCase().includes(partialInput.toLowerCase()))
+    .filter((skill) => skill.toLowerCase().includes(partialInput.toLowerCase()))
     .slice(0, 5); // Top 5 suggestions
-  
+
   return suggestions;
 }
 

@@ -1,74 +1,33 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import { Button, Card, Title, Paragraph, ActivityIndicator } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../types/navigation';
-import { GeminiService } from '../services/geminiService';
+import React, { useState, useRef, useEffect } from "react";
+import { View, StyleSheet, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { Button, Card, Title, Paragraph, ActivityIndicator } from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RouteProp } from "@react-navigation/native";
+import { RootStackParamList } from "../types/navigation";
+import { GeminiService } from "../services/geminiService";
+import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
-type VoiceAnalysisScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VoiceAnalysis'>;
-type VoiceAnalysisScreenRouteProp = RouteProp<RootStackParamList, 'VoiceAnalysis'>;
+type VoiceAnalysisScreenNavigationProp = StackNavigationProp<RootStackParamList, "VoiceAnalysis">;
+type VoiceAnalysisScreenRouteProp = RouteProp<RootStackParamList, "VoiceAnalysis">;
 
 interface Props {
   navigation: VoiceAnalysisScreenNavigationProp;
   route: VoiceAnalysisScreenRouteProp;
 }
 
-const SKILLS_TAXONOMY = {
-  'Human Skills': [
-    'Communication', 'Collaboration', 'Leadership', 'Empathy', 'Active Listening',
-    'Conflict Resolution', 'Networking', 'Public Speaking', 'Team Management'
-  ],
-  'Meta-Learning': [
-    'Critical Thinking', 'Research Skills', 'Self-Reflection', 'Learning Strategies',
-    'Information Synthesis', 'Knowledge Transfer', 'Continuous Learning', 'Adaptability'
-  ],
-  'Maker & Builder': [
-    'Prototyping', 'Design Thinking', 'Craftsmanship', 'Innovation', 'Technical Skills',
-    'Project Management', 'Problem Solving', 'Creative Construction', 'Engineering'
-  ],
-  'Civic Impact': [
-    'Community Engagement', 'Social Responsibility', 'Advocacy', 'Volunteer Work',
-    'Policy Understanding', 'Cultural Awareness', 'Environmental Stewardship', 'Civic Participation'
-  ],
-  'Creative Expression': [
-    'Artistic Creation', 'Storytelling', 'Music', 'Writing', 'Visual Arts',
-    'Performance', 'Creative Problem Solving', 'Imagination', 'Aesthetic Appreciation'
-  ],
-  'Problem-Solving': [
-    'Analytical Thinking', 'Strategic Planning', 'Troubleshooting', 'Decision Making',
-    'Systems Thinking', 'Root Cause Analysis', 'Innovation', 'Logic', 'Pattern Recognition'
-  ],
-  'Work Experience': [
-    'Professional Skills', 'Industry Knowledge', 'Workplace Etiquette', 'Time Management',
-    'Client Relations', 'Business Acumen', 'Career Development', 'Mentorship'
-  ],
-  'Future Self': [
-    'Goal Setting', 'Vision Creation', 'Personal Growth', 'Skill Development',
-    'Career Planning', 'Life Balance', 'Self-Improvement', 'Aspiration Mapping'
-  ]
-};
-
 export default function VoiceAnalysisScreen({ navigation, route }: Props) {
   const { question, context } = route.params || {};
-  
+
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [transcript, setTranscript] = useState<string>('');
-  const [analysis, setAnalysis] = useState<string>('');
-  const [identifiedSkills, setIdentifiedSkills] = useState<{[category: string]: string[]}>({});
+  const [transcript, setTranscript] = useState<string>("");
+  const [analysis, setAnalysis] = useState<string>("");
+  const [identifiedSkills, setIdentifiedSkills] = useState<{ [category: string]: string[] }>({});
   const [recordingDuration, setRecordingDuration] = useState(0);
-  
+
   const recording = useRef<Audio.Recording | null>(null);
   const durationTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -83,13 +42,13 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
   const requestPermissions = async () => {
     try {
       const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant microphone permission to record audio.');
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please grant microphone permission to record audio.");
         return false;
       }
       return true;
     } catch (error) {
-      console.error('Error requesting permissions:', error);
+      console.error("Error requesting permissions:", error);
       return false;
     }
   };
@@ -111,15 +70,14 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
       recording.current = newRecording;
       setIsRecording(true);
       setRecordingDuration(0);
-      
+
       // Start duration timer
       durationTimer.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
+        setRecordingDuration((prev) => prev + 1);
       }, 1000);
-
     } catch (error) {
-      console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Failed to start recording. Please try again.');
+      console.error("Failed to start recording:", error);
+      Alert.alert("Error", "Failed to start recording. Please try again.");
     }
   };
 
@@ -135,16 +93,16 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
 
       await recording.current.stopAndUnloadAsync();
       const uri = recording.current.getURI();
-      
+
       if (uri) {
         setIsProcessing(true);
         await processAudio(uri);
       }
-      
+
       recording.current = null;
     } catch (error) {
-      console.error('Failed to stop recording:', error);
-      Alert.alert('Error', 'Failed to stop recording. Please try again.');
+      console.error("Failed to stop recording:", error);
+      Alert.alert("Error", "Failed to stop recording. Please try again.");
     }
   };
 
@@ -152,43 +110,42 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
     try {
       // First, transcribe the audio
       const transcriptionResult = await GeminiService.transcribeAudio(audioUri);
-      
+
       if (!transcriptionResult.success || !transcriptionResult.transcript) {
-        Alert.alert('Error', transcriptionResult.error || 'Failed to transcribe audio');
+        Alert.alert("Error", transcriptionResult.error || "Failed to transcribe audio");
         setIsProcessing(false);
         return;
       }
 
       setTranscript(transcriptionResult.transcript);
-      
+
       // If we came from a follow-up question (DialogueDashboard flow)
       if (question) {
         // Show success message and navigate back to DialogueDashboard
         Alert.alert(
-          'Voice Recording Complete!',
-          'Your response has been transcribed. Returning to dashboard...',
+          "Voice Recording Complete!",
+          "Your response has been transcribed. Returning to dashboard...",
           [
             {
-              text: 'OK',
-              onPress: () => navigation.navigate('DialogueDashboard'),
+              text: "OK",
+              onPress: () => navigation.navigate("DialogueDashboard"),
             },
           ]
         );
         setIsProcessing(false);
         return;
       }
-      
+
       // Otherwise, continue with normal analysis for standalone voice analysis
       await analyzeTranscriptWithTaxonomy(transcriptionResult.transcript);
-      
+
       // After analysis is complete, automatically navigate to DialogueDashboard
       setTimeout(() => {
-        navigation.navigate('DialogueDashboard');
+        navigation.navigate("DialogueDashboard");
       }, 1500);
-      
     } catch (error) {
-      console.error('Error processing audio:', error);
-      Alert.alert('Error', 'Failed to process audio. Please try again.');
+      console.error("Error processing audio:", error);
+      Alert.alert("Error", "Failed to process audio. Please try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -200,9 +157,9 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
 Analyze the following transcript where someone is describing what they do when they lose track of time. Based on the content, identify which skills and categories from this taxonomy apply:
 
 SKILLS TAXONOMY:
-${Object.entries(SKILLS_TAXONOMY).map(([category, skills]) => 
-  `${category}: ${skills.join(', ')}`
-).join('\n')}
+${Object.entries(SKILLS_TAXONOMY)
+  .map(([category, skills]) => `${category}: ${skills.join(", ")}`)
+  .join("\n")}
 
 TRANSCRIPT: "${transcriptText}"
 
@@ -215,42 +172,42 @@ Please provide:
 Format your response as a thoughtful analysis that helps them understand their skills and interests better.`;
 
       const analysisResult = await GeminiService.processTranscriptText(analysisPrompt);
-      
+
       if (analysisResult) {
         setAnalysis(analysisResult);
-        
+
         // Extract skills mentioned in the analysis
-        const extractedSkills: {[category: string]: string[]} = {};
-        
+        const extractedSkills: { [category: string]: string[] } = {};
+
         Object.entries(SKILLS_TAXONOMY).forEach(([category, skills]) => {
-          const matchedSkills = skills.filter(skill => 
-            transcriptText.toLowerCase().includes(skill.toLowerCase()) ||
-            analysisResult.toLowerCase().includes(skill.toLowerCase())
+          const matchedSkills = skills.filter(
+            (skill) =>
+              transcriptText.toLowerCase().includes(skill.toLowerCase()) ||
+              analysisResult.toLowerCase().includes(skill.toLowerCase())
           );
-          
+
           if (matchedSkills.length > 0) {
             extractedSkills[category] = matchedSkills;
           }
         });
-        
+
         setIdentifiedSkills(extractedSkills);
       }
-      
     } catch (error) {
-      console.error('Error analyzing transcript:', error);
-      Alert.alert('Error', 'Failed to analyze transcript. Please try again.');
+      console.error("Error analyzing transcript:", error);
+      Alert.alert("Error", "Failed to analyze transcript. Please try again.");
     }
   };
 
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const resetSession = () => {
-    setTranscript('');
-    setAnalysis('');
+    setTranscript("");
+    setAnalysis("");
     setIdentifiedSkills({});
     setRecordingDuration(0);
   };
@@ -259,43 +216,43 @@ Format your response as a thoughtful analysis that helps them understand their s
     const categories = Object.keys(identifiedSkills);
     const firstCategory = categories[0];
     const firstSkill = firstCategory ? identifiedSkills[firstCategory]?.[0] : undefined;
-    if (categories.includes('Creative Expression')) {
-      return 'Would you create a small piece this week (e.g., a 60-second reel, a sketch, or a short story) to explore this interest?';
+    if (categories.includes("Creative Expression")) {
+      return "Would you create a small piece this week (e.g., a 60-second reel, a sketch, or a short story) to explore this interest?";
     }
-    if (categories.includes('Maker & Builder')) {
-      return 'What quick prototype could you build in the next 2–3 hours to test an idea from this activity?';
+    if (categories.includes("Maker & Builder")) {
+      return "What quick prototype could you build in the next 2–3 hours to test an idea from this activity?";
     }
-    if (categories.includes('Meta-Learning')) {
-      return 'What is one question you’re curious about here, and how would you research it?';
+    if (categories.includes("Meta-Learning")) {
+      return "What is one question you’re curious about here, and how would you research it?";
     }
-    if (categories.includes('Human Skills')) {
-      return 'Who could you share or collaborate with this week to amplify your impact or get feedback?';
+    if (categories.includes("Human Skills")) {
+      return "Who could you share or collaborate with this week to amplify your impact or get feedback?";
     }
-    if (categories.includes('Problem-Solving')) {
-      return 'What challenge did you hit during this activity, and how might you approach it differently next time?';
+    if (categories.includes("Problem-Solving")) {
+      return "What challenge did you hit during this activity, and how might you approach it differently next time?";
     }
-    if (categories.includes('Civic Impact')) {
-      return 'Is there a community or cause that could benefit from this—what’s one small action you could take?';
+    if (categories.includes("Civic Impact")) {
+      return "Is there a community or cause that could benefit from this—what’s one small action you could take?";
     }
-    if (categories.includes('Work Experience')) {
-      return 'Is there a real-world context (internship, freelance, volunteer) where you could apply this in the next month?';
+    if (categories.includes("Work Experience")) {
+      return "Is there a real-world context (internship, freelance, volunteer) where you could apply this in the next month?";
     }
-    if (categories.includes('Future Self')) {
-      return 'If this became part of your routine, what would “leveling up” look like in 30 days?';
+    if (categories.includes("Future Self")) {
+      return "If this became part of your routine, what would “leveling up” look like in 30 days?";
     }
     if (firstSkill) {
       return `Which part of this activity best builds ${firstSkill}, and how could you double that time next week?`;
     }
-    return 'What is one small next step you could take to explore this interest further?';
+    return "What is one small next step you could take to explore this interest further?";
   };
 
   return (
-    <LinearGradient colors={['#4c669f', '#3b5998', '#192f6a']} style={styles.container}>
+    <LinearGradient colors={["#4c669f", "#3b5998", "#192f6a"]} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>Voice Analysis</Text>
           <Text style={styles.subtitle}>
-            {question || 'Tell me about what you do when you lose track of time'}
+            {question || "Tell me about what you do when you lose track of time"}
           </Text>
         </View>
 
@@ -348,13 +305,15 @@ Format your response as a thoughtful analysis that helps them understand their s
           </Card>
         )}
 
-        {(analysis || transcript) && (
-          <Card 
+        {!!(analysis || transcript) && (
+          <Card
             style={styles.resultCard}
-            onPress={() => navigation.navigate('FollowUpQuestion', {
-              question: generateFollowUpQuestion(),
-              context: { transcript, analysis },
-            })}
+            onPress={() =>
+              navigation.navigate("FollowUpQuestion", {
+                question: generateFollowUpQuestion(),
+                context: { transcript, analysis },
+              })
+            }
           >
             <Card.Content>
               <View style={styles.cardTitleContainer}>
@@ -362,9 +321,7 @@ Format your response as a thoughtful analysis that helps them understand their s
                 <Title style={styles.sectionTitle}>Follow-up Question</Title>
               </View>
               <Paragraph style={styles.analysisText}>{generateFollowUpQuestion()}</Paragraph>
-              <Paragraph style={styles.tapHint}>
-                👆 Tap to answer this question
-              </Paragraph>
+              <Paragraph style={styles.tapHint}>👆 Tap to answer this question</Paragraph>
             </Card.Content>
           </Card>
         )}
@@ -391,17 +348,17 @@ Format your response as a thoughtful analysis that helps them understand their s
 
         {(transcript || analysis) && (
           <View style={styles.actionButtons}>
-            <Button 
-              mode="outlined" 
+            <Button
+              mode="outlined"
               onPress={resetSession}
               style={styles.actionButton}
               labelStyle={styles.buttonLabel}
             >
               Record Again
             </Button>
-            <Button 
-              mode="contained" 
-              onPress={() => navigation.navigate('Dashboard')}
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate("Dashboard")}
               style={[styles.actionButton, styles.primaryButton]}
               labelStyle={styles.buttonLabel}
             >
@@ -423,20 +380,20 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 30,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: 'white',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "white",
+    textAlign: "center",
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
+    color: "rgba(255, 255, 255, 0.8)",
+    textAlign: "center",
     lineHeight: 22,
   },
   recordingCard: {
@@ -444,13 +401,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   recordingContent: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 30,
   },
   recordButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 24,
@@ -460,41 +417,41 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   recordButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   recordingIndicator: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   pulseContainer: {
     padding: 20,
   },
   recordingText: {
     fontSize: 18,
-    color: '#ff4444',
-    fontWeight: 'bold',
+    color: "#ff4444",
+    fontWeight: "bold",
     marginTop: 10,
   },
   durationText: {
     fontSize: 24,
-    color: '#333',
-    fontWeight: 'bold',
+    color: "#333",
+    fontWeight: "bold",
     marginTop: 5,
   },
   stopButton: {
-    backgroundColor: '#ff4444',
+    backgroundColor: "#ff4444",
     padding: 15,
     borderRadius: 50,
     marginTop: 20,
   },
   processingContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 20,
   },
   processingText: {
     fontSize: 16,
-    color: '#666',
+    color: "#666",
     marginTop: 15,
   },
   resultCard: {
@@ -502,49 +459,49 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   cardTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 10,
   },
   transcriptText: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#555',
+    color: "#555",
   },
   analysisText: {
     fontSize: 14,
     lineHeight: 22,
-    color: '#333',
+    color: "#333",
   },
   tapHint: {
     fontSize: 12,
-    color: '#667eea',
-    fontStyle: 'italic',
+    color: "#667eea",
+    fontStyle: "italic",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   skillCategory: {
     marginBottom: 15,
   },
   categoryTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4c669f',
+    fontWeight: "bold",
+    color: "#4c669f",
     marginBottom: 8,
   },
   skillsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
   skillChip: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: "#e3f2fd",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -552,12 +509,12 @@ const styles = StyleSheet.create({
   },
   skillText: {
     fontSize: 12,
-    color: '#1976d2',
-    fontWeight: '500',
+    color: "#1976d2",
+    fontWeight: "500",
   },
   actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: 20,
   },
   actionButton: {
@@ -565,10 +522,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   primaryButton: {
-    backgroundColor: '#4c669f',
+    backgroundColor: "#4c669f",
   },
   buttonLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

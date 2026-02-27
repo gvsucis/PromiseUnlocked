@@ -3,23 +3,17 @@
  * Manages persistence of mapped categories and conversation history
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MappedCategory, ConversationInteraction } from './categoryTaxonomyService';
+import { MappedCategory, ConversationInteraction } from "./categoryTaxonomyService";
+import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../util/asyncStorage";
 
-const MAPPED_CATEGORIES_KEY = '@mappedCategories';
-const INTERACTIONS_KEY = '@userInteractions';
+const MAPPED_CATEGORIES_KEY = "@mappedCategories";
+const INTERACTIONS_KEY = "@userInteractions";
 
 /**
  * Get all mapped categories
  */
 export async function getMappedCategories(): Promise<MappedCategory[]> {
-  try {
-    const data = await AsyncStorage.getItem(MAPPED_CATEGORIES_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error('Error loading mapped categories:', error);
-    return [];
-  }
+  return getJSONFromStorage(MAPPED_CATEGORIES_KEY, [] as MappedCategory[]);
 }
 
 /**
@@ -29,9 +23,9 @@ export async function saveMappedCategory(category: MappedCategory): Promise<void
   try {
     const current = await getMappedCategories();
     const updated = [...current, category];
-    await AsyncStorage.setItem(MAPPED_CATEGORIES_KEY, JSON.stringify(updated));
+    await setJSONInStorage(MAPPED_CATEGORIES_KEY, updated);
   } catch (error) {
-    console.error('Error saving mapped category:', error);
+    console.error("Error saving mapped category:", error);
     throw error;
   }
 }
@@ -40,25 +34,21 @@ export async function saveMappedCategory(category: MappedCategory): Promise<void
  * Get all conversation interactions
  */
 export async function getConversationHistory(): Promise<ConversationInteraction[]> {
-  try {
-    const data = await AsyncStorage.getItem(INTERACTIONS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error('Error loading conversation history:', error);
-    return [];
-  }
+  return getJSONFromStorage(INTERACTIONS_KEY, [] as ConversationInteraction[]);
 }
 
 /**
  * Add a conversation interaction
  */
-export async function addConversationInteraction(interaction: ConversationInteraction): Promise<void> {
+export async function addConversationInteraction(
+  interaction: ConversationInteraction
+): Promise<void> {
   try {
     const current = await getConversationHistory();
     const updated = [...current, interaction];
-    await AsyncStorage.setItem(INTERACTIONS_KEY, JSON.stringify(updated));
+    await setJSONInStorage(INTERACTIONS_KEY, updated);
   } catch (error) {
-    console.error('Error saving conversation interaction:', error);
+    console.error("Error saving conversation interaction:", error);
     throw error;
   }
 }
@@ -68,7 +58,7 @@ export async function addConversationInteraction(interaction: ConversationIntera
  */
 export async function isCategoryMapped(categoryName: string): Promise<boolean> {
   const mapped = await getMappedCategories();
-  return mapped.some(c => c.category === categoryName);
+  return mapped.some((c) => c.category === categoryName);
 }
 
 /**
@@ -76,7 +66,7 @@ export async function isCategoryMapped(categoryName: string): Promise<boolean> {
  */
 export async function getMappedCategoryNames(): Promise<string[]> {
   const mapped = await getMappedCategories();
-  return mapped.map(c => c.category);
+  return mapped.map((c) => c.category);
 }
 
 /**
@@ -84,9 +74,9 @@ export async function getMappedCategoryNames(): Promise<string[]> {
  */
 export async function clearAllData(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([MAPPED_CATEGORIES_KEY, INTERACTIONS_KEY]);
+    await removeManyFromStorage([MAPPED_CATEGORIES_KEY, INTERACTIONS_KEY]);
   } catch (error) {
-    console.error('Error clearing data:', error);
+    console.error("Error clearing data:", error);
     throw error;
   }
 }
@@ -101,14 +91,12 @@ export async function getMappingStats(): Promise<{
 }> {
   const [mapped, interactions] = await Promise.all([
     getMappedCategories(),
-    getConversationHistory()
+    getConversationHistory(),
   ]);
 
   return {
     totalMapped: mapped.length,
     totalInteractions: interactions.length,
-    lastInteractionDate: interactions.length > 0 
-      ? interactions[interactions.length - 1].timestamp 
-      : undefined
+    lastInteractionDate: interactions.at(-1)?.timestamp,
   };
 }

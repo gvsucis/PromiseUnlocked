@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -9,7 +9,7 @@ import {
   Dimensions,
   Image,
   TouchableOpacity,
-} from 'react-native';
+} from "react-native";
 import {
   FAB,
   Card,
@@ -19,43 +19,46 @@ import {
   Snackbar,
   TextInput,
   Button,
-} from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons } from '@expo/vector-icons';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../types/navigation';
-import { ImagePickerService } from '../services/imagePickerService';
-import { GeminiService } from '../services/geminiService';
-import ZoomableImageView from '../components/ZoomableImageView';
-import ImageEditor from '../components/ImageEditor';
+} from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RouteProp } from "@react-navigation/native";
+import { RootStackParamList } from "../types/navigation";
+import { ImagePickerService } from "../services/imagePickerService";
+import { GeminiService } from "../services/geminiService";
+import ZoomableImageView from "../components/ZoomableImageView";
+import ImageEditor from "../components/ImageEditor";
 
-type FollowUpQuestionScreenNavigationProp = StackNavigationProp<RootStackParamList, 'FollowUpQuestion'>;
-type FollowUpQuestionScreenRouteProp = RouteProp<RootStackParamList, 'FollowUpQuestion'>;
+type FollowUpQuestionScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "FollowUpQuestion"
+>;
+type FollowUpQuestionScreenRouteProp = RouteProp<RootStackParamList, "FollowUpQuestion">;
 
 interface Props {
   navigation: FollowUpQuestionScreenNavigationProp;
   route: FollowUpQuestionScreenRouteProp;
 }
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   const { question, context } = route.params;
-  
+
   // State management
   const [isOpen, setIsOpen] = useState(false);
-  const [inputMode, setInputMode] = useState<'none' | 'text' | 'voice' | 'image'>('none');
-  const [textInput, setTextInput] = useState('');
+  const [inputMode, setInputMode] = useState<"none" | "text" | "voice" | "image">("none");
+  const [textInput, setTextInput] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
   const [zoomViewerVisible, setZoomViewerVisible] = useState(false);
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [tempImageUri, setTempImageUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  
+
   // Animation values for FAB
   const animation = useRef(new Animated.Value(0)).current;
   const button1Animation = useRef(new Animated.Value(0)).current;
@@ -70,7 +73,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
 
   const toggleMenu = () => {
     const toValue = isOpen ? 0 : 1;
-    
+
     Animated.parallel([
       Animated.spring(animation, {
         toValue,
@@ -105,13 +108,13 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
         }),
       ]),
     ]).start();
-    
+
     setIsOpen(!isOpen);
   };
 
   const rotation = rotateAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '45deg'],
+    outputRange: ["0deg", "45deg"],
   });
 
   const button1Style = {
@@ -189,8 +192,8 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
       const hasPermissions = await ImagePickerService.requestPermissions();
       if (!hasPermissions) {
         Alert.alert(
-          'Permissions Required',
-          'Camera and photo library permissions are required to use this feature.'
+          "Permissions Required",
+          "Camera and photo library permissions are required to use this feature."
         );
         return;
       }
@@ -207,13 +210,13 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
         setShowImageEditor(!allowEditing);
         if (allowEditing) {
           setSelectedImage(result.imageUri);
-          showSnackbar('Image selected successfully!');
+          showSnackbar("Image selected successfully!");
         }
       } else {
-        showSnackbar(result.error || 'Failed to select image');
+        showSnackbar(result.error || "Failed to select image");
       }
     } catch (error) {
-      showSnackbar('An error occurred while selecting image');
+      showSnackbar("An error occurred while selecting image");
     }
   };
 
@@ -221,7 +224,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
     setSelectedImage(editedImageUri);
     setShowImageEditor(false);
     setTempImageUri(null);
-    showSnackbar('Image ready for analysis!');
+    showSnackbar("Image ready for analysis!");
   };
 
   const handleImageEditorCancel = () => {
@@ -232,31 +235,31 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   // Handle photo button press
   const handlePhotoPress = () => {
     toggleMenu();
-    
+
     // Use setTimeout to ensure the FAB menu animation completes before showing Alert
     setTimeout(() => {
-      setInputMode('image');
-      
+      setInputMode("image");
+
       // Show options to choose between camera and gallery
       Alert.alert(
-        'Choose Image Source',
-        'How would you like to add your image?',
+        "Choose Image Source",
+        "How would you like to add your image?",
         [
           {
-            text: 'Take Photo',
+            text: "Take Photo",
             onPress: () => handleImageSelection(true, false), // Use camera
           },
           {
-            text: 'Choose from Gallery',
+            text: "Choose from Gallery",
             onPress: () => handleImageSelection(false, false), // Use gallery
           },
           {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setInputMode('none'),
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => setInputMode("none"),
           },
         ],
-        { cancelable: true, onDismiss: () => setInputMode('none') }
+        { cancelable: true, onDismiss: () => setInputMode("none") }
       );
     }, 300); // Wait for FAB animation to complete
   };
@@ -264,20 +267,20 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   // Handle voice button press
   const handleVoicePress = () => {
     toggleMenu();
-    setInputMode('voice');
-    navigation.navigate('VoiceAnalysis', { question, context });
+    setInputMode("voice");
+    navigation.navigate("VoiceAnalysis", { question, context });
   };
 
   // Handle text button press
   const handleTextPress = () => {
     toggleMenu();
-    setInputMode('text');
+    setInputMode("text");
   };
 
   // Submit text response
   const handleSubmitText = async () => {
     if (!textInput.trim()) {
-      showSnackbar('Please enter a response');
+      showSnackbar("Please enter a response");
       return;
     }
 
@@ -286,20 +289,20 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
       // For text responses, we'll navigate to TextAnalysis screen with the question context
       // Or we could create a simple result showing the user's response
       Alert.alert(
-        'Response Recorded',
-        'Your response has been recorded. This feature will send your answer for AI analysis.',
+        "Response Recorded",
+        "Your response has been recorded. This feature will send your answer for AI analysis.",
         [
           {
-            text: 'OK',
+            text: "OK",
             onPress: () => {
-              setTextInput('');
+              setTextInput("");
               navigation.goBack();
             },
           },
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      Alert.alert("Error", "An unexpected error occurred");
     } finally {
       setIsAnalyzing(false);
     }
@@ -308,7 +311,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   // Submit image response
   const handleSubmitImage = async () => {
     if (!selectedImage) {
-      showSnackbar('Please select an image first');
+      showSnackbar("Please select an image first");
       return;
     }
 
@@ -316,28 +319,22 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
     try {
       // Analyze the image in the context of the follow-up question
       const result = await GeminiService.analyzeActionImage(selectedImage);
-      
+
       if (result.success) {
-        navigation.navigate('Result', { result });
+        navigation.navigate("Result", { result });
       } else {
-        Alert.alert('Analysis Failed', result.error || 'Failed to analyze image');
+        Alert.alert("Analysis Failed", result.error || "Failed to analyze image");
       }
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      Alert.alert("Error", "An unexpected error occurred");
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   return (
-    <LinearGradient
-      colors={['#667eea', '#764ba2']}
-      style={styles.container}
-    >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
+    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Question Card */}
         <Card style={styles.questionCard}>
           <Card.Content>
@@ -350,7 +347,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
         </Card>
 
         {/* Text Input Mode */}
-        {inputMode === 'text' && (
+        {inputMode === "text" && (
           <Card style={styles.inputCard}>
             <Card.Content>
               <View style={styles.cardTitleContainer}>
@@ -377,14 +374,14 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
                 style={styles.submitButton}
                 buttonColor="#6C5CE7"
               >
-                {isAnalyzing ? 'Analyzing...' : 'Submit Response'}
+                {isAnalyzing ? "Analyzing..." : "Submit Response"}
               </Button>
             </Card.Content>
           </Card>
         )}
 
         {/* Image Input Mode */}
-        {inputMode === 'image' && selectedImage && (
+        {inputMode === "image" && selectedImage && (
           <Card style={styles.inputCard}>
             <Card.Content>
               <View style={styles.cardTitleContainer}>
@@ -411,7 +408,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
                   style={styles.submitButton}
                   buttonColor="#6C5CE7"
                 >
-                  {isAnalyzing ? 'Analyzing...' : 'Submit Image'}
+                  {isAnalyzing ? "Analyzing..." : "Submit Image"}
                 </Button>
               </View>
             </Card.Content>
@@ -419,7 +416,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
         )}
 
         {/* Instructions when no input mode selected */}
-        {inputMode === 'none' && (
+        {inputMode === "none" && (
           <Card style={styles.instructionCard}>
             <Card.Content>
               <Paragraph style={styles.instructionText}>
@@ -456,7 +453,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
                 </View>
               )}
               onPress={handlePhotoPress}
-              style={[styles.fab, { backgroundColor: '#FF6B6B' }]}
+              style={[styles.fab, { backgroundColor: "#FF6B6B" }]}
               size="small"
             />
           </Animated.View>
@@ -470,7 +467,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
                 </View>
               )}
               onPress={handleVoicePress}
-              style={[styles.fab, { backgroundColor: '#4ECDC4' }]}
+              style={[styles.fab, { backgroundColor: "#4ECDC4" }]}
               size="small"
             />
           </Animated.View>
@@ -484,7 +481,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
                 </View>
               )}
               onPress={handleTextPress}
-              style={[styles.fab, { backgroundColor: '#45B7D1' }]}
+              style={[styles.fab, { backgroundColor: "#45B7D1" }]}
               size="small"
             />
           </Animated.View>
@@ -498,7 +495,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
                 </View>
               )}
               onPress={toggleMenu}
-              style={[styles.mainFab, { backgroundColor: '#6C5CE7' }]}
+              style={[styles.mainFab, { backgroundColor: "#6C5CE7" }]}
             />
           </Animated.View>
         </View>
@@ -552,21 +549,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   cardTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 8,
   },
   cardTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#667eea',
+    fontWeight: "bold",
+    color: "#667eea",
     marginBottom: 10,
   },
   questionText: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#333',
+    color: "#333",
   },
   inputCard: {
     marginBottom: 20,
@@ -575,94 +572,94 @@ const styles = StyleSheet.create({
   },
   inputTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#667eea',
+    fontWeight: "bold",
+    color: "#667eea",
     marginBottom: 10,
   },
   textInput: {
     marginBottom: 15,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   submitButton: {
     marginTop: 10,
   },
   previewImage: {
-    width: '100%',
+    width: "100%",
     height: 200,
     borderRadius: 8,
     marginBottom: 15,
   },
   imageActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 10,
   },
   changeImageButton: {
     flex: 1,
-    borderColor: '#6C5CE7',
+    borderColor: "#6C5CE7",
   },
   instructionCard: {
     elevation: 4,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
   },
   instructionText: {
     fontSize: 16,
-    color: '#555',
-    textAlign: 'center',
+    color: "#555",
+    textAlign: "center",
     marginBottom: 20,
   },
   optionsList: {
     gap: 15,
   },
   optionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 15,
     paddingVertical: 8,
   },
   optionText: {
     fontSize: 16,
-    color: '#333',
+    color: "#333",
   },
   fabContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 30,
     right: 0,
     left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   fabInner: {
-    position: 'relative',
+    position: "relative",
     width: 56,
     height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   mainFab: {
-    position: 'absolute',
+    position: "absolute",
     margin: 0,
     elevation: 6,
   },
   mainFabWrapper: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionButton: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
   },
   fab: {
     elevation: 6,
   },
   iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   snackbar: {
-    backgroundColor: '#6C5CE7',
+    backgroundColor: "#6C5CE7",
   },
 });

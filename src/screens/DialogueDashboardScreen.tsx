@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -6,750 +6,266 @@ import {
   Dimensions,
   TouchableOpacity,
   Alert,
-  Modal,
-  TextInput,
-  TouchableWithoutFeedback,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Animated,
-  Image,
-} from 'react-native';
-import {
-  Text,
-  Card,
-  ActivityIndicator,
-  FAB,
-} from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import { RootStackParamList } from '../types/navigation';
+} from "react-native";
+import { Text, Card, ActivityIndicator } from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RouteProp } from "@react-navigation/native";
+import ConfettiCannon from "react-native-confetti-cannon";
+import { RootStackParamList } from "../types/navigation";
 import {
   CATEGORY_TAXONOMY,
   TOTAL_CATEGORIES,
-  INITIAL_PROMPT,
-  NO_OP_CATEGORY,
-  getTaxonomyString,
-  getCompletionPercentage,
-  findValidCategory,
-  MappedCategory,
-  ConversationInteraction,
-} from '../services/categoryTaxonomyService';
-import {
-  getMappedCategories,
-  saveMappedCategory,
-  getConversationHistory,
-  addConversationInteraction,
-  clearAllData,
-  isCategoryMapped,
-} from '../services/categoryStorageService';
-import { GeminiService } from '../services/geminiService';
-import { ImagePickerService } from '../services/imagePickerService';
-import { Audio } from 'expo-av';
-import ZoomableImageView from '../components/ZoomableImageView';
-import ImageEditor from '../components/ImageEditor';
+} from "../services/categoryTaxonomyService";
+import { GeminiService } from "../services/geminiService";
+import { ImagePickerService } from "../services/imagePickerService";
+import { Audio } from "expo-av";
+import ZoomableImageView from "../components/ZoomableImageView";
+import ImageEditor from "../components/ImageEditor";
+import { LoadingModal } from "../components/dialogue/LoadingModal";
+import { CompletionModal } from "../components/dialogue/CompletionModal";
+import { WeakFitModal } from "../components/dialogue/WeakFitModal";
+import { InputMethodModal } from "../components/dialogue/InputMethodModal";
+import { AnswerModal } from "../components/dialogue/AnswerModal";
+import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
+import { CategoryCard } from "../components/dialogue/CategoryCard";
+import { useDialogueState } from "../hooks/useDialogueState";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
-type DialogueDashboardNavigationProp = StackNavigationProp<RootStackParamList, 'DialogueDashboard'>;
-type DialogueDashboardRouteProp = RouteProp<RootStackParamList, 'DialogueDashboard'>;
+type DialogueDashboardNavigationProp = StackNavigationProp<RootStackParamList, "DialogueDashboard">;
+type DialogueDashboardRouteProp = RouteProp<RootStackParamList, "DialogueDashboard">;
 
 interface Props {
-  navigation: DialogueDashboardNavigationProp;
-  route: DialogueDashboardRouteProp;
+  readonly navigation: DialogueDashboardNavigationProp;
+  readonly route: DialogueDashboardRouteProp;
 }
 
-type UIState = 'idle' | 'answering' | 'loading' | 'complete' | 'weak-fit' | 'voice-recording';
-
 export default function DialogueDashboardScreen({ navigation }: Props) {
-  const [mappedCategories, setMappedCategories] = useState<MappedCategory[]>([]);
-  const [interactions, setInteractions] = useState<ConversationInteraction[]>([]);
-  const [uiState, setUiState] = useState<UIState>('idle');
-  const [currentPrompt, setCurrentPrompt] = useState('');
-  const [userAnswer, setUserAnswer] = useState('');
-  const [loadingMessage, setLoadingMessage] = useState('');
-  const [error, setError] = useState('');
-  const [prefetchedQuestion, setPrefetchedQuestion] = useState<string | null>(null);
-  const [isPrefetching, setIsPrefetching] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [weakFitJustification, setWeakFitJustification] = useState('');
-  const [savedQuestion, setSavedQuestion] = useState(''); // Store question for weak-fit retry
-  const [showConfetti, setShowConfetti] = useState(false);
-  const confettiRef = React.useRef<any>(null);
-  
-  // Image handling state
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showImageEditor, setShowImageEditor] = useState(false);
-  const [tempImageUri, setTempImageUri] = useState<string | null>(null);
-  const [zoomViewerVisible, setZoomViewerVisible] = useState(false);
-  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
-  
-  // Input method modal state
-  const [showInputMethodModal, setShowInputMethodModal] = useState(false);
-  
-  // Debug useEffect to monitor showInputMethodModal changes
-  useEffect(() => {
-    console.log('showInputMethodModal changed to:', showInputMethodModal);
-  }, [showInputMethodModal]);
-  
+  const {
+    mappedCategories,
+    uiState,
+    currentPrompt,
+    userAnswer,
+    loadingMessage,
+    error,
+    weakFitJustification,
+    showConfetti,
+    showInputMethodModal,
+    loading,
+    setUserAnswer,
+    setUiState,
+    setCurrentPrompt,
+    setShowInputMethodModal,
+    resetData,
+    mapAnswerToCategory,
+    handleStartButtonPress,
+    handleTextInputPress,
+    handleVoiceInputPress,
+    prepareImageQuestion,
+    handleSubmitAnswer,
+    handleWeakFitTryAgain,
+    handleWeakFitNewQuestion,
+    dismissAnswerModal,
+  } = useDialogueState();
+
   // Voice recording state
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [recordingUri, setRecordingUri] = useState<string | null>(null);
-  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
-  const [pendingVoiceRecording, setPendingVoiceRecording] = useState(false);
-  const [isAnswerFromVoice, setIsAnswerFromVoice] = useState(false);
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [recordingDuration, setRecordingDuration] = React.useState(0);
+  const [recordingUri, setRecordingUri] = React.useState<string | null>(null);
+  const [isProcessingAudio, setIsProcessingAudio] = React.useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // FAB animation state
-  const [isFabOpen, setIsFabOpen] = useState(false);
-  const fabAnimation = useRef(new Animated.Value(0)).current;
-  const button1Animation = useRef(new Animated.Value(0)).current;
-  const button2Animation = useRef(new Animated.Value(0)).current;
-  const button3Animation = useRef(new Animated.Value(0)).current;
-  const rotateAnimation = useRef(new Animated.Value(0)).current;
 
-  // Configure navigation header with reset button
+  // Image state
+  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
+  const [showImageEditor, setShowImageEditor] = React.useState(false);
+  const [tempImageUri, setTempImageUri] = React.useState<string | null>(null);
+  const [zoomViewerVisible, setZoomViewerVisible] = React.useState(false);
+  const [isAnalyzingImage, setIsAnalyzingImage] = React.useState(false);
+  const [isAnswerFromVoice, setIsAnswerFromVoice] = React.useState(false);
+
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity
           onPress={handleReset}
           style={{ marginRight: 15 }}
-          disabled={uiState !== 'idle' && uiState !== 'complete'}
+          disabled={uiState !== "idle" && uiState !== "complete"}
         >
           <MaterialIcons
             name="refresh"
             size={24}
-            color={uiState !== 'idle' && uiState !== 'complete' ? '#ccc' : '#fff'}
+            color={uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"}
           />
         </TouchableOpacity>
       ),
     });
   }, [navigation, uiState]);
 
-  // Load data on mount
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Check completion
-  useEffect(() => {
-    if (mappedCategories.length === TOTAL_CATEGORIES) {
-      setUiState('complete');
-      setPrefetchedQuestion(null);
-      setIsPrefetching(false);
-    }
-  }, [mappedCategories.length]);
-
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log('State changed:', { uiState, currentPrompt: currentPrompt.substring(0, 50) + '...', hasPrompt: !!currentPrompt });
-  }, [uiState, currentPrompt]);
-
-  // Debug: Specifically track Answer modal visibility
-  useEffect(() => {
-    const shouldShowAnswerModal = uiState === 'answering';
-    console.log('🔴 Answer Modal should be visible:', shouldShowAnswerModal, {
-      uiState,
-      hasCurrentPrompt: !!currentPrompt,
-      promptLength: currentPrompt.length,
-      showInputMethodModal,
-    });
-  }, [uiState, currentPrompt, showInputMethodModal]);
-
-  // FAB animation functions
-  const toggleFabMenu = () => {
-    const toValue = isFabOpen ? 0 : 1;
-    
-    Animated.parallel([
-      Animated.spring(fabAnimation, {
-        toValue,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 8,
-      }),
-      Animated.spring(rotateAnimation, {
-        toValue,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 8,
-      }),
-      Animated.stagger(50, [
-        Animated.spring(button1Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-        Animated.spring(button2Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-        Animated.spring(button3Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-      ]),
-    ]).start();
-    
-    setIsFabOpen(!isFabOpen);
-  };
-
-  const rotation = rotateAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '45deg'],
-  });
-
-  const button1Style = {
-    transform: [
+  const handleReset = () => {
+    Alert.alert("Reset Dashboard", "Are you sure you want to reset? All progress will be lost.", [
+      { text: "Cancel", style: "cancel" },
       {
-        translateX: button1Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -96],
-        }),
-      },
-      {
-        scale: button1Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  const button2Style = {
-    transform: [
-      {
-        translateX: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -68],
-        }),
-      },
-      {
-        translateY: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -68],
-        }),
-      },
-      {
-        scale: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  const button3Style = {
-    transform: [
-      {
-        translateY: button3Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -96],
-        }),
-      },
-      {
-        scale: button3Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  const loadData = async () => {
-    try {
-      const [mapped, history] = await Promise.all([
-        getMappedCategories(),
-        getConversationHistory()
-      ]);
-      setMappedCategories(mapped);
-      setInteractions(history);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load your progress');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getNextQuestion = useCallback(async (isPrefetch = false) => {
-    setError('');
-
-    if (mappedCategories.length === TOTAL_CATEGORIES) {
-      setUiState('complete');
-      return;
-    }
-
-    if (!isPrefetch) {
-      setUiState('loading');
-      setLoadingMessage('Synthesizing a new question...');
-    }
-
-    try {
-      const taxonomyString = getTaxonomyString();
-      const newQuestion = await GeminiService.synthesizeNextQuestion(
-        interactions,
-        mappedCategories,
-        taxonomyString
-      );
-
-      if (isPrefetch) {
-        console.log('Setting prefetched question:', newQuestion);
-        setPrefetchedQuestion(newQuestion);
-        setIsPrefetching(false);
-
-        // If user is waiting, show question immediately
-        setUiState(currentUiState => {
-          if (currentUiState === 'loading' && loadingMessage.includes('Wait while')) {
-            console.log('User was waiting, showing question immediately');
-            setCurrentPrompt(newQuestion);
-            if (pendingVoiceRecording) {
-              setPendingVoiceRecording(false);
-              return 'voice-recording';
-            }
-            return 'answering';
+        text: "Reset",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await resetData();
+          } catch {
+            Alert.alert("Error", "Failed to reset dashboard");
           }
-          return currentUiState === 'loading' ? 'idle' : currentUiState;
-        });
-
-        setLoadingMessage('');
-      } else {
-        console.log('Setting current prompt (non-prefetch):', newQuestion);
-        setCurrentPrompt(newQuestion);
-        setLoadingMessage('');
-        
-        // Small delay to ensure loading modal closes before answer modal opens
-        setTimeout(() => {
-          if (pendingVoiceRecording) {
-            console.log('Setting uiState to voice-recording');
-            setPendingVoiceRecording(false);
-            setUiState('voice-recording');
-          } else {
-            console.log('Setting uiState to answering');
-            setUiState('answering');
-          }
-          console.log('UI state should now be set, modal should appear');
-        }, 100);
-      }
-    } catch (err) {
-      console.error('Error getting next question:', err);
-      setError('Failed to generate question. Please try again.');
-      setIsPrefetching(false);
-      setPendingVoiceRecording(false);
-      setLoadingMessage('');
-      setUiState('idle');
-    }
-  }, [interactions, mappedCategories, pendingVoiceRecording]);
-
-  const mapAnswerToCategory = async (question: string, answer: string) => {
-    setUiState('loading');
-    setLoadingMessage('Analyzing your response...');
-    setError('');
-
-    setPrefetchedQuestion(null);
-    setIsPrefetching(false);
-
-    try {
-      const isInitial = mappedCategories.length === 0;
-      const taxonomyString = getTaxonomyString();
-
-      // Use combined API call to map answer AND generate next question in one request
-      const result = await GeminiService.mapAnswerAndGenerateNextQuestion(
-        question,
-        answer,
-        isInitial,
-        interactions,
-        mappedCategories,
-        taxonomyString
-      );
-
-      const { category: rawCategory, justification, nextQuestion } = result;
-
-      // Validate category
-      const validCategory = findValidCategory(rawCategory);
-      const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
-
-      let mappingResult = 'NO_CHANGE';
-
-      if (categoryNameToCheck === NO_OP_CATEGORY) {
-        // NO-OP: weak fit - ask follow-up question
-        console.log('NO-OP Mapping: weak fit. Justification:', justification);
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: 'NO-OP (WEAK FIT)',
-          timestamp: new Date().toISOString()
-        };
-        await addConversationInteraction(interaction);
-        setInteractions(prev => [...prev, interaction]);
-
-        // Show weak fit modal with follow-up prompt
-        setWeakFitJustification(justification);
-        setUiState('weak-fit');
-        return; // Don't prefetch or continue
-
-      } else if (validCategory && !(await isCategoryMapped(categoryNameToCheck))) {
-        // Successful mapping
-        mappingResult = 'SUCCESS';
-
-        const newMappedCategory: MappedCategory = {
-          category: categoryNameToCheck,
-          justification,
-          dateIdentified: new Date().toISOString()
-        };
-
-        await saveMappedCategory(newMappedCategory);
-        const newMappedCategories = [...mappedCategories, newMappedCategory];
-        setMappedCategories(newMappedCategories);
-
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: categoryNameToCheck,
-          timestamp: new Date().toISOString()
-        };
-        await addConversationInteraction(interaction);
-        setInteractions(prev => [...prev, interaction]);
-
-        // Trigger confetti animation for successful mapping!
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
-
-        if (newMappedCategories.length === TOTAL_CATEGORIES) {
-          mappingResult = 'COMPLETE';
-        }
-
-      } else if (await isCategoryMapped(categoryNameToCheck)) {
-        setError(`"${categoryNameToCheck}" is already mapped. Trying next question.`);
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: 'ALREADY MAPPED (IGNORED)',
-          timestamp: new Date().toISOString()
-        };
-        await addConversationInteraction(interaction);
-        setInteractions(prev => [...prev, interaction]);
-
-      } else {
-        setError(`Unexpected category: "${rawCategory}". Please try again.`);
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: 'MAPPING FAILED',
-          timestamp: new Date().toISOString()
-        };
-        await addConversationInteraction(interaction);
-        setInteractions(prev => [...prev, interaction]);
-      }
-
-      setUserAnswer('');
-      setIsAnswerFromVoice(false);
-
-      // Use the next question that was generated in the same API call
-      // No need to prefetch separately - we already have it!
-      if (mappingResult !== 'COMPLETE' && mappingResult !== 'MAPPING_FAILED' && nextQuestion) {
-        console.log('Using next question from combined API response:', nextQuestion);
-        setPrefetchedQuestion(nextQuestion);
-        setIsPrefetching(false);
-      } else if (mappingResult !== 'COMPLETE' && mappingResult !== 'MAPPING_FAILED') {
-        // Fallback: only prefetch if the combined call didn't return a question
-        console.log('Next question not returned, falling back to separate prefetch');
-        setIsPrefetching(true);
-        setTimeout(() => {
-          getNextQuestion(true);
-        }, 2000);
-      }
-
-      if (mappingResult === 'COMPLETE') {
-        setUiState('complete');
-      } else {
-        setUiState('idle');
-      }
-
-    } catch (err) {
-      console.error('Error mapping answer:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to process your answer. Please try again.';
-      setError(errorMessage);
-      setUserAnswer('');
-      setIsAnswerFromVoice(false);
-      setCurrentPrompt('');
-      setUiState('idle');
-    }
+        },
+      },
+    ]);
   };
 
-  const handleStartButtonPress = async () => {
-    if (uiState !== 'idle') return;
-    setError(''); // Clear any previous errors
-    
-    // If we need a question and don't have one, synthesize it first
-    if (mappedCategories.length > 0 && !prefetchedQuestion && !isPrefetching) {
-      console.log('Need to synthesize question before showing input method modal');
-      setUiState('loading');
-      setLoadingMessage('Synthesizing a new question...');
-      
-      try {
-        const taxonomyString = getTaxonomyString();
-        const newQuestion = await GeminiService.synthesizeNextQuestion(
-          interactions,
-          mappedCategories,
-          taxonomyString
-        );
-        
-        console.log('Question synthesized, storing as prefetched:', newQuestion);
-        setPrefetchedQuestion(newQuestion);
-        setUiState('idle');
-        setLoadingMessage('');
-        
-        // Small delay before showing input method modal
-        setTimeout(() => {
-          setShowInputMethodModal(true);
-        }, 100);
-      } catch (err) {
-        console.error('Error synthesizing question:', err);
-        setError('Failed to generate question. Please try again.');
-        setUiState('idle');
-        setLoadingMessage('');
-      }
-    } else {
-      // Question ready or it's first question (INITIAL_PROMPT)
-      setShowInputMethodModal(true);
-    }
-  };
-  
-  const handleInputMethodSelect = async (method: 'text' | 'voice' | 'image') => {
-    console.log('handleInputMethodSelect called with method:', method);
+  const handleInputMethodSelect = async (method: "text" | "voice" | "image") => {
     setShowInputMethodModal(false);
-    
-    // Wait for state to update and next frame to render
-    await new Promise(resolve => setTimeout(resolve, 150));
-    
-    console.log('Executing input method handler after delay');
-    if (method === 'text') {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    if (method === "text") {
       handleTextInputPress();
-    } else if (method === 'voice') {
+    } else if (method === "voice") {
       handleVoiceInputPress();
-    } else if (method === 'image') {
-      handleImageInputPress();
+    } else if (method === "image") {
+      const ready = prepareImageQuestion();
+      if (ready) showImageSourceDialog();
     }
   };
 
-  const handleFabClick = () => {
-    if (uiState !== 'idle') return;
-    toggleFabMenu();
-  };
-
-  const handleTextInputPress = () => {
-    setError(''); // Clear any previous errors
-    console.log('Text input selected. State:', { 
-      mappedCount: mappedCategories.length, 
-      hasPrefetched: !!prefetchedQuestion,
-      prefetchedQuestion 
-    });
-
-    if (mappedCategories.length === 0) {
-      // Start with initial prompt
-      console.log('Using initial prompt');
-      setCurrentPrompt(INITIAL_PROMPT);
-      setTimeout(() => setUiState('answering'), 100);
-    } else if (prefetchedQuestion) {
-      // Use prefetched question (should always be available now)
-      console.log('Using prefetched question:', prefetchedQuestion);
-      setCurrentPrompt(prefetchedQuestion);
-      setPrefetchedQuestion(null);
-      setTimeout(() => setUiState('answering'), 100);
-    } else {
-      // This shouldn't happen now, but fallback to error
-      console.error('No question available when text input was selected');
-      setError('No question available. Please try again.');
-    }
-  };
-
-  const handleVoiceInputPress = () => {
-    setError(''); // Clear any previous errors
-    console.log('Voice input selected. State:', { 
-      mappedCount: mappedCategories.length, 
-      hasPrefetched: !!prefetchedQuestion,
-      prefetchedQuestion 
-    });
-
-    if (mappedCategories.length === 0) {
-      // Start with initial prompt
-      console.log('Using initial prompt');
-      setCurrentPrompt(INITIAL_PROMPT);
-      setTimeout(() => setUiState('voice-recording'), 100);
-    } else if (prefetchedQuestion) {
-      // Use prefetched question (should always be available now)
-      console.log('Using prefetched question:', prefetchedQuestion);
-      setCurrentPrompt(prefetchedQuestion);
-      setPrefetchedQuestion(null);
-      setTimeout(() => setUiState('voice-recording'), 100);
-    } else {
-      // This shouldn't happen now, but fallback to error
-      console.error('No question available when voice input was selected');
-      setError('No question available. Please try again.');
-    }
-  };
-
-  const handleImageInputPress = async () => {
-    setError(''); // Clear any previous errors
-    
-    // Get the question
-    if (mappedCategories.length === 0) {
-      setCurrentPrompt(INITIAL_PROMPT);
-      setSavedQuestion(INITIAL_PROMPT);
-    } else if (prefetchedQuestion) {
-      setCurrentPrompt(prefetchedQuestion);
-      setSavedQuestion(prefetchedQuestion);
-      setPrefetchedQuestion(null);
-    } else {
-      console.error('No question available when image input was selected');
-      setError('No question available. Please try again.');
-      return;
-    }
-    
-    // Show image source selection dialog
-    Alert.alert(
-      'Choose Image Source',
-      'How would you like to add your image?',
-      [
-        {
-          text: 'Take Photo',
-          onPress: () => handleImageSelection(true), // Use camera
-        },
-        {
-          text: 'Choose from Gallery',
-          onPress: () => handleImageSelection(false), // Use gallery
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ],
-      { cancelable: true }
-    );
-  };
+  // --- Voice recording ---
 
   const startRecording = async () => {
     try {
-      console.log('Requesting permissions..');
       await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      console.log('Starting recording..');
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = recording;
       setIsRecording(true);
       setRecordingDuration(0);
-      
-      // Start timer
+
       timerRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
+        setRecordingDuration((prev) => prev + 1);
       }, 1000);
-      
-      console.log('Recording started');
     } catch (err) {
-      console.error('Failed to start recording', err);
-      Alert.alert('Error', 'Failed to start recording. Please check your microphone permissions.');
+      console.error("Failed to start recording", err);
+      Alert.alert("Error", "Failed to start recording. Please check your microphone permissions.");
     }
   };
 
   const stopRecording = async () => {
-    console.log('Stopping recording..');
     if (!recordingRef.current) return;
-    
+
     try {
       setIsRecording(false);
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
-      
+
       await recordingRef.current.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
-      
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-      
-      if (uri) {
-        setRecordingUri(uri);
-        console.log('Recording stopped and stored at', uri);
-      }
-    } catch (error) {
-      console.error('Error stopping recording:', error);
-      Alert.alert('Error', 'Failed to stop recording');
+
+      if (uri) setRecordingUri(uri);
+    } catch (err) {
+      console.error("Error stopping recording:", err);
+      Alert.alert("Error", "Failed to stop recording");
     }
   };
 
   const handleVoiceSubmit = async () => {
     if (!recordingUri || !currentPrompt) {
-      Alert.alert('Error', 'No recording available');
+      Alert.alert("Error", "No recording available");
       return;
     }
 
     setIsProcessingAudio(true);
-    
+
     try {
-      console.log('Transcribing audio...');
-      
-      // Transcribe audio using GeminiService
       const transcriptionResult = await GeminiService.transcribeAudio(recordingUri);
-      
-      console.log('Transcription result:', transcriptionResult);
-      
-      if (!transcriptionResult.success || !transcriptionResult.transcript || transcriptionResult.transcript.trim().length === 0) {
-        const errorMsg = transcriptionResult.error || 'Could not transcribe your audio. Please try recording again.';
-        Alert.alert('Transcription Error', errorMsg);
+
+      if (
+        !transcriptionResult.success ||
+        !transcriptionResult.transcript ||
+        transcriptionResult.transcript.trim().length === 0
+      ) {
+        Alert.alert(
+          "Transcription Error",
+          transcriptionResult.error || "Could not transcribe your audio. Please try recording again."
+        );
         return;
       }
-      
-      const transcribedText = transcriptionResult.transcript.trim();
-      console.log('Transcribed text:', transcribedText);
-      
-      // Save the question and transcribed answer
+
       const question = currentPrompt;
-      const answer = transcribedText;
-      
-      // Close voice recording modal
+      const answer = transcriptionResult.transcript.trim();
+
       setRecordingUri(null);
       setRecordingDuration(0);
-      setCurrentPrompt('');
-      
-      // Process the voice answer directly
-      await mapAnswerToCategory(question, answer)
-      
-    } catch (error) {
-      console.error('Error processing voice answer:', error);
-      let errorMessage = 'Failed to process your voice response. Please try again.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('Rate limit')) {
-          errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
-        } else if (error.message.includes('API key')) {
-          errorMessage = 'API key issue. Please check your configuration.';
+      setCurrentPrompt("");
+
+      await mapAnswerToCategory(question, answer);
+      setIsAnswerFromVoice(false);
+    } catch (err) {
+      console.error("Error processing voice answer:", err);
+      let errorMessage = "Failed to process your voice response. Please try again.";
+
+      if (err instanceof Error) {
+        if (err.message.includes("Rate limit")) {
+          errorMessage = "Rate limit exceeded. Please wait a moment and try again.";
+        } else if (err.message.includes("API key")) {
+          errorMessage = "API key issue. Please check your configuration.";
         }
       }
-      
-      Alert.alert('Processing Error', errorMessage);
+
+      Alert.alert("Processing Error", errorMessage);
     } finally {
       setIsProcessingAudio(false);
     }
+  };
+
+  const handleVoiceCancel = async () => {
+    if (isRecording && recordingRef.current) {
+      try {
+        await recordingRef.current.stopAndUnloadAsync();
+        recordingRef.current = null;
+      } catch (err) {
+        console.error("Error stopping recording on cancel:", err);
+      }
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setUiState("idle");
+    setIsRecording(false);
+    setRecordingUri(null);
+    setRecordingDuration(0);
+  };
+
+  // --- Image handling ---
+
+  const showImageSourceDialog = () => {
+    Alert.alert(
+      "Choose Image Source",
+      "How would you like to add your image?",
+      [
+        { text: "Take Photo", onPress: () => handleImageSelection(true) },
+        { text: "Choose from Gallery", onPress: () => handleImageSelection(false) },
+        { text: "Cancel", style: "cancel" },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleImageSelection = async (useCamera: boolean) => {
@@ -757,27 +273,25 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       const hasPermissions = await ImagePickerService.requestPermissions();
       if (!hasPermissions) {
         Alert.alert(
-          'Permissions Required',
-          'Camera and photo library permissions are required to use this feature.'
+          "Permissions Required",
+          "Camera and photo library permissions are required to use this feature."
         );
         return;
       }
 
-      let result;
-      if (useCamera) {
-        result = await ImagePickerService.takePhotoWithCamera();
-      } else {
-        result = await ImagePickerService.pickImageFromGalleryWithOptions(false);
-      }
+      const result = useCamera
+        ? await ImagePickerService.takePhotoWithCamera()
+        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
 
       if (result.success && result.imageUri) {
         setTempImageUri(result.imageUri);
         setShowImageEditor(true);
       } else if (result.error) {
-        Alert.alert('Error', result.error);
+        Alert.alert("Error", result.error);
       }
-    } catch (error) {
-      Alert.alert('Error', 'An error occurred while selecting image');
+    } catch (err) {
+      console.error("Error selecting image:", err);
+      Alert.alert("Error", "An error occurred while selecting image");
     }
   };
 
@@ -785,202 +299,80 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     setSelectedImage(editedImageUri);
     setShowImageEditor(false);
     setTempImageUri(null);
-    setUiState('answering'); // Show the answer modal with image preview
+    setUiState("answering");
   };
 
   const handleImageEditorCancel = () => {
     setShowImageEditor(false);
     setTempImageUri(null);
-    setUiState('idle');
+    setUiState("idle");
   };
 
   const handleSubmitImage = async () => {
     if (!selectedImage || !currentPrompt) {
-      Alert.alert('Error', 'Missing image or question');
+      Alert.alert("Error", "Missing image or question");
       return;
     }
 
     setIsAnalyzingImage(true);
-    setUiState('loading');
-    setLoadingMessage('Analyzing your image response...');
+    setUiState("loading");
 
     try {
-      // Analyze the image with Gemini
       const analysisResult = await GeminiService.analyzeActionImage(selectedImage);
-      
+
       if (!analysisResult.success || !analysisResult.rawResponse) {
-        throw new Error(analysisResult.error || 'Failed to analyze image');
+        throw new Error(analysisResult.error || "Failed to analyze image");
       }
 
-      // Use the image analysis description as the answer
       const answer = analysisResult.rawResponse;
-      
-      // Clear image state
       setSelectedImage(null);
-      
-      // Map the answer to a category
+
       await mapAnswerToCategory(currentPrompt, answer);
-    } catch (error) {
-      console.error('Error processing image:', error);
-      Alert.alert('Error', 'Failed to process image. Please try again.');
-      setUiState('idle');
+    } catch (err) {
+      console.error("Error processing image:", err);
+      Alert.alert("Error", "Failed to process image. Please try again.");
+      setUiState("idle");
     } finally {
       setIsAnalyzingImage(false);
     }
   };
 
-  const handleSubmitAnswer = () => {
-    if (!userAnswer.trim()) {
-      setError('Answer cannot be empty. Please provide a substantive response.');
-      return;
-    }
-
-    const q = currentPrompt;
-    const a = userAnswer;
-    setSavedQuestion(q); // Save for potential weak-fit retry
-    setCurrentPrompt('');
-    setUserAnswer('');
-
-    mapAnswerToCategory(q, a);
-  };
-
-  const handleWeakFitTryAgain = () => {
-    // Re-open the answer modal with the same question
-    setCurrentPrompt(savedQuestion); // Restore the original question
-    setError(''); // Clear any previous errors
-    setUiState('answering');
-    setWeakFitJustification('');
-  };
-
-  const handleDismissAnswerModal = () => {
-    // Close the answer modal and return to idle
-    Keyboard.dismiss();
-    setCurrentPrompt('');
-    setUserAnswer('');
-    setError('');
-    setIsAnswerFromVoice(false);
-    setUiState('idle');
-  };
-
-  const handleWeakFitNewQuestion = async () => {
-    // After a weak fit, synthesize a new question then show input method modal
-    setWeakFitJustification('');
-    setError('');
-    
-    // Close weak-fit modal first
-    setUiState('idle');
-    
-    // Wait for weak-fit modal to close before opening loading modal
-    await new Promise(resolve => setTimeout(resolve, 150));
-    
-    setUiState('loading');
-    setLoadingMessage('Synthesizing a new question...');
-    
-    try {
-      const taxonomyString = getTaxonomyString();
-      const newQuestion = await GeminiService.synthesizeNextQuestion(
-        interactions,
-        mappedCategories,
-        taxonomyString
-      );
-      
-      console.log('Weak-fit: Question synthesized, storing as prefetched:', newQuestion);
-      setPrefetchedQuestion(newQuestion);
-      setLoadingMessage('');
-      
-      // Wait for loading modal to close before showing input method modal
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      setUiState('idle');
-      
-      setTimeout(() => {
-        setShowInputMethodModal(true);
-      }, 100);
-    } catch (err) {
-      console.error('Error synthesizing question after weak-fit:', err);
-      setError('Failed to generate question. Please try again.');
-      setUiState('idle');
-      setLoadingMessage('');
-    }
-  };
-
-  const handleReset = () => {
-    Alert.alert(
-      'Reset Dashboard',
-      'Are you sure you want to reset? All progress will be lost.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await clearAllData();
-              setMappedCategories([]);
-              setInteractions([]);
-              setCurrentPrompt('');
-              setUserAnswer('');
-              setUiState('idle');
-              setError('');
-              setLoadingMessage('');
-              setPrefetchedQuestion(null);
-              setIsPrefetching(false);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to reset dashboard');
-            }
-          }
-        }
-      ]
-    );
-  };
+  // --- UI helpers ---
 
   const handleCardClick = (categoryName: string) => {
-    const mapped = mappedCategories.find(c => c.category === categoryName);
+    const mapped = mappedCategories.find((c) => c.category === categoryName);
     if (mapped) {
-      Alert.alert(
-        categoryName,
-        `Why you have this trait:\n\n"${mapped.justification}"`,
-        [{ text: 'OK' }]
-      );
+      Alert.alert(categoryName, `Why you have this trait:\n\n"${mapped.justification}"`, [
+        { text: "OK" },
+      ]);
     } else {
       Alert.alert(
-        'Not Yet Mapped',
-        'This trait is not yet mapped to you. Click the + button to discover new traits!',
-        [{ text: 'OK' }]
+        "Not Yet Mapped",
+        "This trait is not yet mapped to you. Click the + button to discover new traits!",
+        [{ text: "OK" }]
       );
     }
   };
 
   const renderCategoryCards = () => {
-    const mappedNames = new Set(mappedCategories.map(c => c.category));
+    const mappedNames = new Map(mappedCategories.map((c) => [c.category, c]));
 
-    return CATEGORY_TAXONOMY.map(item => (
-      <TouchableOpacity
+    return CATEGORY_TAXONOMY.map((item) => (
+      <CategoryCard
         key={item.category}
-        style={[
-          styles.categoryCard,
-          mappedNames.has(item.category) ? styles.categoryCardMapped : styles.categoryCardUnmapped
-        ]}
+        category={{
+          ...item,
+          example: "",
+          icon: item.icon || "category",
+        }}
+        isMapped={mappedNames.has(item.category)}
+        mappedData={mappedNames.get(item.category)}
         onPress={() => handleCardClick(item.category)}
-      >
-        <View style={styles.categoryHeader}>
-          <MaterialIcons 
-            name={item.icon as any || 'category'} 
-            size={28} 
-            color={mappedNames.has(item.category) ? '#667eea' : '#999'} 
-          />
-        </View>
-        <Text style={styles.categoryTitle}>{item.category}</Text>
-        <Text style={styles.categoryDescription}>{item.description}</Text>
-        {mappedNames.has(item.category) && (
-          <View style={styles.mappedBadge}>
-            <MaterialIcons name="check-circle" size={16} color="#fff" />
-            <Text style={styles.mappedText}>Mapped! Tap for details</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+      />
     ));
   };
+
+  const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
 
   if (loading) {
     return (
@@ -991,12 +383,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     );
   }
 
-  const completionPercentage = getCompletionPercentage(mappedCategories.length);
-
   return (
-    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
         <View style={styles.header}>
           <MaterialIcons name="explore" size={40} color="#fff" />
           <Text style={styles.title}>My Skills Passport</Text>
@@ -1005,7 +394,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* Progress Card */}
         <Card style={styles.progressCard}>
           <Card.Content>
             <View style={styles.progressHeader}>
@@ -1029,18 +417,22 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${completionPercentage}%` }]} />
             </View>
-            
-            {/* Large Green Start/Continue Button */}
+
             {mappedCategories.length < TOTAL_CATEGORIES && (
               <TouchableOpacity
                 style={styles.startButton}
                 onPress={handleStartButtonPress}
-                disabled={uiState !== 'idle'}
+                disabled={uiState !== "idle"}
                 activeOpacity={0.8}
               >
-                <MaterialIcons name="play-arrow" size={28} color="white" style={styles.startButtonIcon} />
+                <MaterialIcons
+                  name="play-arrow"
+                  size={28}
+                  color="white"
+                  style={styles.startButtonIcon}
+                />
                 <Text style={styles.startButtonText}>
-                  {mappedCategories.length === 0 ? 'Start' : 'Continue'}
+                  {mappedCategories.length === 0 ? "Start" : "Continue"}
                 </Text>
               </TouchableOpacity>
             )}
@@ -1055,399 +447,66 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
           </Card>
         ) : null}
 
-        {/* Category Grid */}
-        <View style={styles.categoryGrid}>
-          {renderCategoryCards()}
-        </View>
+        <View style={styles.categoryGrid}>{renderCategoryCards()}</View>
       </ScrollView>
 
-      {/* Loading Modal */}
-      <Modal
-        visible={uiState === 'loading'}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalLoadingText}>{loadingMessage}</Text>
-            <ActivityIndicator size="large" color="#667eea" style={styles.modalSpinner} />
-          </View>
-        </View>
-      </Modal>
+      <LoadingModal visible={uiState === "loading"} message={loadingMessage} />
 
-      {/* Completion Modal */}
-      <Modal
-        visible={uiState === 'complete'}
-        transparent
-        animationType="fade"
-      >
-        <TouchableWithoutFeedback onPress={() => setUiState('idle')}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={styles.modalContent}>
-                <Text style={styles.completeTitle}>🎉 Congratulations!!! 🎉</Text>
-                <Text style={styles.completeText}>
-                  You have completed your skills passport with a flourish and can look forward to a very bright future. Thanks for participating.
-                </Text>
-                <Text style={styles.completeSubtext}>
-                  Tap the Reset button if you want to try again.
-                </Text>
-                <TouchableOpacity
-                  style={styles.dismissButton}
-                  onPress={() => setUiState('idle')}
-                >
-                  <Text style={styles.dismissButtonText}>Dismiss Message</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <CompletionModal visible={uiState === "complete"} onDismiss={() => setUiState("idle")} />
 
-      {/* Weak Fit Modal */}
-      <Modal
-        visible={uiState === 'weak-fit'}
-        transparent
-        animationType="fade"
-      >
-        <TouchableWithoutFeedback onPress={handleWeakFitNewQuestion}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={styles.modalContent}>
-                <MaterialIcons name="help-outline" size={48} color="#ff9800" style={styles.weakFitIcon} />
-                <Text style={styles.weakFitTitle}>Need More Details</Text>
-                <Text style={styles.weakFitJustification}>{weakFitJustification}</Text>
-                <Text style={styles.weakFitPrompt}>
-                  Would you like to provide more details about your answer, or move to a different question?
-                </Text>
-                <View style={styles.weakFitButtons}>
-                  <TouchableOpacity
-                    style={[styles.weakFitButton, styles.weakFitButtonSecondary]}
-                    onPress={handleWeakFitNewQuestion}
-                  >
-                    <MaterialIcons name="skip-next" size={20} color="#667eea" />
-                    <Text style={styles.weakFitButtonTextSecondary}>New Question</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.weakFitButton, styles.weakFitButtonPrimary]}
-                    onPress={handleWeakFitTryAgain}
-                  >
-                    <MaterialIcons name="edit" size={20} color="#fff" />
-                    <Text style={styles.weakFitButtonTextPrimary}>Add Details</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <WeakFitModal
+        visible={uiState === "weak-fit"}
+        justification={weakFitJustification}
+        onTryAgain={handleWeakFitTryAgain}
+        onNewQuestion={handleWeakFitNewQuestion}
+      />
 
-      {/* Answer Modal */}
-      <Modal
-        visible={uiState === 'answering'}
-        transparent
-        animationType="fade"
-        onShow={() => console.log('✅ Answer modal onShow callback fired with prompt:', currentPrompt)}
-        onRequestClose={handleDismissAnswerModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <TouchableWithoutFeedback onPress={handleDismissAnswerModal}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.questionTitle}>Question for You</Text>
-                  <ScrollView style={{ maxHeight: 200 }} contentContainerStyle={{ paddingVertical: 4 }}>
-                    <Text style={styles.questionText}>
-                      {currentPrompt || '(No question loaded)'}
-                    </Text>
-                  </ScrollView>
-                  
-                  {selectedImage ? (
-                    /* Image Answer Mode */
-                    <>
-                      <TouchableOpacity onPress={() => setZoomViewerVisible(true)}>
-                        <Image source={{ uri: selectedImage }} style={styles.previewImage} />
-                      </TouchableOpacity>
-                      <View style={styles.imageActions}>
-                        <TouchableOpacity
-                          style={styles.changeImageButton}
-                          onPress={() => {
-                            setSelectedImage(null);
-                            // Show the same choice dialog when changing image
-                            Alert.alert(
-                              'Choose Image Source',
-                              'How would you like to add your image?',
-                              [
-                                {
-                                  text: 'Take Photo',
-                                  onPress: () => handleImageSelection(true),
-                                },
-                                {
-                                  text: 'Choose from Gallery',
-                                  onPress: () => handleImageSelection(false),
-                                },
-                                {
-                                  text: 'Cancel',
-                                  style: 'cancel',
-                                },
-                              ],
-                              { cancelable: true }
-                            );
-                          }}
-                        >
-                          <Text style={styles.changeImageButtonText}>Change Image</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.submitButton}
-                          onPress={handleSubmitImage}
-                          disabled={isAnalyzingImage}
-                        >
-                          <Text style={styles.submitButtonText}>
-                            {isAnalyzingImage ? 'Analyzing...' : 'Submit Image'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    /* Text Answer Mode */
-                    <>
-                      {isAnswerFromVoice && (
-                        <View style={styles.voiceTranscriptionBanner}>
-                          <Ionicons name="mic" size={16} color="#4ECDC4" />
-                          <Text style={styles.voiceTranscriptionText}>Voice transcription</Text>
-                          <TouchableOpacity
-                            onPress={() => {
-                              setUiState('voice-recording');
-                              setUserAnswer('');
-                              setIsAnswerFromVoice(false);
-                            }}
-                            style={styles.recordAgainButton}
-                          >
-                            <Ionicons name="refresh" size={14} color="#4ECDC4" />
-                            <Text style={styles.recordAgainText}>Record again</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                      <TextInput
-                        style={[styles.answerInput, isAnswerFromVoice && styles.answerInputVoice]}
-                        value={userAnswer}
-                        onChangeText={(text) => {
-                          setUserAnswer(text);
-                          if (isAnswerFromVoice) {
-                            setIsAnswerFromVoice(false); // Clear voice flag if user edits
-                          }
-                        }}
-                        placeholder="Example: 'I led a team of 5 students to build a mobile app that helps local farmers track inventory. We used React Native and Firebase, and it's now used by 50+ farmers in our community.'"
-                        placeholderTextColor="#999"
-                        multiline
-                        autoCorrect={true}
-                        numberOfLines={4}
-                        textAlignVertical="top"
-                      />
-                      <TouchableOpacity
-                        style={styles.submitButton}
-                        onPress={handleSubmitAnswer}
-                      >
-                        <Text style={styles.submitButtonText}>Submit Answer</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
-      </Modal>
+      <AnswerModal
+        visible={uiState === "answering"}
+        currentPrompt={currentPrompt}
+        userAnswer={userAnswer}
+        selectedImage={selectedImage}
+        isAnswerFromVoice={isAnswerFromVoice}
+        isAnalyzingImage={isAnalyzingImage}
+        onDismiss={dismissAnswerModal}
+        onZoomImage={() => setZoomViewerVisible(true)}
+        onChangeImage={() => {
+          setSelectedImage(null);
+          showImageSourceDialog();
+        }}
+        onSubmitImage={handleSubmitImage}
+        onAnswerChange={setUserAnswer}
+        onRecordAgain={() => {
+          setUiState("voice-recording");
+          setUserAnswer("");
+          setIsAnswerFromVoice(false);
+        }}
+        onSubmit={handleSubmitAnswer}
+      />
 
-      {/* Voice Recording Modal */}
-      <Modal
-        visible={uiState === 'voice-recording'}
-        transparent
-        animationType="fade"
-        onRequestClose={async () => {
-          // Clean up recording if active
-          if (isRecording && recordingRef.current) {
-            try {
-              await recordingRef.current.stopAndUnloadAsync();
-              recordingRef.current = null;
-            } catch (error) {
-              console.error('Error stopping recording on dismiss:', error);
-            }
-          }
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          setUiState('idle');
-          setIsRecording(false);
+      <VoiceRecordingModal
+        visible={uiState === "voice-recording"}
+        currentPrompt={currentPrompt}
+        isRecording={isRecording}
+        recordingDuration={recordingDuration}
+        recordingUri={recordingUri}
+        isProcessingAudio={isProcessingAudio}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
+        onRecordAgain={() => {
           setRecordingUri(null);
           setRecordingDuration(0);
         }}
-      >
-        <TouchableWithoutFeedback onPress={async () => {
-          // Clean up recording if active
-          if (isRecording && recordingRef.current) {
-            try {
-              await recordingRef.current.stopAndUnloadAsync();
-              recordingRef.current = null;
-            } catch (error) {
-              console.error('Error stopping recording on dismiss:', error);
-            }
-          }
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          
-          setUiState('idle');
-          setIsRecording(false);
-          setRecordingUri(null);
-          setRecordingDuration(0);
-        }}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={styles.modalContent}>
-                <Text style={styles.questionTitle}>Voice Response</Text>
-                <Text style={styles.questionText}>{currentPrompt || '(No question loaded)'}</Text>
-                
-                <View style={styles.voiceRecordingContainer}>
-                  {!recordingUri ? (
-                    /* Recording Interface */
-                    <>
-                      <View style={styles.recordingVisualization}>
-                        <View style={[styles.recordingCircle, isRecording && styles.recordingActive]}>
-                          <Ionicons 
-                            name={isRecording ? "stop" : "mic"} 
-                            size={48} 
-                            color={isRecording ? "white" : "#666"} 
-                          />
-                        </View>
-                      </View>
-                      
-                      {isRecording && (
-                        <Text style={styles.recordingTimer}>
-                          {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
-                        </Text>
-                      )}
-                      
-                      <Text style={styles.recordingInstruction}>
-                        {isRecording ? 'Recording... Tap to stop' : 'Tap to start recording'}
-                      </Text>
-                      
-                      <TouchableOpacity
-                        style={[styles.recordButton, isRecording && styles.recordButtonActive]}
-                        onPress={isRecording ? stopRecording : startRecording}
-                        disabled={isProcessingAudio}
-                      >
-                        <Text style={[styles.recordButtonText, isRecording && styles.recordButtonTextActive]}>
-                          {isRecording ? 'Stop Recording' : 'Start Recording'}
-                        </Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    /* Playback Interface */
-                    <>
-                      <View style={styles.playbackContainer}>
-                        <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
-                        <Text style={styles.playbackTitle}>Recording Complete!</Text>
-                        <Text style={styles.playbackDuration}>Duration: {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</Text>
-                      </View>
-                      
-                      <View style={styles.voiceActions}>
-                        <TouchableOpacity
-                          style={styles.voiceActionButton}
-                          onPress={() => {
-                            setRecordingUri(null);
-                            setRecordingDuration(0);
-                          }}
-                        >
-                          <Text style={styles.voiceActionButtonText}>Record Again</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity
-                          style={[styles.voiceActionButton, styles.voiceActionButtonPrimary]}
-                          onPress={handleVoiceSubmit}
-                          disabled={isProcessingAudio}
-                        >
-                          <Text style={[styles.voiceActionButtonText, styles.voiceActionButtonTextPrimary]}>
-                            {isProcessingAudio ? 'Processing...' : 'Submit Recording'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  )}
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        onSubmit={handleVoiceSubmit}
+        onCancel={handleVoiceCancel}
+      />
 
-      {/* Animated FAB Buttons - Hidden */}
-      <View style={[styles.fabContainer, { display: 'none' }]}>
-        <View style={styles.fabInner}>
-          {/* Action Button 1 - Text Input (Left) */}
-          <Animated.View style={[styles.actionButton, button1Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="chat-bubble" size={24} color="white" />
-                </View>
-              )}
-              onPress={handleTextInputPress}
-              style={[styles.fab, { backgroundColor: '#45B7D1' }]}
-              size="small"
-            />
-          </Animated.View>
+      <InputMethodModal
+        visible={showInputMethodModal}
+        onSelect={handleInputMethodSelect}
+        onClose={() => setShowInputMethodModal(false)}
+      />
 
-          {/* Action Button 2 - Voice Input (Diagonal) */}
-          <Animated.View style={[styles.actionButton, button2Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="mic" size={24} color="white" />
-                </View>
-              )}
-              onPress={handleVoiceInputPress}
-              style={[styles.fab, { backgroundColor: '#4ECDC4' }]}
-              size="small"
-            />
-          </Animated.View>
-
-          {/* Action Button 3 - Image Input (Top) */}
-          <Animated.View style={[styles.actionButton, button3Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="image" size={24} color="white" />
-                </View>
-              )}
-              onPress={handleImageInputPress}
-              style={[styles.fab, { backgroundColor: '#FF6B6B' }]}
-              size="small"
-            />
-          </Animated.View>
-
-          {/* Main FAB */}
-          <Animated.View style={[styles.mainFabWrapper, { transform: [{ rotate: rotation }] }]}>
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="add" size={28} color="white" />
-                </View>
-              )}
-              onPress={handleFabClick}
-              disabled={uiState !== 'idle' || mappedCategories.length === TOTAL_CATEGORIES}
-              style={[styles.mainFab, { backgroundColor: '#667eea' }]}
-            />
-          </Animated.View>
-        </View>
-      </View>
-
-      {/* Image Editor Modal */}
       {showImageEditor && tempImageUri && (
         <ImageEditor
           imageUri={tempImageUri}
@@ -1456,7 +515,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         />
       )}
 
-      {/* Zoom Viewer Modal */}
       {zoomViewerVisible && selectedImage && (
         <ZoomableImageView
           imageUri={selectedImage}
@@ -1465,68 +523,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         />
       )}
 
-      {/* Input Method Selection Modal */}
-      <Modal
-        visible={showInputMethodModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowInputMethodModal(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowInputMethodModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={styles.inputMethodModalContent}>
-                <Text style={styles.inputMethodTitle}>Choose Input Method</Text>
-                <Text style={styles.inputMethodSubtitle}>How would you like to provide your response?</Text>
-                
-                <View style={styles.inputMethodOptions}>
-                  <TouchableOpacity
-                    style={styles.inputMethodOption}
-                    onPress={() => handleInputMethodSelect('text')}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.inputMethodIconContainer, { backgroundColor: '#45B7D1' }]}>
-                      <Ionicons name="chatbubble" size={32} color="white" />
-                    </View>
-                    <Text style={styles.inputMethodOptionText}>Text</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={styles.inputMethodOption}
-                    onPress={() => handleInputMethodSelect('voice')}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.inputMethodIconContainer, { backgroundColor: '#4ECDC4' }]}>
-                      <Ionicons name="mic" size={32} color="white" />
-                    </View>
-                    <Text style={styles.inputMethodOptionText}>Voice</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={styles.inputMethodOption}
-                    onPress={() => handleInputMethodSelect('image')}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.inputMethodIconContainer, { backgroundColor: '#FF6B6B' }]}>
-                      <Ionicons name="camera" size={32} color="white" />
-                    </View>
-                    <Text style={styles.inputMethodOptionText}>Image</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <TouchableOpacity
-                  style={styles.inputMethodCancelButton}
-                  onPress={() => setShowInputMethodModal(false)}
-                >
-                  <Text style={styles.inputMethodCancelText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-
-      {/* Confetti Animation */}
       {showConfetti && (
         <ConfettiCannon
           count={200}
@@ -1546,14 +542,14 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#667eea',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#667eea",
   },
   loadingText: {
     marginTop: 15,
     fontSize: 16,
-    color: '#fff',
+    color: "#fff",
   },
   scrollView: {
     flex: 1,
@@ -1563,18 +559,18 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
     marginTop: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: "rgba(255, 255, 255, 0.9)",
     marginTop: 5,
   },
   progressCard: {
@@ -1582,55 +578,55 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   progressHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     marginBottom: 15,
   },
   progressTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
   statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginBottom: 20,
   },
   statBox: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   statNumber: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#667eea',
+    fontWeight: "bold",
+    color: "#667eea",
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginTop: 5,
   },
   progressBar: {
     height: 10,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: "#E0E0E0",
     borderRadius: 5,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressFill: {
-    height: '100%',
-    backgroundColor: '#667eea',
+    height: "100%",
+    backgroundColor: "#667eea",
   },
   startButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#4CAF50',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4CAF50",
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
     marginTop: 20,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -1639,471 +635,23 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   startButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     letterSpacing: 0.5,
   },
   errorCard: {
     marginBottom: 20,
-    backgroundColor: '#ffebee',
+    backgroundColor: "#ffebee",
     elevation: 4,
   },
   errorText: {
     fontSize: 14,
-    color: '#c62828',
+    color: "#c62828",
   },
   categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  categoryCard: {
-    width: (width - 50) / 2,
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 15,
-    elevation: 3,
-    minHeight: 140,
-  },
-  categoryHeader: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  categoryCardMapped: {
-    borderWidth: 2,
-    borderColor: '#667eea',
-  },
-  categoryCardUnmapped: {
-    opacity: 0.6,
-  },
-  categoryTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  categoryDescription: {
-    fontSize: 11,
-    color: '#666',
-    lineHeight: 16,
-  },
-  mappedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#667eea',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    marginTop: 8,
-    gap: 4,
-  },
-  mappedText: {
-    fontSize: 10,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 25,
-    width: '100%',
-    maxWidth: 400,
-    elevation: 5,
-  },
-  modalLoadingText: {
-    fontSize: 16,
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  modalSpinner: {
-    marginTop: 10,
-  },
-  completeTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#667eea',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  completeText: {
-    fontSize: 16,
-    color: '#333',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 15,
-  },
-  completeSubtext: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  dismissButton: {
-    backgroundColor: '#667eea',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  dismissButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  questionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-  },
-  questionText: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 20,
-    lineHeight: 24,
-  },
-  answerInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: 100,
-    marginBottom: 20,
-  },
-  submitButton: {
-    backgroundColor: '#667eea',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  weakFitIcon: {
-    alignSelf: 'center',
-    marginBottom: 15,
-  },
-  weakFitTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#ff9800',
-    textAlign: 'center',
-    marginBottom: 15,
-  },
-  weakFitJustification: {
-    fontSize: 15,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-    paddingHorizontal: 10,
-  },
-  weakFitPrompt: {
-    fontSize: 16,
-    color: '#333',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 25,
-  },
-  weakFitButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  weakFitButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  weakFitButtonPrimary: {
-    backgroundColor: '#667eea',
-  },
-  weakFitButtonSecondary: {
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#667eea',
-  },
-  weakFitButtonTextPrimary: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  weakFitButtonTextSecondary: {
-    color: '#667eea',
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  fabContainer: {
-    position: 'absolute',
-    bottom: 30,
-    right: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fabInner: {
-    position: 'relative',
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mainFab: {
-    position: 'absolute',
-    margin: 0,
-    elevation: 6,
-  },
-  mainFabWrapper: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionButton: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fab: {
-    elevation: 6,
-  },
-  fabAdd: {
-    backgroundColor: '#667eea',
-  },
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  imageActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  changeImageButton: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#667eea',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  changeImageButtonText: {
-    color: '#667eea',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  inputMethodModalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 25,
-    width: '90%',
-    maxWidth: 400,
-    elevation: 5,
-  },
-  inputMethodTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  inputMethodSubtitle: {
-    fontSize: 15,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 25,
-  },
-  inputMethodOptions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 20,
-  },
-  inputMethodOption: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  inputMethodIconContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  inputMethodOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  inputMethodCancelButton: {
-    backgroundColor: '#f5f5f5',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  inputMethodCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  voiceRecordingContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  recordingVisualization: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  recordingCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#f5f5f5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#ddd',
-  },
-  recordingActive: {
-    backgroundColor: '#ff4444',
-    borderColor: '#ff4444',
-    transform: [{ scale: 1.1 }],
-  },
-  recordingTimer: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-  },
-  recordingInstruction: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  recordButton: {
-    backgroundColor: '#4ECDC4',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    minWidth: 150,
-    alignItems: 'center',
-  },
-  recordButtonActive: {
-    backgroundColor: '#ff4444',
-  },
-  recordButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  recordButtonTextActive: {
-    color: '#fff',
-  },
-  playbackContainer: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  playbackTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 15,
-    marginBottom: 5,
-  },
-  playbackDuration: {
-    fontSize: 14,
-    color: '#666',
-  },
-  voiceActions: {
-    flexDirection: 'row',
-    gap: 15,
-    width: '100%',
-  },
-  voiceActionButton: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  voiceActionButtonPrimary: {
-    backgroundColor: '#4ECDC4',
-  },
-  voiceActionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  voiceActionButtonTextPrimary: {
-    color: '#fff',
-  },
-  voiceTranscriptionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0fcfc',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#4ECDC4',
-  },
-  voiceTranscriptionText: {
-    fontSize: 14,
-    color: '#4ECDC4',
-    fontWeight: '600',
-    marginLeft: 6,
-    flex: 1,
-  },
-  recordAgainButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(78, 205, 196, 0.1)',
-  },
-  recordAgainText: {
-    fontSize: 12,
-    color: '#4ECDC4',
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  answerInputVoice: {
-    borderColor: '#4ECDC4',
-    borderWidth: 2,
-    backgroundColor: '#f9fffe',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
 });

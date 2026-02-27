@@ -1,15 +1,22 @@
-import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Searchbar, Chip, Text, Card, Title } from 'react-native-paper';
-import { mapSkillToTaxonomy, getAllSkills, SKILLS_TAXONOMY } from '../services/skillTaxonomyService';
+import React, { useState, useMemo } from "react";
+import { View, StyleSheet, ScrollView } from "react-native";
+import { Searchbar, Chip, Text, Card, Title } from "react-native-paper";
+import {
+  mapSkillToTaxonomy,
+  getAllSkills,
+  SKILLS_TAXONOMY,
+} from "../services/skillTaxonomyService";
 
 interface SkillSelectorProps {
-  onSkillSelect: (skill: string, category: string) => void;
-  selectedSkills?: string[];
+  readonly onSkillSelect: (skill: string, category: string) => void;
+  readonly selectedSkills?: string[];
 }
 
-export default function SkillSelector({ onSkillSelect, selectedSkills = [] }: SkillSelectorProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+export default function SkillSelector({
+  onSkillSelect,
+  selectedSkills = [],
+}: Readonly<SkillSelectorProps>) {
+  const [searchQuery, setSearchQuery] = useState("");
   const [suggestion, setSuggestion] = useState<{
     skill: string;
     category: string;
@@ -22,11 +29,11 @@ export default function SkillSelector({ onSkillSelect, selectedSkills = [] }: Sk
   // Handle search input change
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
-    
+
     if (query.trim().length > 2) {
       // Map user input to taxonomy
       const mapped = mapSkillToTaxonomy(query);
-      
+
       if (mapped.confidence > 0.5) {
         setSuggestion(mapped);
       } else {
@@ -41,7 +48,7 @@ export default function SkillSelector({ onSkillSelect, selectedSkills = [] }: Sk
   const handleSelectSuggestion = () => {
     if (suggestion) {
       onSkillSelect(suggestion.skill, suggestion.category);
-      setSearchQuery('');
+      setSearchQuery("");
       setSuggestion(null);
     }
   };
@@ -49,11 +56,9 @@ export default function SkillSelector({ onSkillSelect, selectedSkills = [] }: Sk
   // Filter skills based on search query
   const filteredSkills = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    
+
     const query = searchQuery.toLowerCase();
-    return allSkills.filter(skill => 
-      skill.toLowerCase().includes(query)
-    ).slice(0, 10); // Limit to 10 results
+    return allSkills.filter((skill) => skill.toLowerCase().includes(query)).slice(0, 10); // Limit to 10 results
   }, [searchQuery, allSkills]);
 
   return (
@@ -78,10 +83,10 @@ export default function SkillSelector({ onSkillSelect, selectedSkills = [] }: Sk
                   {
                     backgroundColor:
                       suggestion.confidence > 0.8
-                        ? '#4CAF50'
+                        ? "#4CAF50"
                         : suggestion.confidence > 0.6
-                        ? '#FF9800'
-                        : '#FFC107',
+                          ? "#FF9800"
+                          : "#FFC107",
                   },
                 ]}
                 textStyle={styles.confidenceText}
@@ -90,9 +95,7 @@ export default function SkillSelector({ onSkillSelect, selectedSkills = [] }: Sk
               </Chip>
             </View>
             <Title style={styles.suggestionSkill}>{suggestion.skill}</Title>
-            <Text style={styles.suggestionCategory}>
-              Category: {suggestion.category}
-            </Text>
+            <Text style={styles.suggestionCategory}>Category: {suggestion.category}</Text>
             <Text style={styles.tapHint}>👆 Tap to select this skill</Text>
           </Card.Content>
         </Card>
@@ -113,15 +116,13 @@ export default function SkillSelector({ onSkillSelect, selectedSkills = [] }: Sk
                   key={index}
                   mode="outlined"
                   onPress={() => {
-                    const category = Object.entries(SKILLS_TAXONOMY).find(
-                      ([_, skills]) => skills.includes(skill)
-                    )?.[0] || 'Unknown';
+                    const category =
+                      Object.entries(SKILLS_TAXONOMY).find(([_, skills]) =>
+                        skills.includes(skill)
+                      )?.[0] || "Unknown";
                     onSkillSelect(skill, category);
                   }}
-                  style={[
-                    styles.skillChip,
-                    selectedSkills.includes(skill) && styles.selectedChip,
-                  ]}
+                  style={[styles.skillChip, selectedSkills.includes(skill) && styles.selectedChip]}
                   textStyle={styles.skillChipText}
                   selected={selectedSkills.includes(skill)}
                 >
@@ -138,26 +139,23 @@ export default function SkillSelector({ onSkillSelect, selectedSkills = [] }: Sk
         <Card style={styles.instructionCard}>
           <Card.Content>
             <Text style={styles.instructionText}>
-              Start typing a skill name (e.g., "programming", "teamwork", "design") and we'll
-              help you find the best match from our skills taxonomy.
+              Start typing a skill name (e.g., "programming", "teamwork", "design") and we'll help
+              you find the best match from our skills taxonomy.
             </Text>
           </Card.Content>
         </Card>
       )}
 
       {/* No matches message */}
-      {searchQuery.trim().length > 2 &&
-        !suggestion &&
-        filteredSkills.length === 0 && (
-          <Card style={styles.noMatchCard}>
-            <Card.Content>
-              <Text style={styles.noMatchText}>
-                No exact matches found. Try using different words or check our skills taxonomy
-                below.
-              </Text>
-            </Card.Content>
-          </Card>
-        )}
+      {searchQuery.trim().length > 2 && !suggestion && filteredSkills.length === 0 && (
+        <Card style={styles.noMatchCard}>
+          <Card.Content>
+            <Text style={styles.noMatchText}>
+              No exact matches found. Try using different words or check our skills taxonomy below.
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
     </View>
   );
 }
@@ -173,45 +171,45 @@ const styles = StyleSheet.create({
   suggestionCard: {
     marginBottom: 15,
     elevation: 4,
-    backgroundColor: '#f0f8ff',
+    backgroundColor: "#f0f8ff",
     borderWidth: 2,
-    borderColor: '#667eea',
+    borderColor: "#667eea",
   },
   suggestionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
   suggestionLabel: {
     fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
+    color: "#666",
+    fontWeight: "600",
   },
   confidenceChip: {
     elevation: 0,
   },
   confidenceText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: "white",
+    fontWeight: "bold",
     fontSize: 12,
   },
   suggestionSkill: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#667eea',
+    fontWeight: "bold",
+    color: "#667eea",
     marginBottom: 5,
   },
   suggestionCategory: {
     fontSize: 14,
-    color: '#555',
+    color: "#555",
     marginBottom: 10,
   },
   tapHint: {
     fontSize: 12,
-    color: '#667eea',
-    fontStyle: 'italic',
-    textAlign: 'center',
+    color: "#667eea",
+    fontStyle: "italic",
+    textAlign: "center",
   },
   resultsCard: {
     marginBottom: 15,
@@ -219,20 +217,20 @@ const styles = StyleSheet.create({
   },
   resultsTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
     marginBottom: 10,
   },
   skillsScroll: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   skillChip: {
     marginRight: 8,
     marginBottom: 8,
-    borderColor: '#667eea',
+    borderColor: "#667eea",
   },
   selectedChip: {
-    backgroundColor: '#667eea',
+    backgroundColor: "#667eea",
   },
   skillChipText: {
     fontSize: 13,
@@ -240,23 +238,23 @@ const styles = StyleSheet.create({
   instructionCard: {
     marginTop: 10,
     elevation: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
   },
   instructionText: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     lineHeight: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   noMatchCard: {
     marginTop: 10,
     elevation: 1,
-    backgroundColor: '#fff3cd',
+    backgroundColor: "#fff3cd",
   },
   noMatchText: {
     fontSize: 14,
-    color: '#856404',
+    color: "#856404",
     lineHeight: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
