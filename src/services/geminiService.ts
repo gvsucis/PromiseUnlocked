@@ -519,8 +519,9 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
   private static isQuestionStrong(question: string): boolean {
     const normalized = question.trim();
     if (!normalized.endsWith("?")) return false;
-    const words = normalized.replaceAll(/[?!.]/g, "").split(/\s+/).filter(Boolean);
-    return words.length >= 6 && normalized.length >= 24;
+    const words = normalized.replaceAll(/[?!.,]/g, "").split(/\s+/).filter(Boolean);
+    if (words.length < 8) return false;
+    return /\b(what|how|why|where|when|who|which)\b/i.test(normalized);
   }
 
   private static buildSynthesisPrompt(
