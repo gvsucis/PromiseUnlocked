@@ -3,12 +3,20 @@ import {
   MappedCategory,
   ConversationInteraction,
   TOTAL_CATEGORIES,
+  INITIAL_PROMPT,
+  NO_OP_CATEGORY,
+  getTaxonomyString,
+  findValidCategory,
 } from "../services/categoryTaxonomyService";
 import {
   getMappedCategories,
+  saveMappedCategory,
   getConversationHistory,
+  addConversationInteraction,
   clearAllData,
+  isCategoryMapped,
 } from "../services/categoryStorageService";
+import { GeminiService } from "../services/geminiService";
 
 export type UIState =
   | "idle"
@@ -19,53 +27,42 @@ export type UIState =
   | "voice-recording";
 
 export interface DialogueState {
-  // Core state
+  // State
   mappedCategories: MappedCategory[];
-  setMappedCategories: React.Dispatch<React.SetStateAction<MappedCategory[]>>;
   interactions: ConversationInteraction[];
-  setInteractions: React.Dispatch<React.SetStateAction<ConversationInteraction[]>>;
   uiState: UIState;
-  setUiState: React.Dispatch<React.SetStateAction<UIState>>;
-
-  // Question/Answer state
   currentPrompt: string;
-  setCurrentPrompt: React.Dispatch<React.SetStateAction<string>>;
   userAnswer: string;
-  setUserAnswer: React.Dispatch<React.SetStateAction<string>>;
-
-  // UI feedback state
   loadingMessage: string;
-  setLoadingMessage: React.Dispatch<React.SetStateAction<string>>;
   error: string;
+  prefetchedQuestion: string | null;
+  isPrefetching: boolean;
+  loading: boolean;
+  weakFitJustification: string;
+  savedQuestion: string;
+  savedAnswer: string;
+  showConfetti: boolean;
+  showInputMethodModal: boolean;
+
+  // Setters needed by screen for controlled inputs and UI transitions
+  setUserAnswer: React.Dispatch<React.SetStateAction<string>>;
+  setUiState: React.Dispatch<React.SetStateAction<UIState>>;
+  setCurrentPrompt: React.Dispatch<React.SetStateAction<string>>;
+  setShowInputMethodModal: React.Dispatch<React.SetStateAction<boolean>>;
   setError: React.Dispatch<React.SetStateAction<string>>;
 
-  // Prefetch state
-  prefetchedQuestion: string | null;
-  setPrefetchedQuestion: React.Dispatch<React.SetStateAction<string | null>>;
-  isPrefetching: boolean;
-  setIsPrefetching: React.Dispatch<React.SetStateAction<boolean>>;
-
-  // Modal state
-  showInputMethodModal: boolean;
-  setShowInputMethodModal: React.Dispatch<React.SetStateAction<boolean>>;
-
-  // Weak fit state
-  weakFitJustification: string;
-  setWeakFitJustification: React.Dispatch<React.SetStateAction<string>>;
-  savedQuestion: string;
-  setSavedQuestion: React.Dispatch<React.SetStateAction<string>>;
-
-  // Confetti state
-  showConfetti: boolean;
-  setShowConfetti: React.Dispatch<React.SetStateAction<boolean>>;
-
-  // Loading state
-  loading: boolean;
-  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
-
-  // Methods
+  // Business logic
   loadData: () => Promise<void>;
-  handleReset: () => Promise<void>;
+  resetData: () => Promise<void>;
+  mapAnswerToCategory: (question: string, answer: string) => Promise<void>;
+  handleStartButtonPress: () => Promise<void>;
+  handleTextInputPress: () => void;
+  handleVoiceInputPress: () => void;
+  prepareImageQuestion: () => boolean;
+  handleSubmitAnswer: () => void;
+  handleWeakFitTryAgain: () => void;
+  handleWeakFitNewQuestion: () => Promise<void>;
+  dismissAnswerModal: () => void;
 }
 
 export function useDialogueState(): DialogueState {
@@ -81,48 +78,14 @@ export function useDialogueState(): DialogueState {
   const [loading, setLoading] = useState(true);
   const [weakFitJustification, setWeakFitJustification] = useState("");
   const [savedQuestion, setSavedQuestion] = useState("");
+  const [savedAnswer, setSavedAnswer] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
   const [showInputMethodModal, setShowInputMethodModal] = useState(false);
 
-  // Load data on mount
-  const loadData = async () => {
-    try {
-      const categories = await getMappedCategories();
-      const history = await getConversationHistory();
-      setMappedCategories(categories);
-      setInteractions(history);
-      console.log("Loaded data:", categories.length, "categories,", history.length, "interactions");
-    } catch (err) {
-      console.error("Error loading data:", err);
-      setError("Failed to load your progress. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  // Handle reset
-  const handleReset = async () => {
-    try {
-      await clearAllData();
-      setMappedCategories([]);
-      setInteractions([]);
-      setCurrentPrompt("");
-      setUserAnswer("");
-      setPrefetchedQuestion(null);
-      setIsPrefetching(false);
-      setWeakFitJustification("");
-      setSavedQuestion("");
-      setError("");
-      setShowConfetti(false);
-      setUiState("idle");
-      console.log("Data reset successfully");
-    } catch (err) {
-      console.error("Error resetting data:", err);
-      setError("Failed to reset data. Please try again.");
-    }
-  };
-
-  // Check completion
   useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
       setUiState("complete");
@@ -131,61 +94,356 @@ export function useDialogueState(): DialogueState {
     }
   }, [mappedCategories.length]);
 
-  // Debug useEffect to monitor showInputMethodModal changes
-  useEffect(() => {
-    console.log("showInputMethodModal changed to:", showInputMethodModal);
-  }, [showInputMethodModal]);
+  const loadData = async () => {
+    try {
+      const [mapped, history] = await Promise.all([
+        getMappedCategories(),
+        getConversationHistory(),
+      ]);
+      setMappedCategories(mapped);
+      setInteractions(history);
+    } catch (err) {
+      console.error("Error loading data:", err);
+      setError("Failed to load your progress. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log("State changed:", {
-      uiState,
-      currentPrompt: currentPrompt.substring(0, 50) + "...",
-      hasPrompt: !!currentPrompt,
-    });
-  }, [uiState, currentPrompt]);
+  const resetData = async () => {
+    await clearAllData();
+    setMappedCategories([]);
+    setInteractions([]);
+    setCurrentPrompt("");
+    setUserAnswer("");
+    setSavedQuestion("");
+    setSavedAnswer("");
+    setPrefetchedQuestion(null);
+    setIsPrefetching(false);
+    setWeakFitJustification("");
+    setError("");
+    setShowConfetti(false);
+    setUiState("idle");
+  };
 
-  // Debug: Specifically track Answer modal visibility
-  useEffect(() => {
-    const shouldShowAnswerModal = uiState === "answering";
-    console.log("🔴 Answer Modal should be visible:", shouldShowAnswerModal, {
-      uiState,
-      hasCurrentPrompt: !!currentPrompt,
-      promptLength: currentPrompt.length,
-      showInputMethodModal,
-    });
-  }, [uiState, currentPrompt, showInputMethodModal]);
+  const mapAnswerToCategory = async (question: string, answer: string) => {
+    setUiState("loading");
+    setLoadingMessage("Analyzing your response...");
+    setError("");
+    setSavedQuestion(question);
+    setSavedAnswer(answer);
+    setPrefetchedQuestion(null);
+    setIsPrefetching(false);
+
+    try {
+      const isInitial = mappedCategories.length === 0;
+      const taxonomyString = getTaxonomyString();
+
+      const result = await GeminiService.mapAnswerAndGenerateNextQuestion(
+        question,
+        answer,
+        isInitial,
+        interactions,
+        mappedCategories,
+        taxonomyString
+      );
+
+      const { category: rawCategory, justification, nextQuestion } = result;
+      const validCategory = findValidCategory(rawCategory);
+      const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
+
+      let shouldProceedToNextQuestion = false;
+
+      if (categoryNameToCheck === NO_OP_CATEGORY) {
+        const interaction: ConversationInteraction = {
+          question,
+          answer,
+          mappedCategory: "NO-OP (WEAK FIT)",
+          timestamp: new Date().toISOString(),
+        };
+        await addConversationInteraction(interaction);
+        setInteractions((prev) => [...prev, interaction]);
+        setWeakFitJustification(justification ?? "");
+        setUiState("weak-fit");
+        return;
+      } else if (validCategory && !(await isCategoryMapped(categoryNameToCheck))) {
+        const newMappedCategory: MappedCategory = {
+          category: categoryNameToCheck,
+          justification: justification ?? "",
+          dateIdentified: new Date().toISOString(),
+        };
+
+        await saveMappedCategory(newMappedCategory);
+        const newMappedCategories = [...mappedCategories, newMappedCategory];
+        setMappedCategories(newMappedCategories);
+
+        const interaction: ConversationInteraction = {
+          question,
+          answer,
+          mappedCategory: categoryNameToCheck,
+          timestamp: new Date().toISOString(),
+        };
+        await addConversationInteraction(interaction);
+        setInteractions((prev) => [...prev, interaction]);
+
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+
+        if (newMappedCategories.length === TOTAL_CATEGORIES) {
+          setUserAnswer("");
+          setUiState("complete");
+          return;
+        }
+
+        shouldProceedToNextQuestion = true;
+      } else if (await isCategoryMapped(categoryNameToCheck)) {
+        console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
+        const interaction: ConversationInteraction = {
+          question,
+          answer,
+          mappedCategory: "ALREADY MAPPED (IGNORED)",
+          timestamp: new Date().toISOString(),
+        };
+        await addConversationInteraction(interaction);
+        setInteractions((prev) => [...prev, interaction]);
+        shouldProceedToNextQuestion = true;
+      } else {
+        console.log(`Unexpected category "${rawCategory}", generating new question`);
+        const interaction: ConversationInteraction = {
+          question,
+          answer,
+          mappedCategory: "INVALID CATEGORY (RETRY)",
+          timestamp: new Date().toISOString(),
+        };
+        await addConversationInteraction(interaction);
+        setInteractions((prev) => [...prev, interaction]);
+        shouldProceedToNextQuestion = true;
+      }
+
+      setUserAnswer("");
+
+      if (shouldProceedToNextQuestion) {
+        setLoadingMessage("Generating next question...");
+
+        try {
+          const newQuestion =
+            nextQuestion ||
+            (await GeminiService.synthesizeNextQuestion(
+              interactions,
+              mappedCategories,
+              getTaxonomyString()
+            ));
+
+          setPrefetchedQuestion(newQuestion);
+          setIsPrefetching(false);
+          setLoadingMessage("");
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          setUiState("idle");
+
+          setTimeout(() => {
+            setShowInputMethodModal(true);
+          }, 100);
+          return;
+        } catch (err) {
+          console.error("Error generating next question:", err);
+          setError("Failed to generate next question. Please try again.");
+          setUiState("idle");
+          return;
+        }
+      }
+
+      setUiState("idle");
+    } catch (err) {
+      console.error("Error mapping answer:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to process your answer. Please try again.";
+      setError(errorMessage);
+      setUserAnswer("");
+      setCurrentPrompt("");
+      setUiState("idle");
+    }
+  };
+
+  const handleStartButtonPress = async () => {
+    if (uiState !== "idle") return;
+    setError("");
+
+    if (mappedCategories.length > 0 && !prefetchedQuestion && !isPrefetching) {
+      setUiState("loading");
+      setLoadingMessage("Synthesizing a new question...");
+
+      try {
+        const newQuestion = await GeminiService.synthesizeNextQuestion(
+          interactions,
+          mappedCategories,
+          getTaxonomyString()
+        );
+
+        setPrefetchedQuestion(newQuestion);
+        setUiState("idle");
+        setLoadingMessage("");
+
+        setTimeout(() => {
+          setShowInputMethodModal(true);
+        }, 100);
+      } catch (err) {
+        console.error("Error synthesizing question:", err);
+        setError("Failed to generate question. Please try again.");
+        setUiState("idle");
+        setLoadingMessage("");
+      }
+    } else {
+      setShowInputMethodModal(true);
+    }
+  };
+
+  const handleTextInputPress = () => {
+    setError("");
+
+    if (mappedCategories.length === 0) {
+      setCurrentPrompt(INITIAL_PROMPT);
+      setTimeout(() => setUiState("answering"), 100);
+    } else if (prefetchedQuestion) {
+      setCurrentPrompt(prefetchedQuestion);
+      setPrefetchedQuestion(null);
+      setTimeout(() => setUiState("answering"), 100);
+    } else {
+      setError("No question available. Please try again.");
+    }
+  };
+
+  const handleVoiceInputPress = () => {
+    setError("");
+
+    if (mappedCategories.length === 0) {
+      setCurrentPrompt(INITIAL_PROMPT);
+      setTimeout(() => setUiState("voice-recording"), 100);
+    } else if (prefetchedQuestion) {
+      setCurrentPrompt(prefetchedQuestion);
+      setPrefetchedQuestion(null);
+      setTimeout(() => setUiState("voice-recording"), 100);
+    } else {
+      setError("No question available. Please try again.");
+    }
+  };
+
+  const prepareImageQuestion = (): boolean => {
+    setError("");
+
+    if (mappedCategories.length === 0) {
+      setCurrentPrompt(INITIAL_PROMPT);
+      setSavedQuestion(INITIAL_PROMPT);
+      return true;
+    } else if (prefetchedQuestion) {
+      setCurrentPrompt(prefetchedQuestion);
+      setSavedQuestion(prefetchedQuestion);
+      setPrefetchedQuestion(null);
+      return true;
+    } else {
+      setError("No question available. Please try again.");
+      return false;
+    }
+  };
+
+  const handleSubmitAnswer = () => {
+    if (!userAnswer.trim()) {
+      setError("Answer cannot be empty. Please provide a substantive response.");
+      return;
+    }
+
+    const q = currentPrompt;
+    const a = userAnswer;
+    setSavedQuestion(q);
+    setSavedAnswer(a);
+    setCurrentPrompt("");
+    setUserAnswer("");
+
+    mapAnswerToCategory(q, a);
+  };
+
+  const handleWeakFitTryAgain = () => {
+    setCurrentPrompt(savedQuestion);
+    setUserAnswer(savedAnswer);
+    setError("");
+    setWeakFitJustification("");
+    setUiState("answering");
+  };
+
+  const handleWeakFitNewQuestion = async () => {
+    setWeakFitJustification("");
+    setSavedAnswer("");
+    setSavedQuestion("");
+    setError("");
+    setUiState("idle");
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    setUiState("loading");
+    setLoadingMessage("Synthesizing a new question...");
+
+    try {
+      const newQuestion = await GeminiService.synthesizeNextQuestion(
+        interactions,
+        mappedCategories,
+        getTaxonomyString()
+      );
+
+      setPrefetchedQuestion(newQuestion);
+      setLoadingMessage("");
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      setUiState("idle");
+
+      setTimeout(() => {
+        setShowInputMethodModal(true);
+      }, 100);
+    } catch (err) {
+      console.error("Error synthesizing question after weak-fit:", err);
+      setError("Failed to generate question. Please try again.");
+      setUiState("idle");
+      setLoadingMessage("");
+    }
+  };
+
+  const dismissAnswerModal = () => {
+    setCurrentPrompt("");
+    setUserAnswer("");
+    setError("");
+    setUiState("idle");
+  };
 
   return {
     mappedCategories,
-    setMappedCategories,
     interactions,
-    setInteractions,
     uiState,
-    setUiState,
     currentPrompt,
-    setCurrentPrompt,
     userAnswer,
-    setUserAnswer,
     loadingMessage,
-    setLoadingMessage,
     error,
-    setError,
     prefetchedQuestion,
-    setPrefetchedQuestion,
     isPrefetching,
-    setIsPrefetching,
-    showInputMethodModal,
-    setShowInputMethodModal,
-    weakFitJustification,
-    setWeakFitJustification,
-    savedQuestion,
-    setSavedQuestion,
-    showConfetti,
-    setShowConfetti,
     loading,
-    setLoading,
+    weakFitJustification,
+    savedQuestion,
+    savedAnswer,
+    showConfetti,
+    showInputMethodModal,
+    setUserAnswer,
+    setUiState,
+    setCurrentPrompt,
+    setShowInputMethodModal,
+    setError,
     loadData,
-    handleReset,
+    resetData,
+    mapAnswerToCategory,
+    handleStartButtonPress,
+    handleTextInputPress,
+    handleVoiceInputPress,
+    prepareImageQuestion,
+    handleSubmitAnswer,
+    handleWeakFitTryAgain,
+    handleWeakFitNewQuestion,
+    dismissAnswerModal,
   };
 }

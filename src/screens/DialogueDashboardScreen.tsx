@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -6,10 +6,8 @@ import {
   Dimensions,
   TouchableOpacity,
   Alert,
-  Keyboard,
-  Animated,
 } from "react-native";
-import { Text, Card, ActivityIndicator, FAB } from "react-native-paper";
+import { Text, Card, ActivityIndicator } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -19,22 +17,7 @@ import { RootStackParamList } from "../types/navigation";
 import {
   CATEGORY_TAXONOMY,
   TOTAL_CATEGORIES,
-  INITIAL_PROMPT,
-  NO_OP_CATEGORY,
-  getTaxonomyString,
-  getCompletionPercentage,
-  findValidCategory,
-  MappedCategory,
-  ConversationInteraction,
 } from "../services/categoryTaxonomyService";
-import {
-  getMappedCategories,
-  saveMappedCategory,
-  getConversationHistory,
-  addConversationInteraction,
-  clearAllData,
-  isCategoryMapped,
-} from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { ImagePickerService } from "../services/imagePickerService";
 import { Audio } from "expo-av";
@@ -47,6 +30,7 @@ import { InputMethodModal } from "../components/dialogue/InputMethodModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
 import { CategoryCard } from "../components/dialogue/CategoryCard";
+import { useDialogueState } from "../hooks/useDialogueState";
 
 const { width } = Dimensions.get("window");
 
@@ -58,60 +42,50 @@ interface Props {
   readonly route: DialogueDashboardRouteProp;
 }
 
-type UIState = "idle" | "answering" | "loading" | "complete" | "weak-fit" | "voice-recording";
-
 export default function DialogueDashboardScreen({ navigation }: Props) {
-  const [mappedCategories, setMappedCategories] = useState<MappedCategory[]>([]);
-  const [interactions, setInteractions] = useState<ConversationInteraction[]>([]);
-  const [uiState, setUiState] = useState<UIState>("idle");
-  const [currentPrompt, setCurrentPrompt] = useState("");
-  const [userAnswer, setUserAnswer] = useState("");
-  const [loadingMessage, setLoadingMessage] = useState("");
-  const [error, setError] = useState("");
-  const [prefetchedQuestion, setPrefetchedQuestion] = useState<string | null>(null);
-  const [isPrefetching, setIsPrefetching] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [weakFitJustification, setWeakFitJustification] = useState("");
-  const [savedQuestion, setSavedQuestion] = useState(""); // Store question for weak-fit retry
-  const [savedAnswer, setSavedAnswer] = useState(""); // Store answer for weak-fit retry
-
-  const [showConfetti, setShowConfetti] = useState(false);
-  const confettiRef = React.useRef<any>(null);
-
-  // Image handling state
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showImageEditor, setShowImageEditor] = useState(false);
-  const [tempImageUri, setTempImageUri] = useState<string | null>(null);
-  const [zoomViewerVisible, setZoomViewerVisible] = useState(false);
-  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
-
-  // Input method modal state
-  const [showInputMethodModal, setShowInputMethodModal] = useState(false);
-
-  // Debug useEffect to monitor showInputMethodModal changes
-  useEffect(() => {
-    console.log("showInputMethodModal changed to:", showInputMethodModal);
-  }, [showInputMethodModal]);
+  const {
+    mappedCategories,
+    uiState,
+    currentPrompt,
+    userAnswer,
+    loadingMessage,
+    error,
+    weakFitJustification,
+    showConfetti,
+    showInputMethodModal,
+    loading,
+    setUserAnswer,
+    setUiState,
+    setCurrentPrompt,
+    setShowInputMethodModal,
+    resetData,
+    mapAnswerToCategory,
+    handleStartButtonPress,
+    handleTextInputPress,
+    handleVoiceInputPress,
+    prepareImageQuestion,
+    handleSubmitAnswer,
+    handleWeakFitTryAgain,
+    handleWeakFitNewQuestion,
+    dismissAnswerModal,
+  } = useDialogueState();
 
   // Voice recording state
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [recordingUri, setRecordingUri] = useState<string | null>(null);
-  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
-  const [pendingVoiceRecording, setPendingVoiceRecording] = useState(false);
-  const [isAnswerFromVoice, setIsAnswerFromVoice] = useState(false);
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [recordingDuration, setRecordingDuration] = React.useState(0);
+  const [recordingUri, setRecordingUri] = React.useState<string | null>(null);
+  const [isProcessingAudio, setIsProcessingAudio] = React.useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // FAB animation state
-  const [isFabOpen, setIsFabOpen] = useState(false);
-  const fabAnimation = useRef(new Animated.Value(0)).current;
-  const button1Animation = useRef(new Animated.Value(0)).current;
-  const button2Animation = useRef(new Animated.Value(0)).current;
-  const button3Animation = useRef(new Animated.Value(0)).current;
-  const rotateAnimation = useRef(new Animated.Value(0)).current;
+  // Image state
+  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
+  const [showImageEditor, setShowImageEditor] = React.useState(false);
+  const [tempImageUri, setTempImageUri] = React.useState<string | null>(null);
+  const [zoomViewerVisible, setZoomViewerVisible] = React.useState(false);
+  const [isAnalyzingImage, setIsAnalyzingImage] = React.useState(false);
+  const [isAnswerFromVoice, setIsAnswerFromVoice] = React.useState(false);
 
-  // Configure navigation header with reset button
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -130,557 +104,47 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     });
   }, [navigation, uiState]);
 
-  // Load data on mount
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Check completion
-  useEffect(() => {
-    if (mappedCategories.length === TOTAL_CATEGORIES) {
-      setUiState("complete");
-      setPrefetchedQuestion(null);
-      setIsPrefetching(false);
-    }
-  }, [mappedCategories.length]);
-
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log("State changed:", {
-      uiState,
-      currentPrompt: currentPrompt.substring(0, 50) + "...",
-      hasPrompt: !!currentPrompt,
-    });
-  }, [uiState, currentPrompt]);
-
-  // Debug: Specifically track Answer modal visibility
-  useEffect(() => {
-    const shouldShowAnswerModal = uiState === "answering";
-    console.log("🔴 Answer Modal should be visible:", shouldShowAnswerModal, {
-      uiState,
-      hasCurrentPrompt: !!currentPrompt,
-      promptLength: currentPrompt.length,
-      showInputMethodModal,
-    });
-  }, [uiState, currentPrompt, showInputMethodModal]);
-
-  // FAB animation functions
-  const toggleFabMenu = () => {
-    const toValue = isFabOpen ? 0 : 1;
-
-    Animated.parallel([
-      Animated.spring(fabAnimation, {
-        toValue,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 8,
-      }),
-      Animated.spring(rotateAnimation, {
-        toValue,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 8,
-      }),
-      Animated.stagger(50, [
-        Animated.spring(button1Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-        Animated.spring(button2Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-        Animated.spring(button3Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-      ]),
-    ]).start();
-
-    setIsFabOpen(!isFabOpen);
-  };
-
-  const rotation = rotateAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "45deg"],
-  });
-
-  const button1Style = {
-    transform: [
+  const handleReset = () => {
+    Alert.alert("Reset Dashboard", "Are you sure you want to reset? All progress will be lost.", [
+      { text: "Cancel", style: "cancel" },
       {
-        translateX: button1Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -96],
-        }),
+        text: "Reset",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await resetData();
+          } catch {
+            Alert.alert("Error", "Failed to reset dashboard");
+          }
+        },
       },
-      {
-        scale: button1Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  const button2Style = {
-    transform: [
-      {
-        translateX: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -68],
-        }),
-      },
-      {
-        translateY: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -68],
-        }),
-      },
-      {
-        scale: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  const button3Style = {
-    transform: [
-      {
-        translateY: button3Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -96],
-        }),
-      },
-      {
-        scale: button3Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  const loadData = async () => {
-    try {
-      const [mapped, history] = await Promise.all([
-        getMappedCategories(),
-        getConversationHistory(),
-      ]);
-      setMappedCategories(mapped);
-      setInteractions(history);
-    } catch (error) {
-      console.error("Error loading data:", error);
-      Alert.alert("Error", "Failed to load your progress");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getNextQuestion = useCallback(
-    async (isPrefetch = false) => {
-      setError("");
-
-      if (mappedCategories.length === TOTAL_CATEGORIES) {
-        setUiState("complete");
-        return;
-      }
-
-      if (!isPrefetch) {
-        setUiState("loading");
-        setLoadingMessage("Synthesizing a new question...");
-      }
-
-      try {
-        const taxonomyString = getTaxonomyString();
-        const newQuestion = await GeminiService.synthesizeNextQuestion(
-          interactions,
-          mappedCategories,
-          taxonomyString
-        );
-
-        if (isPrefetch) {
-          console.log("Setting prefetched question:", newQuestion);
-          setPrefetchedQuestion(newQuestion);
-          setIsPrefetching(false);
-
-          // If user is waiting, show question immediately
-          setUiState((currentUiState) => {
-            if (currentUiState === "loading" && loadingMessage.includes("Wait while")) {
-              console.log("User was waiting, showing question immediately");
-              setCurrentPrompt(newQuestion);
-              if (pendingVoiceRecording) {
-                setPendingVoiceRecording(false);
-                return "voice-recording";
-              }
-              return "answering";
-            }
-            return currentUiState === "loading" ? "idle" : currentUiState;
-          });
-
-          setLoadingMessage("");
-        } else {
-          console.log("Setting current prompt (non-prefetch):", newQuestion);
-          setCurrentPrompt(newQuestion);
-          setLoadingMessage("");
-
-          // Small delay to ensure loading modal closes before answer modal opens
-          setTimeout(() => {
-            if (pendingVoiceRecording) {
-              console.log("Setting uiState to voice-recording");
-              setPendingVoiceRecording(false);
-              setUiState("voice-recording");
-            } else {
-              console.log("Setting uiState to answering");
-              setUiState("answering");
-            }
-            console.log("UI state should now be set, modal should appear");
-          }, 100);
-        }
-      } catch (err) {
-        console.error("Error getting next question:", err);
-        setError("Failed to generate question. Please try again.");
-        setIsPrefetching(false);
-        setPendingVoiceRecording(false);
-        setLoadingMessage("");
-        setUiState("idle");
-      }
-    },
-    [interactions, mappedCategories, pendingVoiceRecording]
-  );
-
-  const mapAnswerToCategory = async (question: string, answer: string) => {
-    setUiState("loading");
-    setLoadingMessage("Analyzing your response...");
-    setError("");
-    setSavedQuestion(question);
-
-    setPrefetchedQuestion(null);
-    setIsPrefetching(false);
-
-    try {
-      const isInitial = mappedCategories.length === 0;
-      const taxonomyString = getTaxonomyString();
-
-      // Use combined API call to map answer AND generate next question in one request
-      const result = await GeminiService.mapAnswerAndGenerateNextQuestion(
-        question,
-        answer,
-        isInitial,
-        interactions,
-        mappedCategories,
-        taxonomyString
-      );
-
-      const { category: rawCategory, justification, nextQuestion } = result;
-
-      // Validate category
-      const validCategory = findValidCategory(rawCategory);
-      const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
-
-      let shouldProceedToNextQuestion = false;
-
-      if (categoryNameToCheck === NO_OP_CATEGORY) {
-        // NO-OP: weak fit - ask follow-up question
-        console.log("NO-OP Mapping: weak fit. Justification:", justification);
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: "NO-OP (WEAK FIT)",
-          timestamp: new Date().toISOString(),
-        };
-        await addConversationInteraction(interaction);
-        setInteractions((prev) => [...prev, interaction]);
-
-        // Show weak fit modal with follow-up prompt
-        setWeakFitJustification(justification ?? "");
-        setUiState("weak-fit");
-        return; // Don't prefetch or continue
-      } else if (validCategory && !(await isCategoryMapped(categoryNameToCheck))) {
-        // Successful mapping
-        const newMappedCategory: MappedCategory = {
-          category: categoryNameToCheck,
-          justification: justification ?? "",
-          dateIdentified: new Date().toISOString(),
-        };
-
-        await saveMappedCategory(newMappedCategory);
-        const newMappedCategories = [...mappedCategories, newMappedCategory];
-        setMappedCategories(newMappedCategories);
-
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: categoryNameToCheck,
-          timestamp: new Date().toISOString(),
-        };
-        await addConversationInteraction(interaction);
-        setInteractions((prev) => [...prev, interaction]);
-
-        // Trigger confetti animation for successful mapping
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
-
-        // Check if complete
-        if (newMappedCategories.length === TOTAL_CATEGORIES) {
-          setUserAnswer("");
-          setIsAnswerFromVoice(false);
-          setUiState("complete");
-          return;
-        }
-
-        shouldProceedToNextQuestion = true;
-      } else if (await isCategoryMapped(categoryNameToCheck)) {
-        // Category already mapped - generate new question and show input modal
-        console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: "ALREADY MAPPED (IGNORED)",
-          timestamp: new Date().toISOString(),
-        };
-        await addConversationInteraction(interaction);
-        setInteractions((prev) => [...prev, interaction]);
-
-        shouldProceedToNextQuestion = true;
-      } else {
-        // Invalid category - generate new question and show input modal
-        console.log(`Unexpected category "${rawCategory}", generating new question`);
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: "INVALID CATEGORY (RETRY)",
-          timestamp: new Date().toISOString(),
-        };
-        await addConversationInteraction(interaction);
-        setInteractions((prev) => [...prev, interaction]);
-
-        shouldProceedToNextQuestion = true;
-      }
-
-      setUserAnswer("");
-      setIsAnswerFromVoice(false);
-
-      // Proceed to next question if needed
-      if (shouldProceedToNextQuestion) {
-        // Generate new question and show input method modal
-        setLoadingMessage("Generating next question...");
-
-        try {
-          const newQuestion =
-            nextQuestion ||
-            (await GeminiService.synthesizeNextQuestion(
-              interactions,
-              mappedCategories,
-              getTaxonomyString()
-            ));
-
-          console.log("New question generated, opening input method modal");
-          setPrefetchedQuestion(newQuestion);
-          setIsPrefetching(false);
-          setLoadingMessage("");
-
-          // Wait for loading to clear then show input method modal
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          setUiState("idle");
-
-          setTimeout(() => {
-            setShowInputMethodModal(true);
-          }, 100);
-          return;
-        } catch (err) {
-          console.error("Error generating next question:", err);
-          setError("Failed to generate next question. Please try again.");
-          setUiState("idle");
-          return;
-        }
-      }
-
-      setUiState("idle");
-    } catch (err) {
-      console.error("Error mapping answer:", err);
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to process your answer. Please try again.";
-      setError(errorMessage);
-      setUserAnswer("");
-      setIsAnswerFromVoice(false);
-      setCurrentPrompt("");
-      setUiState("idle");
-    }
-  };
-
-  const handleStartButtonPress = async () => {
-    if (uiState !== "idle") return;
-    setError(""); // Clear any previous errors
-
-    // If we need a question and don't have one, synthesize it first
-    if (mappedCategories.length > 0 && !prefetchedQuestion && !isPrefetching) {
-      console.log("Need to synthesize question before showing input method modal");
-      setUiState("loading");
-      setLoadingMessage("Synthesizing a new question...");
-
-      try {
-        const taxonomyString = getTaxonomyString();
-        const newQuestion = await GeminiService.synthesizeNextQuestion(
-          interactions,
-          mappedCategories,
-          taxonomyString
-        );
-
-        console.log("Question synthesized, storing as prefetched:", newQuestion);
-        setPrefetchedQuestion(newQuestion);
-        setUiState("idle");
-        setLoadingMessage("");
-
-        // Small delay before showing input method modal
-        setTimeout(() => {
-          setShowInputMethodModal(true);
-        }, 100);
-      } catch (err) {
-        console.error("Error synthesizing question:", err);
-        setError("Failed to generate question. Please try again.");
-        setUiState("idle");
-        setLoadingMessage("");
-      }
-    } else {
-      // Question ready or it's first question (INITIAL_PROMPT)
-      setShowInputMethodModal(true);
-    }
+    ]);
   };
 
   const handleInputMethodSelect = async (method: "text" | "voice" | "image") => {
-    console.log("handleInputMethodSelect called with method:", method);
     setShowInputMethodModal(false);
-
-    // Wait for state to update and next frame to render
     await new Promise((resolve) => setTimeout(resolve, 150));
 
-    console.log("Executing input method handler after delay");
     if (method === "text") {
       handleTextInputPress();
     } else if (method === "voice") {
       handleVoiceInputPress();
     } else if (method === "image") {
-      handleImageInputPress();
+      const ready = prepareImageQuestion();
+      if (ready) showImageSourceDialog();
     }
   };
 
-  const handleFabClick = () => {
-    if (uiState !== "idle") return;
-    toggleFabMenu();
-  };
-
-  const handleTextInputPress = () => {
-    setError(""); // Clear any previous errors
-    console.log("Text input selected. State:", {
-      mappedCount: mappedCategories.length,
-      hasPrefetched: !!prefetchedQuestion,
-      prefetchedQuestion,
-    });
-
-    if (mappedCategories.length === 0) {
-      // Start with initial prompt
-      console.log("Using initial prompt");
-      setCurrentPrompt(INITIAL_PROMPT);
-      setTimeout(() => setUiState("answering"), 100);
-    } else if (prefetchedQuestion) {
-      // Use prefetched question (should always be available now)
-      console.log("Using prefetched question:", prefetchedQuestion);
-      setCurrentPrompt(prefetchedQuestion);
-      setPrefetchedQuestion(null);
-      setTimeout(() => setUiState("answering"), 100);
-    } else {
-      // This shouldn't happen now, but fallback to error
-      console.error("No question available when text input was selected");
-      setError("No question available. Please try again.");
-    }
-  };
-
-  const handleVoiceInputPress = () => {
-    setError(""); // Clear any previous errors
-    console.log("Voice input selected. State:", {
-      mappedCount: mappedCategories.length,
-      hasPrefetched: !!prefetchedQuestion,
-      prefetchedQuestion,
-    });
-
-    if (mappedCategories.length === 0) {
-      // Start with initial prompt
-      console.log("Using initial prompt");
-      setCurrentPrompt(INITIAL_PROMPT);
-      setTimeout(() => setUiState("voice-recording"), 100);
-    } else if (prefetchedQuestion) {
-      // Use prefetched question (should always be available now)
-      console.log("Using prefetched question:", prefetchedQuestion);
-      setCurrentPrompt(prefetchedQuestion);
-      setPrefetchedQuestion(null);
-      setTimeout(() => setUiState("voice-recording"), 100);
-    } else {
-      // This shouldn't happen now, but fallback to error
-      console.error("No question available when voice input was selected");
-      setError("No question available. Please try again.");
-    }
-  };
-
-  const showImageSourceDialog = () => {
-    Alert.alert(
-      "Choose Image Source",
-      "How would you like to add your image?",
-      [
-        {
-          text: "Take Photo",
-          onPress: () => handleImageSelection(true),
-        },
-        {
-          text: "Choose from Gallery",
-          onPress: () => handleImageSelection(false),
-        },
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-      ],
-      { cancelable: true }
-    );
-  };
-
-  const handleImageInputPress = async () => {
-    setError(""); // Clear any previous errors
-
-    // Get the question
-    if (mappedCategories.length === 0) {
-      setCurrentPrompt(INITIAL_PROMPT);
-      setSavedQuestion(INITIAL_PROMPT);
-    } else if (prefetchedQuestion) {
-      setCurrentPrompt(prefetchedQuestion);
-      setSavedQuestion(prefetchedQuestion);
-      setPrefetchedQuestion(null);
-    } else {
-      console.error("No question available when image input was selected");
-      setError("No question available. Please try again.");
-      return;
-    }
-
-    showImageSourceDialog();
-  };
+  // --- Voice recording ---
 
   const startRecording = async () => {
     try {
-      console.log("Requesting permissions..");
       await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      console.log("Starting recording..");
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
@@ -688,12 +152,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       setIsRecording(true);
       setRecordingDuration(0);
 
-      // Start timer
       timerRef.current = setInterval(() => {
         setRecordingDuration((prev) => prev + 1);
       }, 1000);
-
-      console.log("Recording started");
     } catch (err) {
       console.error("Failed to start recording", err);
       Alert.alert("Error", "Failed to start recording. Please check your microphone permissions.");
@@ -701,7 +162,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   };
 
   const stopRecording = async () => {
-    console.log("Stopping recording..");
     if (!recordingRef.current) return;
 
     try {
@@ -712,19 +172,14 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       }
 
       await recordingRef.current.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
 
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
 
-      if (uri) {
-        setRecordingUri(uri);
-        console.log("Recording stopped and stored at", uri);
-      }
-    } catch (error) {
-      console.error("Error stopping recording:", error);
+      if (uri) setRecordingUri(uri);
+    } catch (err) {
+      console.error("Error stopping recording:", err);
       Alert.alert("Error", "Failed to stop recording");
     }
   };
@@ -738,47 +193,37 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     setIsProcessingAudio(true);
 
     try {
-      console.log("Transcribing audio...");
-
-      // Transcribe audio using GeminiService
       const transcriptionResult = await GeminiService.transcribeAudio(recordingUri);
-
-      console.log("Transcription result:", transcriptionResult);
 
       if (
         !transcriptionResult.success ||
         !transcriptionResult.transcript ||
         transcriptionResult.transcript.trim().length === 0
       ) {
-        const errorMsg =
-          transcriptionResult.error ||
-          "Could not transcribe your audio. Please try recording again.";
-        Alert.alert("Transcription Error", errorMsg);
+        Alert.alert(
+          "Transcription Error",
+          transcriptionResult.error || "Could not transcribe your audio. Please try recording again."
+        );
         return;
       }
 
-      const transcribedText = transcriptionResult.transcript.trim();
-      console.log("Transcribed text:", transcribedText);
-
-      // Save the question and transcribed answer
       const question = currentPrompt;
-      const answer = transcribedText;
+      const answer = transcriptionResult.transcript.trim();
 
-      // Close voice recording modal
       setRecordingUri(null);
       setRecordingDuration(0);
       setCurrentPrompt("");
 
-      // Process the voice answer directly
       await mapAnswerToCategory(question, answer);
-    } catch (error) {
-      console.error("Error processing voice answer:", error);
+      setIsAnswerFromVoice(false);
+    } catch (err) {
+      console.error("Error processing voice answer:", err);
       let errorMessage = "Failed to process your voice response. Please try again.";
 
-      if (error instanceof Error) {
-        if (error.message.includes("Rate limit")) {
+      if (err instanceof Error) {
+        if (err.message.includes("Rate limit")) {
           errorMessage = "Rate limit exceeded. Please wait a moment and try again.";
-        } else if (error.message.includes("API key")) {
+        } else if (err.message.includes("API key")) {
           errorMessage = "API key issue. Please check your configuration.";
         }
       }
@@ -787,6 +232,40 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     } finally {
       setIsProcessingAudio(false);
     }
+  };
+
+  const handleVoiceCancel = async () => {
+    if (isRecording && recordingRef.current) {
+      try {
+        await recordingRef.current.stopAndUnloadAsync();
+        recordingRef.current = null;
+      } catch (err) {
+        console.error("Error stopping recording on cancel:", err);
+      }
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setUiState("idle");
+    setIsRecording(false);
+    setRecordingUri(null);
+    setRecordingDuration(0);
+  };
+
+  // --- Image handling ---
+
+  const showImageSourceDialog = () => {
+    Alert.alert(
+      "Choose Image Source",
+      "How would you like to add your image?",
+      [
+        { text: "Take Photo", onPress: () => handleImageSelection(true) },
+        { text: "Choose from Gallery", onPress: () => handleImageSelection(false) },
+        { text: "Cancel", style: "cancel" },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleImageSelection = async (useCamera: boolean) => {
@@ -800,12 +279,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         return;
       }
 
-      let result;
-      if (useCamera) {
-        result = await ImagePickerService.takePhotoWithCamera();
-      } else {
-        result = await ImagePickerService.pickImageFromGalleryWithOptions(false);
-      }
+      const result = useCamera
+        ? await ImagePickerService.takePhotoWithCamera()
+        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
 
       if (result.success && result.imageUri) {
         setTempImageUri(result.imageUri);
@@ -813,8 +289,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       } else if (result.error) {
         Alert.alert("Error", result.error);
       }
-    } catch (error) {
-      console.error("Error selecting image:", error);
+    } catch (err) {
+      console.error("Error selecting image:", err);
       Alert.alert("Error", "An error occurred while selecting image");
     }
   };
@@ -823,7 +299,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     setSelectedImage(editedImageUri);
     setShowImageEditor(false);
     setTempImageUri(null);
-    setUiState("answering"); // Show the answer modal with image preview
+    setUiState("answering");
   };
 
   const handleImageEditorCancel = () => {
@@ -840,26 +316,20 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
     setIsAnalyzingImage(true);
     setUiState("loading");
-    setLoadingMessage("Analyzing your image response...");
 
     try {
-      // Analyze the image with Gemini
       const analysisResult = await GeminiService.analyzeActionImage(selectedImage);
 
       if (!analysisResult.success || !analysisResult.rawResponse) {
         throw new Error(analysisResult.error || "Failed to analyze image");
       }
 
-      // Use the image analysis description as the answer
       const answer = analysisResult.rawResponse;
-
-      // Clear image state
       setSelectedImage(null);
 
-      // Map the answer to a category
       await mapAnswerToCategory(currentPrompt, answer);
-    } catch (error) {
-      console.error("Error processing image:", error);
+    } catch (err) {
+      console.error("Error processing image:", err);
       Alert.alert("Error", "Failed to process image. Please try again.");
       setUiState("idle");
     } finally {
@@ -867,112 +337,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     }
   };
 
-  const handleSubmitAnswer = () => {
-    if (!userAnswer.trim()) {
-      setError("Answer cannot be empty. Please provide a substantive response.");
-      return;
-    }
-
-    const q = currentPrompt;
-    const a = userAnswer;
-    setSavedQuestion(q); // Save for potential weak-fit retry
-    setSavedAnswer(a); // Save answer so user can add details on weak-fit
-    setCurrentPrompt("");
-    setUserAnswer("");
-
-    mapAnswerToCategory(q, a);
-  };
-
-  const handleWeakFitTryAgain = () => {
-    // Re-open the answer modal with the same question and previous answer
-    setCurrentPrompt(savedQuestion); // Restore the original question
-    setUserAnswer(savedAnswer); // Restore the previous answer for editing/rephrasing
-    setError(""); // Clear any previous errors
-    setUiState("answering");
-    setWeakFitJustification("");
-  };
-
-  const handleDismissAnswerModal = () => {
-    // Close the answer modal and return to idle
-    Keyboard.dismiss();
-    setCurrentPrompt("");
-    setUserAnswer("");
-    setError("");
-    setIsAnswerFromVoice(false);
-    setUiState("idle");
-  };
-
-  const handleWeakFitNewQuestion = async () => {
-    // After a weak fit, synthesize a new question then show input method modal
-    setWeakFitJustification("");
-    setSavedAnswer("");
-    setSavedQuestion("");
-    setError("");
-
-    // Close weak-fit modal first
-    setUiState("idle");
-
-    // Wait for weak-fit modal to close before opening loading modal
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    setUiState("loading");
-    setLoadingMessage("Synthesizing a new question...");
-
-    try {
-      const taxonomyString = getTaxonomyString();
-      const newQuestion = await GeminiService.synthesizeNextQuestion(
-        interactions,
-        mappedCategories,
-        taxonomyString
-      );
-
-      console.log("Weak-fit: Question synthesized, storing as prefetched:", newQuestion);
-      setPrefetchedQuestion(newQuestion);
-      setLoadingMessage("");
-
-      // Wait for loading modal to close before showing input method modal
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      setUiState("idle");
-
-      setTimeout(() => {
-        setShowInputMethodModal(true);
-      }, 100);
-    } catch (err) {
-      console.error("Error synthesizing question after weak-fit:", err);
-      setError("Failed to generate question. Please try again.");
-      setUiState("idle");
-      setLoadingMessage("");
-    }
-  };
-
-  const handleReset = () => {
-    Alert.alert("Reset Dashboard", "Are you sure you want to reset? All progress will be lost.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reset",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await clearAllData();
-            setMappedCategories([]);
-            setInteractions([]);
-            setCurrentPrompt("");
-            setUserAnswer("");
-            setSavedQuestion("");
-            setSavedAnswer("");
-            setUiState("idle");
-            setError("");
-            setLoadingMessage("");
-            setPrefetchedQuestion(null);
-            setIsPrefetching(false);
-          } catch (error) {
-            Alert.alert("Error", "Failed to reset dashboard");
-          }
-        },
-      },
-    ]);
-  };
+  // --- UI helpers ---
 
   const handleCardClick = (categoryName: string) => {
     const mapped = mappedCategories.find((c) => c.category === categoryName);
@@ -1007,6 +372,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     ));
   };
 
+  const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -1016,12 +383,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     );
   }
 
-  const completionPercentage = getCompletionPercentage(mappedCategories.length);
-
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
         <View style={styles.header}>
           <MaterialIcons name="explore" size={40} color="#fff" />
           <Text style={styles.title}>My Skills Passport</Text>
@@ -1030,7 +394,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* Progress Card */}
         <Card style={styles.progressCard}>
           <Card.Content>
             <View style={styles.progressHeader}>
@@ -1055,7 +418,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
               <View style={[styles.progressFill, { width: `${completionPercentage}%` }]} />
             </View>
 
-            {/* Large Green Start/Continue Button */}
             {mappedCategories.length < TOTAL_CATEGORIES && (
               <TouchableOpacity
                 style={styles.startButton}
@@ -1085,17 +447,13 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
           </Card>
         ) : null}
 
-        {/* Category Grid */}
         <View style={styles.categoryGrid}>{renderCategoryCards()}</View>
       </ScrollView>
 
-      {/* Loading Modal */}
       <LoadingModal visible={uiState === "loading"} message={loadingMessage} />
 
-      {/* Completion Modal */}
       <CompletionModal visible={uiState === "complete"} onDismiss={() => setUiState("idle")} />
 
-      {/* Weak Fit Modal */}
       <WeakFitModal
         visible={uiState === "weak-fit"}
         justification={weakFitJustification}
@@ -1103,7 +461,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         onNewQuestion={handleWeakFitNewQuestion}
       />
 
-      {/* Answer Modal */}
       <AnswerModal
         visible={uiState === "answering"}
         currentPrompt={currentPrompt}
@@ -1111,7 +468,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         selectedImage={selectedImage}
         isAnswerFromVoice={isAnswerFromVoice}
         isAnalyzingImage={isAnalyzingImage}
-        onDismiss={handleDismissAnswerModal}
+        onDismiss={dismissAnswerModal}
         onZoomImage={() => setZoomViewerVisible(true)}
         onChangeImage={() => {
           setSelectedImage(null);
@@ -1127,7 +484,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         onSubmit={handleSubmitAnswer}
       />
 
-      {/* Voice Recording Modal */}
       <VoiceRecordingModal
         visible={uiState === "voice-recording"}
         currentPrompt={currentPrompt}
@@ -1142,88 +498,15 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
           setRecordingDuration(0);
         }}
         onSubmit={handleVoiceSubmit}
-        onCancel={async () => {
-          if (isRecording && recordingRef.current) {
-            try {
-              await recordingRef.current.stopAndUnloadAsync();
-              recordingRef.current = null;
-            } catch (error) {
-              console.error("Error stopping recording on dismiss:", error);
-            }
-          }
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          setUiState("idle");
-          setIsRecording(false);
-          setRecordingUri(null);
-          setRecordingDuration(0);
-        }}
+        onCancel={handleVoiceCancel}
       />
 
-      {/* Animated FAB Buttons - Hidden */}
-      <View style={[styles.fabContainer, { display: "none" }]}>
-        <View style={styles.fabInner}>
-          {/* Action Button 1 - Text Input (Left) */}
-          <Animated.View style={[styles.actionButton, button1Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="chat-bubble" size={24} color="white" />
-                </View>
-              )}
-              onPress={handleTextInputPress}
-              style={[styles.fab, { backgroundColor: "#45B7D1" }]}
-              size="small"
-            />
-          </Animated.View>
+      <InputMethodModal
+        visible={showInputMethodModal}
+        onSelect={handleInputMethodSelect}
+        onClose={() => setShowInputMethodModal(false)}
+      />
 
-          {/* Action Button 2 - Voice Input (Diagonal) */}
-          <Animated.View style={[styles.actionButton, button2Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="mic" size={24} color="white" />
-                </View>
-              )}
-              onPress={handleVoiceInputPress}
-              style={[styles.fab, { backgroundColor: "#4ECDC4" }]}
-              size="small"
-            />
-          </Animated.View>
-
-          {/* Action Button 3 - Image Input (Top) */}
-          <Animated.View style={[styles.actionButton, button3Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="image" size={24} color="white" />
-                </View>
-              )}
-              onPress={handleImageInputPress}
-              style={[styles.fab, { backgroundColor: "#FF6B6B" }]}
-              size="small"
-            />
-          </Animated.View>
-
-          {/* Main FAB */}
-          <Animated.View style={[styles.mainFabWrapper, { transform: [{ rotate: rotation }] }]}>
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="add" size={28} color="white" />
-                </View>
-              )}
-              onPress={handleFabClick}
-              disabled={uiState !== "idle" || mappedCategories.length === TOTAL_CATEGORIES}
-              style={[styles.mainFab, { backgroundColor: "#667eea" }]}
-            />
-          </Animated.View>
-        </View>
-      </View>
-
-      {/* Image Editor Modal */}
       {showImageEditor && tempImageUri && (
         <ImageEditor
           imageUri={tempImageUri}
@@ -1232,7 +515,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         />
       )}
 
-      {/* Zoom Viewer Modal */}
       {zoomViewerVisible && selectedImage && (
         <ZoomableImageView
           imageUri={selectedImage}
@@ -1241,14 +523,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         />
       )}
 
-      {/* Input Method Selection Modal */}
-      <InputMethodModal
-        visible={showInputMethodModal}
-        onSelect={handleInputMethodSelect}
-        onClose={() => setShowInputMethodModal(false)}
-      />
-
-      {/* Confetti Animation */}
       {showConfetti && (
         <ConfettiCannon
           count={200}
@@ -1379,45 +653,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-  },
-  fabContainer: {
-    position: "absolute",
-    bottom: 30,
-    right: 0,
-    left: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fabInner: {
-    position: "relative",
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mainFab: {
-    position: "absolute",
-    margin: 0,
-    elevation: 6,
-  },
-  mainFabWrapper: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionButton: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fab: {
-    elevation: 6,
-  },
-  fabAdd: {
-    backgroundColor: "#667eea",
-  },
-  iconContainer: {
-    alignItems: "center",
-    justifyContent: "center",
   },
 });
