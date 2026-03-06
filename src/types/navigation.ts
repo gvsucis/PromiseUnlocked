@@ -1,16 +1,18 @@
-import { AnalysisResult } from './index';
+import { AnalysisResult } from "./index";
 
 export type RootStackParamList = {
+  Login: undefined;
+  Register: undefined;
   Welcome: undefined;
   Home: undefined;
   Result: { result: AnalysisResult };
   Blue: undefined;
   Dashboard: undefined;
-  VoiceAnalysis: undefined;
+  SkillsDashboard: undefined;
+  DialogueDashboard: undefined;
+  VoiceAnalysis: { question?: string; context?: any } | undefined;
   TextAnalysis: undefined;
   SignUp: undefined;
   Login: undefined;
+  FollowUpQuestion: { question: string; context?: any };
 };
-
-
-

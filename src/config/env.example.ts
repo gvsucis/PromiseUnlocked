@@ -2,8 +2,9 @@
 
 export const CONFIG = {
   // Google Gemini API Configuration
-  GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
-  GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+  GEMINI_API_KEY: "YOUR_GEMINI_API_KEY",
+  GEMINI_API_URL: "https://generativelanguage.googleapis.com/v1beta/models",
+  TEXT_MODEL: "gemini-2.5-flash",
 
   // Image Processing Configuration
   MAX_IMAGE_SIZE: 4 * 1024 * 1024,
@@ -15,10 +16,7 @@ export const CONFIG = {
 };
 
 export const validateConfig = (): boolean => {
-  if (!CONFIG.GEMINI_API_KEY || CONFIG.GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
-    return false;
-  }
-  if (!CONFIG.GEMINI_API_KEY.startsWith('AIza')) {
+  if (!CONFIG.GEMINI_API_KEY || CONFIG.GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
     return false;
   }
   return true;
@@ -26,9 +24,7 @@ export const validateConfig = (): boolean => {
 
 export const getGeminiApiKey = (): string => {
   if (!validateConfig()) {
-    throw new Error('Gemini API key not configured. Please set your API key in src/config/env.ts');
+    throw new Error("Gemini API key not configured. Please set your API key in src/config/env.ts");
   }
   return CONFIG.GEMINI_API_KEY;
 };
-
-
