@@ -17,7 +17,6 @@ import FollowUpQuestionScreen from './src/screens/FollowUpQuestionScreen';
 import SkillsDashboardScreen from './src/screens/SkillsDashboardScreen';
 import DialogueDashboardScreen from './src/screens/DialogueDashboardScreen';
 import { RootStackParamList } from './src/types/navigation';
-import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import { Limelight } from '@getlimelight/sdk';
 
@@ -60,11 +59,7 @@ export default function App() {
             component={SignUpScreen}
             options={{ headerShown: false }}
           />
-          <Stack.Screen 
-            name="Login"
-            component={LoginScreen}
-            options={{ headerShown: false }}
-          />
+        
           <Stack.Screen 
             name="Home" 
             component={HomeScreen} 

@@ -1,210 +1,167 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
+import { View, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { Button, Card, Divider, TextInput, HelperText } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../types/navigation';
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-} from "react-native";
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
-import { useNavigation } from "@react-navigation/native";
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  GoogleAuthProvider,
+  signInWithCredential,
+} from 'firebase/auth';
+import { auth } from '../../firebaseConfig';
+//import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-const LoginScreen = () => {
-  const navigation: any = useNavigation();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
+interface Props { navigation: LoginScreenNavigationProp; }
+
+export default function LoginScreen({ navigation }: Props) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      return Alert.alert(
-        "Email Required",
-        "Enter your email above and then tap 'Forgot Password'."
-      );
-    }
+  const emailValid = /.+@.+\..+/.test(email.trim());
+  const passwordValid = password.length >= 6;
+  const hasEmailError = email.length > 0 && !emailValid;
+  const hasPasswordError = password.length > 0 && !passwordValid;
+  const formValid = emailValid && passwordValid;
 
+  const handleForgotPassword = async () => {
+    if (!email) return Alert.alert('Email Required', "Enter your email above first.");
     try {
       await sendPasswordResetEmail(auth, email);
-      Alert.alert(
-        "Password Reset Sent",
-        "Check your email for a link to reset your password."
-      );
+      Alert.alert('Reset Sent', 'Check your email for a reset link.');
     } catch (error: any) {
-      if (error.code === "auth/user-not-found") {
-        Alert.alert("Error", "No account exists with that email.");
-      } else {
-        Alert.alert("Error", error.message || "Unable to send reset email.");
-      }
+      Alert.alert('Error', error.code === 'auth/user-not-found'
+        ? 'No account exists with that email.' : error.message);
     }
   };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      return Alert.alert("Missing Information", "Please enter your email and password.");
-    }
-
+    if (!email || !password) return Alert.alert('Missing Info', 'Please fill in all fields.');
     try {
       setLoading(true);
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      Alert.alert("Welcome back!", `Logged in as ${user.email}`);
-      navigation.navigate("Welcome");
+      await signInWithEmailAndPassword(auth, email, password);
+      navigation.replace('DialogueDashboard');
     } catch (error: any) {
-      if (error.code === "auth/user-not-found") {
-        Alert.alert("Error", "No account found with that email address.");
-      } else if (error.code === "auth/wrong-password") {
-        Alert.alert("Error", "Incorrect password. Please try again.");
-      } else if (error.code === "auth/invalid-email") {
-        Alert.alert("Error", "Please enter a valid email address.");
-      } else {
-        Alert.alert("Error", error.message || "An unknown error occurred.");
-      }
-    } finally {
-      setLoading(false);
-    }
+      const msg =
+        error.code === 'auth/user-not-found' ? 'No account found with that email.' :
+        error.code === 'auth/wrong-password' ? 'Incorrect password.' :
+        error.code === 'auth/invalid-email' ? 'Invalid email address.' :
+        error.message;
+      Alert.alert('Error', msg);
+    } finally { setLoading(false); }
   };
 
+  {/*const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
+      if (!idToken) throw new Error('No ID token');
+      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+      navigation.replace('DialogueDashboard');
+    } catch (error: any) {
+      if (error.code !== 'sign_in_cancelled')
+        Alert.alert('Error', error.message || 'Google sign-in failed');
+    } finally { setLoading(false); }
+  };
+  */}
+
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.container}>
-        <Text style={styles.headerIcon}>🔐</Text>
-        <Text style={styles.headerTitle}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to continue your journey</Text>
-
-        {/* Inputs + buttons */}
-        <View style={styles.formContainer}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your password"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          {/* Forgot password */}
-          <Pressable onPress={handleForgotPassword} style={styles.forgotPasswordButton}>
-            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.loginButton, loading && { opacity: 0.6 }]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.loginButtonText}>Log In</Text>
-            )}
-          </Pressable>
+    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.hero}>
+          <MaterialIcons name="psychology" size={36} color="#fff" />
         </View>
+        <Card style={styles.card}>
+          <Card.Title title="Welcome back" subtitle="Sign in to continue"
+            titleStyle={styles.cardTitle} subtitleStyle={styles.cardSubtitle} />
+          <Card.Content>
+            <View style={styles.cardContentWrap}>
+              <TextInput mode="flat" label="Email" value={email} onChangeText={setEmail}
+                autoCapitalize="none" keyboardType="email-address" style={styles.input}
+                error={hasEmailError} theme={{ colors: { onSurfaceVariant: '#fff' } }} />
+              <HelperText type="error" visible={hasEmailError} style={styles.helper}>
+                Enter a valid email address
+              </HelperText>
 
-        <View style={styles.signupContainer}>
-          <Text style={styles.signupText}>Don’t have an account?</Text>
-          <Pressable onPress={() => navigation.navigate("SignUp")}>
-            <Text style={styles.signupLink}> Sign Up</Text>
-          </Pressable>
-        </View>
+              <TextInput mode="flat" label="Password" value={password} onChangeText={setPassword}
+                secureTextEntry style={styles.input} error={hasPasswordError}
+                theme={{ colors: { onSurfaceVariant: '#fff' } }} />
+              <HelperText type="error" visible={hasPasswordError} style={styles.helper}>
+                Minimum 6 characters
+              </HelperText>
+
+              <Button onPress={handleForgotPassword}
+                labelStyle={[styles.linkLabel, { fontSize: 13, opacity: 0.85 }]}
+                style={{ alignSelf: 'flex-end', marginBottom: 4 }}>
+                Forgot password?
+              </Button>
+
+              <Button mode="contained" style={[styles.primary, styles.pill]}
+                contentStyle={styles.primaryContent} labelStyle={styles.primaryLabel}
+                disabled={!formValid || loading} onPress={handleLogin}>
+                {loading ? <ActivityIndicator color="#fff" size="small" /> : 'Sign in'}
+              </Button>
+
+              <Divider style={styles.divider} />
+
+              {/*<Button mode="outlined" icon="google" style={[styles.outlined, styles.pill]}
+                labelStyle={styles.outlinedLabel} disabled={loading} onPress={handleGoogleSignIn}>
+                Sign in with Google
+              </Button>
+              <Button mode="outlined" icon="apple" style={[styles.outlined, styles.apple, styles.pill]}
+                labelStyle={styles.outlinedLabel}
+                onPress={() => Alert.alert('Coming Soon', 'Apple sign-in not yet implemented.')}>
+                Sign in with Apple
+              </Button>
+              */}
+
+              <Divider style={styles.divider} />
+
+              <Button mode="contained" style={[styles.pill, styles.secondaryContained]}
+                contentStyle={styles.primaryContent} labelStyle={styles.secondaryLabel}
+                onPress={() => navigation.replace('DialogueDashboard')}>
+                Continue without signing in
+              </Button>
+
+              <Divider style={styles.divider} />
+
+              <Button onPress={() => navigation.navigate('Register')} labelStyle={styles.linkLabel}>
+                Create an account
+              </Button>
+            </View>
+          </Card.Content>
+        </Card>
       </View>
-    </ScrollView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 25,
-    paddingVertical: 150,
-  },
-  headerIcon: {
-    fontSize: 48,
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#222",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 15,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 40,
-  },
-  formContainer: {
-    marginBottom: 30,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    marginBottom: 10,
-    backgroundColor: "#FAFAFA",
-  },
-  forgotPasswordButton: {
-    alignSelf: "flex-end",
-    marginBottom: 15,
-  },
-  forgotPasswordText: {
-    color: "#007AFF",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  loginButton: {
-    backgroundColor: "#222",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 5,
-  },
-  loginButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  signupContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 10,
-  },
-  signupText: {
-    fontSize: 14,
-    color: "#666",
-  },
-  signupLink: {
-    fontSize: 14,
-    color: "#007AFF",
-    fontWeight: "600",
-  },
+  container: { flex: 1, padding: 16 },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  hero: { alignItems: 'center', marginBottom: 16 },
+  card: { width: '90%', maxWidth: 420, backgroundColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.25)', borderWidth: 1, borderRadius: 16 },
+  cardContentWrap: { overflow: 'hidden', borderRadius: 16 },
+  cardTitle: { color: '#fff' },
+  cardSubtitle: { color: 'rgba(255,255,255,0.85)' },
+  input: { backgroundColor: 'transparent', marginBottom: 4 },
+  helper: { color: '#ffb4b4', marginTop: -8, marginBottom: 8 },
+  primary: { marginBottom: 8, backgroundColor: '#6C5CE7' },
+  primaryContent: { height: 48 },
+  primaryLabel: { color: '#fff', fontWeight: '600' },
+  pill: { borderRadius: 28 },
+  divider: { marginVertical: 12, backgroundColor: 'rgba(255,255,255,0.2)' },
+  outlined: { borderColor: 'rgba(255,255,255,0.7)', marginBottom: 8 },
+  outlinedLabel: { color: '#fff' },
+  apple: { marginTop: 0 },
+  linkLabel: { color: '#fff' },
+  secondaryContained: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  secondaryLabel: { color: '#fff', fontWeight: '600' },
 });
-
-export default LoginScreen;

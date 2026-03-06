@@ -1,317 +1,169 @@
-import React, { useState, FC, useMemo } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { useNavigation } from "@react-navigation/native";
-import { auth } from "../../firebaseConfig";
-import { Animated, Easing, Keyboard, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import React, { useState, useMemo } from 'react';
+import { View, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { Button, Card, Divider, TextInput, HelperText, Text, Checkbox } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../types/navigation';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../../firebaseConfig';
+
+type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Register'>;
+interface Props { navigation: RegisterScreenNavigationProp; }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const SignUpScreen: FC = () => {
-  const navigation: any = useNavigation();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+export default function RegisterScreen({ navigation }: Props) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const logoAnim = useState(new Animated.Value(1))[0];
 
-  // inline validation flags
-  const emailValid = useMemo(() => EMAIL_REGEX.test(email), [email]);
+  const emailValid = useMemo(() => EMAIL_REGEX.test(email.trim()), [email]);
   const passwordLongEnough = useMemo(() => password.length >= 6, [password]);
-  const passwordsMatch = useMemo(() => password === confirmPassword && password.length > 0, [password, confirmPassword]);
+  const passwordsMatch = useMemo(
+    () => password === confirmPassword && password.length > 0,
+    [password, confirmPassword]
+  );
 
-  React.useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardDidShow", () =>
-      setKeyboardVisible(true)
-    );
-    const hideSub = Keyboard.addListener("keyboardDidHide", () =>
-      setKeyboardVisible(false)
-    );
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
-
-  React.useEffect(() => {
-    Animated.timing(logoAnim, {
-      toValue: keyboardVisible ? 0 : 1,
-      duration: 250,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: true,
-    }).start();
-  }, [keyboardVisible]);
-
-  // overall form valid
+  const hasEmailError = email.length > 0 && !emailValid;
+  const hasPasswordError = password.length > 0 && !passwordLongEnough;
+  const hasConfirmError = confirmPassword.length > 0 && !passwordsMatch;
   const formValid = emailValid && passwordLongEnough && passwordsMatch && agreed;
 
   const handleSignUp = async () => {
-    if (!agreed) {
-      return Alert.alert("Terms Required", "You must agree to the Terms of Service.");
-    }
-    if (!email || !password || !confirmPassword) {
-      return Alert.alert("Missing Info", "Please enter email and both password fields.");
-    }
-    if (!emailValid) {
-      return Alert.alert("Invalid Email", "Please enter a valid email address.");
-    }
-    if (!passwordLongEnough) {
-      return Alert.alert("Invalid Password", "Password should be at least 6 characters.");
-    }
-    if (!passwordsMatch) {
-      return Alert.alert("Mismatch", "Passwords do not match.");
-    }
+    if (!agreed) return Alert.alert('Terms Required', 'You must agree to the Terms of Service.');
+    if (!email || !password || !confirmPassword)
+      return Alert.alert('Missing Info', 'Please fill in all fields.');
+    if (!emailValid) return Alert.alert('Invalid Email', 'Please enter a valid email address.');
+    if (!passwordLongEnough) return Alert.alert('Weak Password', 'Password must be at least 6 characters.');
+    if (!passwordsMatch) return Alert.alert('Mismatch', 'Passwords do not match.');
 
     try {
       setLoading(true);
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      setUser(userCredential.user);
-      Alert.alert("Success", "Account created successfully!");
-      navigation.navigate("Welcome");
+      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      navigation.replace('DialogueDashboard');
     } catch (error: any) {
-      // Friendly error messages
-      if (error.code === "auth/email-already-in-use") {
-        Alert.alert("Error", "That email address is already in use.");
-      } else if (error.code === "auth/invalid-email") {
-        Alert.alert("Error", "That email address is invalid.");
-      } else if (error.code === "auth/weak-password") {
-        Alert.alert("Error", "Password should be at least 6 characters.");
-      } else {
-        Alert.alert("Error", error?.message ?? "Unknown error");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const navigateToLogin = () => {
-    navigation.navigate("Login");
-  };
-
-  const handleSocialLogin = (provider: string) => {
-    Alert.alert("Coming Soon", `${provider} login not yet implemented.`);
+      const msg =
+        error.code === 'auth/email-already-in-use' ? 'That email is already in use.' :
+        error.code === 'auth/invalid-email' ? 'That email address is invalid.' :
+        error.code === 'auth/weak-password' ? 'Password must be at least 6 characters.' :
+        error?.message ?? 'Unknown error';
+      Alert.alert('Error', msg);
+    } finally { setLoading(false); }
   };
 
   return (
-    <KeyboardAvoidingView
-    style={{ flex: 1 }}
-    behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-      contentContainerStyle={{ flexGrow: 1 }}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.container}>
-          {/* header */}
-          {!keyboardVisible && (
-            <Animated.View
-              style={[
-                styles.header,
-                {
-                  opacity: logoAnim,
-                  transform: [
-                    {
-                      translateY: logoAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-40, 0], // slide slightly upward when hiding
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Text style={styles.headerIcon}>🔒</Text>
-              <Text style={styles.headerTitle}>Promise Unlocked</Text>
-            </Animated.View>
-          )}
-
-          {/* content - note: transparent contentArea so full-screen white remains */}
-          <View style={styles.contentArea}>
-            <Text style={styles.title}>Create Your Account</Text>
-            <Text style={styles.subtitle}>Your future starts here.</Text>
-
-            {/* Email */}
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
-            {!emailValid && email.length > 0 && (
-              <Text style={styles.inlineError}>Please enter a valid email address.</Text>
-            )}
-
-            {/* Password */}
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="Create a password"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-              />
-              <Pressable onPress={() => setShowPassword((s) => !s)} style={styles.eyeButton}>
-                <Text style={styles.eyeText}>{showPassword ? "👁️‍🗨️" : "👁️"}</Text>
-              </Pressable>
-            </View>
-            {!passwordLongEnough && password.length > 0 && (
-              <Text style={styles.inlineError}>Password must be at least 6 characters.</Text>
-            )}
-
-            {/* Confirm Password */}
-            <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Re-enter your password"
-              secureTextEntry={true}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
-            {!passwordsMatch && confirmPassword.length > 0 && (
-              <Text style={styles.inlineError}>Passwords do not match.</Text>
-            )}
-
-            {/* Terms */}
-            <Pressable onPress={() => setAgreed(!agreed)} style={styles.checkboxContainer}>
-              <View style={[styles.checkbox, agreed && styles.checkedCheckbox]}>
-                {agreed && <Text style={styles.checkmark}>✓</Text>}
-              </View>
-              <Text style={styles.termsText}>I agree to the Terms of Service and Privacy Policy.</Text>
-            </Pressable>
-
-            {/* Sign Up */}
-            <Pressable
-              style={[styles.signUpButton, (!formValid || loading) && { opacity: 0.6 }]}
-              onPress={handleSignUp}
-              disabled={!formValid || loading}
-            >
-              {loading ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <ActivityIndicator color="#fff" />
-                  <Text style={styles.signUpButtonText}>Signing up...</Text>
-                </View>
-              ) : (
-                <Text style={styles.signUpButtonText}>Sign Up</Text>
-              )}
-            </Pressable>
-
-            {/*
-            <Text style={styles.separatorText}>Or sign up with</Text>
-
-            <View style={styles.socialButtonsInnerContainer}>
-              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Google")}>
-                <Text style={styles.socialButtonText}>G</Text>
-              </Pressable>
-              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Apple")}>
-                <Text style={styles.socialButtonText}></Text>
-              </Pressable>
-              <Pressable style={styles.socialButton} onPress={() => handleSocialLogin("Facebook")}>
-                <Text style={styles.socialButtonText}>f</Text>
-              </Pressable>
-            </View>
-            */}
-
-            <View style={styles.loginContainer}>
-              <Text style={styles.loginText}>Already have an account?</Text>
-              <Pressable onPress={navigateToLogin}>
-                <Text style={styles.loginLink}> Log in</Text>
-              </Pressable>
-            </View>
-
-            {user && <Text style={{ color: "green", marginTop: 10 }}>Signed in as: {user.email}</Text>}
-          </View>
+    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.hero}>
+          <MaterialIcons name="person-add" size={36} color="#fff" />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        <Card style={styles.card}>
+          <Card.Title title="Create account" subtitle="Your future starts here"
+            titleStyle={styles.cardTitle} subtitleStyle={styles.cardSubtitle} />
+          <Card.Content>
+            <View style={styles.cardContentWrap}>
+
+              {/* Email */}
+              <TextInput mode="flat" label="Email" value={email} onChangeText={setEmail}
+                autoCapitalize="none" keyboardType="email-address" style={styles.input}
+                error={hasEmailError} theme={{ colors: { onSurfaceVariant: '#fff' } }} />
+              <HelperText type="error" visible={hasEmailError} style={styles.helper}>
+                Enter a valid email address
+              </HelperText>
+
+              {/* Password */}
+              <TextInput mode="flat" label="Password" value={password} onChangeText={setPassword}
+                secureTextEntry={!showPassword} style={styles.input} error={hasPasswordError}
+                right={<TextInput.Icon icon={showPassword ? 'eye-off' : 'eye'}
+                  color="rgba(255,255,255,0.7)" onPress={() => setShowPassword(s => !s)} />}
+                theme={{ colors: { onSurfaceVariant: '#fff' } }} />
+              <HelperText type="error" visible={hasPasswordError} style={styles.helper}>
+                Password must be at least 6 characters
+              </HelperText>
+
+              <TextInput
+                mode="flat"
+                label="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showPassword}
+                style={styles.input}
+                error={hasConfirmError}
+                right={
+                    <TextInput.Icon
+                    icon={showPassword ? 'eye-off' : 'eye'}
+                    color="rgba(255,255,255,0.7)"
+                    onPress={() => setShowPassword(s => !s)}
+              />
+              }
+                theme={{ colors: { onSurfaceVariant: '#fff' } }}
+                />
+                <HelperText type="error" visible={hasConfirmError} style={styles.helper}>
+                Passwords do not match
+                </HelperText>
+
+              {/* Terms checkbox */}
+              <View style={styles.checkboxRow}>
+                <Checkbox
+                  status={agreed ? 'checked' : 'unchecked'}
+                  onPress={() => setAgreed(a => !a)}
+                  color="#fff"
+                  uncheckedColor="rgba(255,255,255,0.6)"
+                />
+                <View style={styles.termsTextWrap}>
+                  <Text style={styles.termsLabel}>I agree to the </Text>
+                  <Text style={styles.termsLink}>Terms of Service</Text>
+                  <Text style={styles.termsLabel}> and </Text>
+                  <Text style={styles.termsLink}>Privacy Policy</Text>
+                </View>
+              </View>
+
+              <Divider style={styles.divider} />
+
+              {/* Submit */}
+              <Button mode="contained" style={[styles.primary, styles.pill]}
+                contentStyle={styles.primaryContent} labelStyle={styles.primaryLabel}
+                disabled={!formValid || loading} onPress={handleSignUp}>
+                {loading ? <ActivityIndicator color="#fff" size="small" /> : 'Create Account'}
+              </Button>
+
+              <Divider style={styles.divider} />
+
+              <Button onPress={() => navigation.navigate('Login')} labelStyle={styles.linkLabel}>
+                Already have an account? Sign in
+              </Button>
+
+            </View>
+          </Card.Content>
+        </Card>
+      </View>
+    </LinearGradient>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    paddingTop: 125,
-    paddingHorizontal: 25,
-    justifyContent: "center",
-    alignItems: "stretch",
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  headerIcon: { fontSize: 46, marginBottom: 8 },
-  headerTitle: { fontSize: 28, fontWeight: "700", color: "#222" },
-  contentArea: {
-    flex: 1,
-    backgroundColor: "transparent",
-    paddingHorizontal: 0,
-    paddingTop: 0,
-  },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 5 },
-  subtitle: { fontSize: 15, color: "#666", marginBottom: 20 },
-  label: { fontSize: 16, fontWeight: "600", marginBottom: 6 },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    marginBottom: 12,
-    backgroundColor: "#FAFAFA",
-  },
-  passwordRow: { flexDirection: "row", alignItems: "center" },
-  eyeButton: { paddingHorizontal: 10, justifyContent: "center" },
-  eyeText: { fontSize: 20 },
-  checkboxContainer: { flexDirection: "row", alignItems: "center", marginBottom: 18 },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: "#888",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  checkedCheckbox: { backgroundColor: "#222", borderColor: "#222" },
-  checkmark: { color: "#fff", fontSize: 14 },
-  termsText: { fontSize: 13, color: "#333", flexShrink: 1 },
-  signUpButton: {
-    backgroundColor: "#222",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    marginBottom: 18,
-    marginTop: 4,
-  },
-  signUpButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  inlineError: { color: "#D04545", marginBottom: 8, fontSize: 13 },
-  separatorText: { textAlign: "center", color: "#888", marginBottom: 12, fontSize: 14 },
-  socialButtonsInnerContainer: { flexDirection: "row", justifyContent: "center", gap: 20, marginBottom: 18 },
-  socialButton: { backgroundColor: "#F0F0F0", width: 55, height: 55, borderRadius: 28, justifyContent: "center", alignItems: "center" },
-  socialButtonText: { color: "#333", fontSize: 22, fontWeight: "bold" },
-  loginContainer: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginBottom: 40 },
-  loginText: { fontSize: 14, color: "#666" },
-  loginLink: { fontSize: 14, color: "#007AFF", fontWeight: "600" },
+  container: { flex: 1, padding: 16 },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  hero: { alignItems: 'center', marginBottom: 16 },
+  card: { width: '90%', maxWidth: 420, backgroundColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.25)', borderWidth: 1, borderRadius: 16 },
+  cardContentWrap: { overflow: 'hidden', borderRadius: 16 },
+  cardTitle: { color: '#fff' },
+  cardSubtitle: { color: 'rgba(255,255,255,0.85)' },
+  input: { backgroundColor: 'transparent', marginBottom: 4 },
+  helper: { color: '#ffb4b4', marginTop: -8, marginBottom: 8 },
+  checkboxRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },
+  termsTextWrap: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  termsLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
+  termsLink: { color: '#fff', fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
+  primary: { marginBottom: 8, backgroundColor: '#6C5CE7' },
+  primaryContent: { height: 48 },
+  primaryLabel: { color: '#fff', fontWeight: '600' },
+  pill: { borderRadius: 28 },
+  divider: { marginVertical: 12, backgroundColor: 'rgba(255,255,255,0.2)' },
+  linkLabel: { color: '#fff' },
 });
-
-export default SignUpScreen;
