@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Alert } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { Button, Card, Divider, TextInput, HelperText } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -9,12 +9,13 @@ import { RootStackParamList } from "../types/navigation";
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
 
 interface Props {
-  navigation: LoginScreenNavigationProp;
+  readonly navigation: LoginScreenNavigationProp;
 }
 
 export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+
   const emailValid = /.+@.+\..+/.test(email.trim());
   const passwordValid = password.length >= 6;
   const hasEmailError = email.length > 0 && !emailValid;

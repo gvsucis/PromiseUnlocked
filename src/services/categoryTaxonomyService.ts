@@ -98,7 +98,7 @@ export const ALL_CATEGORIES: CategoryDefinition[] = [...CATEGORY_TAXONOMY, NO_OP
 
 export const TOTAL_CATEGORIES = CATEGORY_TAXONOMY.length; // 8
 
-export const INITIAL_PROMPT = "Tell me what you are typically doing when you lose track of time?";
+export const INITIAL_PROMPT = "What are you doing when you lose track of time?";
 
 /**
  * Get taxonomy as formatted string for prompts

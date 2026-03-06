@@ -17,6 +17,7 @@ import {
   isCategoryMapped,
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
+import { endSession } from "../services/sessionManager";
 
 export type UIState =
   | "idle"
@@ -88,6 +89,7 @@ export function useDialogueState(): DialogueState {
 
   useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
+      void endSession("completed");
       setUiState("complete");
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
@@ -190,6 +192,7 @@ export function useDialogueState(): DialogueState {
         setTimeout(() => setShowConfetti(false), 3000);
 
         if (newMappedCategories.length === TOTAL_CATEGORIES) {
+          await endSession("completed");
           setUserAnswer("");
           setUiState("complete");
           return;
@@ -300,7 +303,6 @@ export function useDialogueState(): DialogueState {
 
   const handleTextInputPress = () => {
     setError("");
-
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
       setTimeout(() => setUiState("answering"), 100);

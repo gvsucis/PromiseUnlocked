@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as FileSystem from "expo-file-system/legacy";
-import { AnalysisResult } from "../types";
+import { AnalysisResult, TranscriptAnalysis } from "../types";
 import { CONFIG, getGeminiApiKey } from "../config/env";
 import extractJson from "../util/JsonExtract";
 
@@ -51,7 +51,13 @@ export class GeminiService {
   private static readonly MODEL_NAME = CONFIG.TEXT_MODEL;
 
   private static buildApiUrl(): string {
-    return `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL_NAME}:generateContent?key=${getGeminiApiKey()}`;
+    const baseUrl = CONFIG.GEMINI_API_URL.replaceAll(/\/+$/g, "");
+    const apiKey = encodeURIComponent(getGeminiApiKey());
+    return `${baseUrl}/${this.MODEL_NAME}:generateContent?key=${apiKey}`;
+  }
+
+  private static sanitizeUrl(url: string): string {
+    return url.replaceAll(/key=[^&]*/g, "key=***");
   }
 
   /**
@@ -165,8 +171,9 @@ export class GeminiService {
     timeout: number = CONFIG.REQUEST_TIMEOUT
   ): Promise<GeminiResult<GeminiApiResponse>> {
     try {
+      const apiUrl = this.buildApiUrl();
       const response = await this.retryWithBackoff(() =>
-        axios.post<GeminiApiResponse>(this.buildApiUrl(), requestBody, {
+        axios.post<GeminiApiResponse>(apiUrl, requestBody, {
           headers: { "Content-Type": "application/json" },
           timeout,
         })
@@ -182,6 +189,73 @@ export class GeminiService {
     responseData: GeminiApiResponse | undefined
   ): string | undefined {
     return responseData?.candidates?.[0]?.content?.parts?.[0]?.text;
+  }
+
+  private static isRecord(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  }
+
+  private static toOptionalString(value: unknown): string | undefined {
+    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+      return undefined;
+    }
+
+    const normalized = String(value).trim();
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  private static toRequiredString(value: unknown): string {
+    return this.toOptionalString(value) ?? "";
+  }
+
+  private static parseJsonFromGeneratedText<T>(text: string): T | null {
+    const jsonString = extractJson(text);
+    if (!jsonString) return null;
+
+    try {
+      return JSON.parse(jsonString) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private static parseTranscriptAnalysisPayload(text: string): TranscriptAnalysis | null {
+    const parsed = this.parseJsonFromGeneratedText<Record<string, unknown>>(text);
+    if (!parsed || !Array.isArray(parsed.courses)) {
+      return null;
+    }
+
+    const courses = parsed.courses
+      .filter((course): course is Record<string, unknown> => this.isRecord(course))
+      .map((course) => ({
+        code: this.toRequiredString(course.code),
+        name: this.toRequiredString(course.name),
+        grade: this.toRequiredString(course.grade),
+        credits: this.toRequiredString(course.credits),
+        semester: this.toOptionalString(course.semester),
+        year: this.toOptionalString(course.year),
+      }))
+      .filter(
+        (course) =>
+          course.code.length > 0 &&
+          course.name.length > 0 &&
+          course.grade.length > 0 &&
+          course.credits.length > 0
+      );
+
+    if (courses.length === 0) {
+      return null;
+    }
+
+    return {
+      courses,
+      gpa: this.toOptionalString(parsed.gpa),
+      totalCredits: this.toOptionalString(parsed.totalCredits),
+      institution: this.toOptionalString(parsed.institution),
+      studentName: this.toOptionalString(parsed.studentName),
+      degree: this.toOptionalString(parsed.degree),
+      graduationDate: this.toOptionalString(parsed.graduationDate),
+    };
   }
 
   /**
@@ -248,11 +322,18 @@ export class GeminiService {
         };
       }
 
-      const jsonMatch = /\{[\s\S]*\}/.exec(text);
+      const parsedData = this.parseTranscriptAnalysisPayload(text);
+      if (!parsedData) {
+        return {
+          success: false,
+          error: "Could not parse transcript details from model output",
+          rawResponse: text,
+        };
+      }
 
       return {
         success: true,
-        data: JSON.parse(jsonMatch ? jsonMatch[0] : text),
+        data: parsedData,
         rawResponse: text,
       };
     } catch (error) {
@@ -487,7 +568,7 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
           statusText: error.response?.statusText,
           data: error.response?.data,
           message: error.message,
-          url: this.buildApiUrl().replace(/key=[^&]*/, "key=***"),
+          url: this.sanitizeUrl(this.buildApiUrl()),
         });
 
         if (this.isRateLimitError(error)) {
@@ -519,7 +600,10 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
   private static isQuestionStrong(question: string): boolean {
     const normalized = question.trim();
     if (!normalized.endsWith("?")) return false;
-    const words = normalized.replaceAll(/[?!.,]/g, "").split(/\s+/).filter(Boolean);
+    const words = normalized
+      .replaceAll(/[?!.,]/g, "")
+      .split(/\s+/)
+      .filter(Boolean);
     if (words.length < 8) return false;
     return /\b(what|how|why|where|when|who|which)\b/i.test(normalized);
   }
@@ -635,7 +719,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
       );
 
       // log the actual prompt sent to the model for debugging
-      console.log("Synthesizing next question with prompt:", prompt);
+      console.log("Synthesizing next question with prompt:");
 
       const response = await this.fetchSynthesizedQuestion(prompt, false);
       const { text, finishReason } = this.readQuestionResponse(response);
