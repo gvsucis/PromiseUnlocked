@@ -13,6 +13,7 @@ import {
   saveMappedCategory,
   getConversationHistory,
   addConversationInteraction,
+  addConversationInteractionWithMapping,
   clearAllData,
   isCategoryMapped,
 } from "../services/categoryStorageService";
@@ -185,7 +186,7 @@ export function useDialogueState(): DialogueState {
           mappedCategory: categoryNameToCheck,
           timestamp: new Date().toISOString(),
         };
-        await addConversationInteraction(interaction);
+        await addConversationInteractionWithMapping(interaction, justification ?? "");
         setInteractions((prev) => [...prev, interaction]);
 
         setShowConfetti(true);

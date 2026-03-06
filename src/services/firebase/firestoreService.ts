@@ -1,8 +1,8 @@
 /**
  * Firestore Service
  * Write-through layer alongside AsyncStorage.
- * All writes are fire-and-forget — errors are logged but never thrown,
- * so AsyncStorage always remains the source of truth for the UI.
+ * Writes are executed through a queue. Failures are logged and rethrown so
+ * the queue can retry when the app returns to the foreground.
  */
 
 import {
@@ -16,7 +16,7 @@ import {
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { db, auth } from "../../config/firebase";
-import { getJSONFromStorage, setJSONInStorage } from "../../util/asyncStorage";
+import { setJSONInStorage } from "../../util/asyncStorage";
 import type {
   UserDocument,
   SessionDocument,
@@ -29,6 +29,15 @@ type InputMethod = "text" | "voice" | "image";
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+async function cacheUserId(userId: string): Promise<void> {
+  _cachedUserId = userId;
+  try {
+    await setJSONInStorage(USER_ID_STORAGE_KEY, userId);
+  } catch (storageError) {
+    console.warn("[Firestore] Failed to persist user id:", storageError);
+  }
 }
 
 //
@@ -71,19 +80,21 @@ async function ensureSessionDocument(userId: string, sessionId: string): Promise
 }
 
 export async function getOrCreateUserId(): Promise<string> {
-  if (_cachedUserId) return _cachedUserId;
+  if (_cachedUserId && auth.currentUser?.uid === _cachedUserId) {
+    return _cachedUserId;
+  }
 
-  const stored = await getJSONFromStorage<string | null>(USER_ID_STORAGE_KEY, null);
-  if (stored) {
-    _cachedUserId = stored;
-    return stored;
+  const currentUid = auth.currentUser?.uid;
+  if (currentUid) {
+    await cacheUserId(currentUid);
+    return currentUid;
   }
 
   try {
     const credential = await signInAnonymously(auth);
     const uid = credential.user.uid;
 
-    await setJSONInStorage(USER_ID_STORAGE_KEY, uid);
+    await cacheUserId(uid);
 
     const userRef = doc(db, "participants", uid);
     const userDoc: UserDocument = {
@@ -95,13 +106,11 @@ export async function getOrCreateUserId(): Promise<string> {
     };
     await setDoc(userRef, userDoc, { merge: true });
 
-    _cachedUserId = uid;
     return uid;
   } catch (err) {
     console.error("[Firestore] Failed to get/create user:", err);
-    const fallback = `anon-${generateId()}`;
-    _cachedUserId = fallback;
-    return fallback;
+    _cachedUserId = null;
+    throw err;
   }
 }
 
@@ -117,7 +126,8 @@ export async function createSession(userId: string): Promise<string> {
     await setDoc(sessionRef, sessionDoc);
     _verifiedSessionDocs.add(makeSessionKey(userId, sessionId));
   } catch (err) {
-    console.error("Firestore Failed to create session:", err);
+    console.error("[Firestore] Failed to create session:", err);
+    throw err;
   }
   return sessionId;
 }
@@ -191,6 +201,7 @@ export async function saveInteraction(
     await setDoc(sessionRef, sessionUpdate, { merge: true });
   } catch (err) {
     console.error("[Firestore] Failed to save interaction:", err);
+    throw err;
   }
   return interactionId;
 }
@@ -242,6 +253,7 @@ export async function savePassportMapping(
     );
   } catch (err) {
     console.error("[Firestore] Failed to save passport mapping:", err);
+    throw err;
   }
 }
 
@@ -271,6 +283,7 @@ export async function saveIdentifiedSkillToFirestore(
     await setDoc(skillRef, skillDoc);
   } catch (err) {
     console.error("[Firestore] Failed to save identified skill:", err);
+    throw err;
   }
 }
 

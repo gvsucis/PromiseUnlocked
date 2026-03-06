@@ -11,7 +11,7 @@ import {
   GoogleAuthProvider,
   signInWithCredential,
 } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
+import { auth } from "../config/firebase";
 //import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
