@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "524335478039",
+    "project_id": "promise-unlocked-sign-up-888a0",
+    "storage_bucket": "promise-unlocked-sign-up-888a0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:524335478039:android:8e90661b1ebbb2de31b352",
+        "android_client_info": {
+          "package_name": "com.anonymous.TranscriptAnalyzer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpDIOERwVnTfWb7mdoi5IUqhZgU_uU37E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

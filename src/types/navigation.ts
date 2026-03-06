@@ -12,5 +12,7 @@ export type RootStackParamList = {
   DialogueDashboard: undefined;
   VoiceAnalysis: { question?: string; context?: any } | undefined;
   TextAnalysis: undefined;
+  SignUp: undefined;
+  Login: undefined;
   FollowUpQuestion: { question: string; context?: any };
 };
