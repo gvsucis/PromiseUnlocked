@@ -12,6 +12,7 @@ import BlueScreen from "./src/screens/BlueScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 import VoiceAnalysisScreen from "./src/screens/VoiceAnalysisScreen";
 import TextAnalysisScreen from "./src/screens/TextAnalysisScreen";
+import SignUpScreen from "./src/screens/SignUpScreen";
 import FollowUpQuestionScreen from "./src/screens/FollowUpQuestionScreen";
 import SkillsDashboardScreen from "./src/screens/SkillsDashboardScreen";
 import DialogueDashboardScreen from "./src/screens/DialogueDashboardScreen";
@@ -46,7 +47,7 @@ export default function App() {
       <NavigationContainer>
         <StatusBar style="auto" />
         <Stack.Navigator
-          initialRouteName="Login"
+          initialRouteName="SignUp"
           screenOptions={{
             headerStyle: {
               backgroundColor: "#2196F3",
@@ -67,7 +68,8 @@ export default function App() {
             component={RegisterScreen}
             options={{ title: "Create Account", headerShown: false }}
           />
-          <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="SignUp" component={SignUpScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           <Stack.Screen
             name="Home"
             component={HomeScreen}
