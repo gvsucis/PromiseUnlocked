@@ -6,8 +6,10 @@
  */
 
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   arrayUnion,
   increment,
@@ -22,6 +24,7 @@ import type {
   SessionDocument,
   InteractionDocument,
   IdentifiedSkillDocument,
+  InteractionMappingOutcome,
 } from "../../types/firestore";
 
 const USER_ID_STORAGE_KEY = "@firestore_user_id";
@@ -58,6 +61,7 @@ function buildInitialSessionDoc(): SessionDocument {
     status: "in_progress",
     totalInteractions: 0,
     weakFitCount: 0,
+    alreadyMappedCount: 0,
     categoriesMappedCount: 0,
     categoriesMapped: [],
   };
@@ -165,10 +169,13 @@ export async function saveInteraction(
     question: string;
     answer: string;
     inputMethod: InputMethod;
+    mappingOutcome: InteractionMappingOutcome;
     mappedCategory: string | null;
     isWeakFit: boolean;
     isAlreadyMapped: boolean;
     justification: string;
+    matchedToCategory: string | null;
+    matchedToSequenceIndex: number | null;
   }
 ): Promise<string> {
   const interactionId = generateId();
@@ -197,6 +204,9 @@ export async function saveInteraction(
     };
     if (interaction.isWeakFit) {
       sessionUpdate.weakFitCount = increment(1);
+    }
+    if (interaction.isAlreadyMapped) {
+      sessionUpdate.alreadyMappedCount = increment(1);
     }
     await setDoc(sessionRef, sessionUpdate, { merge: true });
   } catch (err) {
@@ -227,7 +237,8 @@ export async function savePassportMapping(
       sessionId,
       interactionId,
       justification,
-      timestamp: serverTimestamp(),
+      // Field transforms are not allowed inside arrayUnion payloads.
+      timestamp: Timestamp.now(),
     };
 
     await setDoc(
@@ -306,4 +317,80 @@ export async function saveIdentifiedSkillsToFirestore(
       )
     )
   );
+}
+
+export interface SessionCategoryStats {
+  sessionId: string;
+  perCategory: Record<
+    string,
+    {
+      mappedNew: number;
+      mappedRepeat: number;
+      totalMappedEvents: number;
+    }
+  >;
+  totals: {
+    mappedNew: number;
+    mappedRepeat: number;
+    totalMappedEvents: number;
+  };
+}
+
+export async function getSessionCategoryStats(
+  userId: string,
+  sessionId: string
+): Promise<SessionCategoryStats> {
+  const interactionsRef = collection(
+    db,
+    "participants",
+    userId,
+    "sessions",
+    sessionId,
+    "interactions"
+  );
+
+  const snapshot = await getDocs(interactionsRef);
+  const stats: SessionCategoryStats = {
+    sessionId,
+    perCategory: {},
+    totals: {
+      mappedNew: 0,
+      mappedRepeat: 0,
+      totalMappedEvents: 0,
+    },
+  };
+
+  snapshot.forEach((interactionDoc) => {
+    const data = interactionDoc.data() as Partial<InteractionDocument>;
+    const category = data.mappedCategory;
+    if (!category) {
+      return;
+    }
+
+    const outcome = data.mappingOutcome;
+    if (outcome !== "mapped" && outcome !== "already_mapped") {
+      return;
+    }
+
+    if (!stats.perCategory[category]) {
+      stats.perCategory[category] = {
+        mappedNew: 0,
+        mappedRepeat: 0,
+        totalMappedEvents: 0,
+      };
+    }
+
+    if (outcome === "mapped") {
+      stats.perCategory[category].mappedNew += 1;
+      stats.totals.mappedNew += 1;
+    } else {
+      stats.perCategory[category].mappedRepeat += 1;
+      stats.totals.mappedRepeat += 1;
+    }
+
+    stats.perCategory[category].totalMappedEvents += 1;
+    stats.totals.totalMappedEvents += 1;
+  });
+
+  return stats;
 }

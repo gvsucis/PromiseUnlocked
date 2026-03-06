@@ -48,12 +48,25 @@ export async function addConversationInteraction(
     const updated = [...current, interaction];
     await setJSONInStorage(INTERACTIONS_KEY, updated);
 
-    const isWeakFit = interaction.mappedCategory === "NO-OP (WEAK FIT)";
-    const isAlreadyMapped = interaction.mappedCategory === "ALREADY MAPPED (IGNORED)";
+    let mappingOutcome = interaction.mappingOutcome;
+    if (!mappingOutcome) {
+      if (interaction.mappedCategory === "NO-OP (WEAK FIT)") {
+        mappingOutcome = "weak_fit";
+      } else if (interaction.mappedCategory === "ALREADY MAPPED (IGNORED)") {
+        mappingOutcome = "already_mapped";
+      } else if (interaction.mappedCategory.startsWith("INVALID")) {
+        mappingOutcome = "invalid";
+      } else {
+        mappingOutcome = "mapped";
+      }
+    }
+
+    const isWeakFit = mappingOutcome === "weak_fit";
+    const isAlreadyMapped = mappingOutcome === "already_mapped";
     const mappedCategory =
-      isWeakFit || isAlreadyMapped || interaction.mappedCategory.startsWith("INVALID")
-        ? null
-        : interaction.mappedCategory;
+      mappingOutcome === "mapped" || mappingOutcome === "already_mapped"
+        ? interaction.mappedCategory
+        : null;
 
     enqueueFirestoreWrite(async () => {
       const { sessionId, userId } = await getFirestoreWriteContext();
@@ -62,10 +75,13 @@ export async function addConversationInteraction(
         question: interaction.question,
         answer: interaction.answer,
         inputMethod,
+        mappingOutcome,
         mappedCategory,
         isWeakFit,
         isAlreadyMapped,
         justification: "",
+        matchedToCategory: interaction.matchedToCategory ?? null,
+        matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,
       });
     });
   } catch (error) {
@@ -92,10 +108,13 @@ export async function addConversationInteractionWithMapping(
         question: interaction.question,
         answer: interaction.answer,
         inputMethod,
+        mappingOutcome: "mapped",
         mappedCategory: interaction.mappedCategory,
         isWeakFit: false,
         isAlreadyMapped: false,
         justification,
+        matchedToCategory: null,
+        matchedToSequenceIndex: null,
       });
 
       await savePassportMapping(

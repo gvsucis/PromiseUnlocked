@@ -163,6 +163,9 @@ export function useDialogueState(): DialogueState {
           answer,
           mappedCategory: "NO-OP (WEAK FIT)",
           timestamp: new Date().toISOString(),
+          mappingOutcome: "weak_fit",
+          matchedToCategory: null,
+          matchedToSequenceIndex: null,
         };
         await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
@@ -185,6 +188,9 @@ export function useDialogueState(): DialogueState {
           answer,
           mappedCategory: categoryNameToCheck,
           timestamp: new Date().toISOString(),
+          mappingOutcome: "mapped",
+          matchedToCategory: null,
+          matchedToSequenceIndex: null,
         };
         await addConversationInteractionWithMapping(interaction, justification ?? "");
         setInteractions((prev) => [...prev, interaction]);
@@ -202,11 +208,19 @@ export function useDialogueState(): DialogueState {
         shouldProceedToNextQuestion = true;
       } else if (await isCategoryMapped(categoryNameToCheck)) {
         console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
+
+        const matchedToSequenceIndex = interactions.findIndex(
+          (item) => item.mappedCategory === categoryNameToCheck
+        );
+
         const interaction: ConversationInteraction = {
           question,
           answer,
-          mappedCategory: "ALREADY MAPPED (IGNORED)",
+          mappedCategory: categoryNameToCheck,
           timestamp: new Date().toISOString(),
+          mappingOutcome: "already_mapped",
+          matchedToCategory: categoryNameToCheck,
+          matchedToSequenceIndex: matchedToSequenceIndex >= 0 ? matchedToSequenceIndex : null,
         };
         await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
@@ -218,6 +232,9 @@ export function useDialogueState(): DialogueState {
           answer,
           mappedCategory: "INVALID CATEGORY (RETRY)",
           timestamp: new Date().toISOString(),
+          mappingOutcome: "invalid",
+          matchedToCategory: null,
+          matchedToSequenceIndex: null,
         };
         await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);

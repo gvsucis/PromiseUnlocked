@@ -1,5 +1,7 @@
 import { Timestamp } from "firebase/firestore";
 
+export type InteractionMappingOutcome = "mapped" | "already_mapped" | "weak_fit" | "invalid";
+
 export interface UserDocument {
   email: string | null;
   displayName: string | null;
@@ -14,6 +16,7 @@ export interface SessionDocument {
   status: "in_progress" | "completed" | "abandoned";
   totalInteractions: number;
   weakFitCount: number;
+  alreadyMappedCount: number;
   categoriesMappedCount: number;
   categoriesMapped: string[];
 }
@@ -23,10 +26,13 @@ export interface InteractionDocument {
   question: string;
   answer: string;
   inputMethod: "text" | "voice" | "image";
+  mappingOutcome: InteractionMappingOutcome;
   mappedCategory: string | null;
   isWeakFit: boolean;
   isAlreadyMapped: boolean;
   justification: string;
+  matchedToCategory: string | null;
+  matchedToSequenceIndex: number | null;
   timestamp: Timestamp;
 }
 

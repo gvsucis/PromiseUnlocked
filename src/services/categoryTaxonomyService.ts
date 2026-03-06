@@ -22,6 +22,9 @@ export interface ConversationInteraction {
   answer: string;
   mappedCategory: string;
   timestamp: string;
+  mappingOutcome?: "mapped" | "already_mapped" | "weak_fit" | "invalid";
+  matchedToCategory?: string | null;
+  matchedToSequenceIndex?: number | null;
 }
 
 // Define the 8 categories matching the web app taxonomy
