@@ -7,9 +7,13 @@
 
 import { MappedCategory, ConversationInteraction } from "./categoryTaxonomyService";
 import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../util/asyncStorage";
+
 import { clearSessionState, endSession, getOrStartSession, getUserId } from "./sessionManager";
 import { saveInteraction, savePassportMapping } from "./firebase/firestoreService";
 import { enqueueFirestoreWrite } from "./firebase/firestoreWriteQueue";
+
+// Log errors to a file instead of console.error
+import { logErrorToFile } from "../util/logToFile";
 
 const MAPPED_CATEGORIES_KEY = "@mappedCategories";
 const INTERACTIONS_KEY = "@userInteractions";
@@ -29,7 +33,7 @@ export async function saveMappedCategory(category: MappedCategory): Promise<void
     const updated = [...current, category];
     await setJSONInStorage(MAPPED_CATEGORIES_KEY, updated);
   } catch (error) {
-    console.error("Error saving mapped category:", error);
+    logErrorToFile("Error saving mapped category:", error);
     throw error;
   }
 }
@@ -85,7 +89,7 @@ export async function addConversationInteraction(
       });
     });
   } catch (error) {
-    console.error("Error saving conversation interaction:", error);
+    logErrorToFile("Error saving conversation interaction:", error);
     throw error;
   }
 }
@@ -126,7 +130,7 @@ export async function addConversationInteractionWithMapping(
       );
     });
   } catch (error) {
-    console.error("Error saving conversation interaction with mapping:", error);
+    logErrorToFile("Error saving conversation interaction with mapping:", error);
     throw error;
   }
 }
@@ -147,7 +151,7 @@ export async function clearAllData(): Promise<void> {
     await removeManyFromStorage([MAPPED_CATEGORIES_KEY, INTERACTIONS_KEY]);
     await clearSessionState();
   } catch (error) {
-    console.error("Error clearing data:", error);
+    logErrorToFile("Error clearing data:", error);
     throw error;
   }
 }
