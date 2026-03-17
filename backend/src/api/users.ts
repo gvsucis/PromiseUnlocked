@@ -1,7 +1,7 @@
 import express from "express";
-import { authenticateToken } from "../middleware/auth";
-import { admin, usersCollection } from "../services/firestore";
-import type { AuthenticatedRequest, UserProfile } from "../types/firestore";
+import { authenticateToken } from "@/middleware/auth";
+import { admin, usersCollection } from "@/services/firestore";
+import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
 
 const router = express.Router();
 

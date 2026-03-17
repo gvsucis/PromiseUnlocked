@@ -1,9 +1,9 @@
 import express from "express";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
-import { authenticateToken } from "../middleware/auth";
-import { interactionsCollection, sessionsCollection } from "../services/firestore";
-import type { AuthenticatedRequest, InteractionRecord } from "../types/firestore";
-import { sessionInteractionSchema } from "../validation/sessionInteractionSchema";
+import { authenticateToken } from "@/middleware/auth";
+import { interactionsCollection, sessionsCollection } from "@/services/firestore";
+import type { AuthenticatedRequest, InteractionRecord } from "@/types/firestore";
+import { sessionInteractionSchema } from "@/validation/sessionInteractionSchema";
 
 const router = express.Router();
 

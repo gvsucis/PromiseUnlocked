@@ -1,8 +1,8 @@
 import express from "express";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
-import { authenticateToken } from "../middleware/auth";
-import { sessionsCollection } from "../services/firestore";
-import type { AuthenticatedRequest, SessionRecord, SessionStatus } from "../types/firestore";
+import { authenticateToken } from "@/middleware/auth";
+import { sessionsCollection } from "@/services/firestore";
+import type { AuthenticatedRequest, SessionRecord, SessionStatus } from "@/types/firestore";
 
 const router = express.Router();
 
@@ -116,7 +116,7 @@ router.patch("/:sessionId", authenticateToken, async (req, res) => {
       {
         ...updates,
       },
-      { merge: true },
+      { merge: true }
     );
     const updatedSnapshot = await sessionsCollection.doc(sessionId).get();
     const updatedSession = updatedSnapshot.data();

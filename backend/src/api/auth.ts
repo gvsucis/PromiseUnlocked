@@ -1,6 +1,6 @@
 import express from "express";
-import { firebaseLogin, firebaseRegister } from "../services/firebaseAuthService";
-import { authSchema } from "../validation/authSchema";
+import { firebaseLogin, firebaseRegister } from "@/services/firebaseAuthService";
+import { authSchema } from "@/validation/authSchema";
 
 const router = express.Router();
 

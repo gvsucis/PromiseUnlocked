@@ -1,4 +1,5 @@
 import axios from "axios";
+import { firebaseAuthSchema } from "../validation/firebaseAuthSchema";
 
 const FIREBASE_API_KEY =
   process.env.FIREBASE_API_KEY || "AIzaSyD9KKN0M--DKCwdi5WkLn6sfLkycRlwerwerwr";
@@ -21,6 +22,15 @@ function mapFirebaseError(code: string) {
 }
 
 export async function firebaseLogin(email: string, password: string) {
+  const parseResult = firebaseAuthSchema.safeParse({ email, password });
+  if (!parseResult.success) {
+    return {
+      success: false,
+      status: 400,
+      message: "Validation failed",
+      details: parseResult.error.errors,
+    };
+  }
   try {
     const response = await axios.post(endpoints.login, {
       email,
@@ -46,6 +56,15 @@ export async function firebaseLogin(email: string, password: string) {
 }
 
 export async function firebaseRegister(email: string, password: string) {
+  const parseResult = firebaseAuthSchema.safeParse({ email, password });
+  if (!parseResult.success) {
+    return {
+      success: false,
+      status: 400,
+      message: "Validation failed",
+      details: parseResult.error.errors,
+    };
+  }
   try {
     const response = await axios.post(endpoints.register, {
       email,
