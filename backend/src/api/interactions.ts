@@ -3,6 +3,7 @@ import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { authenticateToken } from "../middleware/auth";
 import { interactionsCollection, sessionsCollection } from "../services/firestore";
 import type { AuthenticatedRequest, InteractionRecord } from "../types/firestore";
+import { sessionInteractionSchema } from "../validation/sessionInteractionSchema";
 
 const router = express.Router();
 
@@ -31,10 +32,11 @@ const ensureSessionOwnership = async (sessionId: string, uid: string) => {
 };
 
 router.post("/", authenticateToken, async (req, res) => {
-  const { sessionId, type, payload = {} } = req.body ?? {};
-  if (!sessionId || !type) {
-    return res.status(400).json({ error: "sessionId and type are required" });
+  const parseResult = sessionInteractionSchema.safeParse(req.body ?? {});
+  if (!parseResult.success) {
+    return res.status(400).json({ error: "Validation failed", details: parseResult.error.errors });
   }
+  const { sessionId, type, payload = {} } = parseResult.data;
   const { uid } = (req as AuthenticatedRequest).user;
   try {
     const ownership = await ensureSessionOwnership(sessionId, uid);
@@ -77,7 +79,7 @@ router.get("/:sessionId", authenticateToken, async (req, res) => {
       .limit(parseLimit(limit as string | undefined))
       .get();
     const interactions = snapshot.docs.map((doc: QueryDocumentSnapshot<InteractionRecord>) =>
-      doc.data(),
+      doc.data()
     );
     return res.json({ interactions });
   } catch (error) {
