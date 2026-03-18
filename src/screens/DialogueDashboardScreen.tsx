@@ -1,12 +1,5 @@
 import React, { useRef } from "react";
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  Dimensions,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
+import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { Text, Card, ActivityIndicator } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -14,10 +7,7 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { RootStackParamList } from "../types/navigation";
-import {
-  CATEGORY_TAXONOMY,
-  TOTAL_CATEGORIES,
-} from "../services/categoryTaxonomyService";
+import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
 import { GeminiService } from "../services/geminiService";
 import { ImagePickerService } from "../services/imagePickerService";
 import { Audio } from "expo-av";
@@ -202,7 +192,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       ) {
         Alert.alert(
           "Transcription Error",
-          transcriptionResult.error || "Could not transcribe your audio. Please try recording again."
+          transcriptionResult.error ||
+            "Could not transcribe your audio. Please try recording again."
         );
         return;
       }
@@ -346,11 +337,19 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         { text: "OK" },
       ]);
     } else {
-      Alert.alert(
-        "Not Yet Mapped",
-        "This trait is not yet mapped to you. Click the + button to discover new traits!",
-        [{ text: "OK" }]
-      );
+      {
+        mappedCategories.length === 0
+          ? Alert.alert(
+              "Not Yet Mapped",
+              "This trait is not yet mapped to you. Click the 'Start' button to discover new traits!",
+              [{ text: "OK" }]
+            )
+          : Alert.alert(
+              "Not Yet Mapped",
+              "This trait is not yet mapped to you. Click the 'Continue' button to discover new traits!",
+              [{ text: "OK" }]
+            );
+      }
     }
   };
 
