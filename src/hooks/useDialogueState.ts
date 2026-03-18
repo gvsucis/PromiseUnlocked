@@ -17,6 +17,7 @@ import {
   isCategoryMapped,
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
+import { Alert } from "react-native";
 
 export type UIState =
   | "idle"
@@ -348,6 +349,16 @@ export function useDialogueState(): DialogueState {
 
   const handleSubmitAnswer = () => {
     if (!userAnswer.trim()) {
+      Alert.alert(
+        "Empty Text Error",
+        "Cannot evaluate an empty text field. Please provide a valid response.",
+        [
+          {
+            text: "OK",
+            onPress: () => console.log("Empty Text Error - OK pressed"),
+          },
+        ]
+      );
       setError("Answer cannot be empty. Please provide a substantive response.");
       return;
     }
