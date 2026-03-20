@@ -15,6 +15,8 @@ import {
   addConversationInteraction,
   clearAllData,
   isCategoryMapped,
+  getMappedCategory,
+  updateMappedCategoryCounter,
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { Alert } from "react-native";
@@ -172,11 +174,16 @@ export function useDialogueState(): DialogueState {
           category: categoryNameToCheck,
           justification: justification ?? "",
           dateIdentified: new Date().toISOString(),
+          timesMapped: 1,
         };
 
         await saveMappedCategory(newMappedCategory);
         const newMappedCategories = [...mappedCategories, newMappedCategory];
         setMappedCategories(newMappedCategories);
+
+        console.log(
+          `NEW ${categoryNameToCheck} category added: counter = ${newMappedCategory.timesMapped}`
+        );
 
         const interaction: ConversationInteraction = {
           question,
@@ -199,6 +206,20 @@ export function useDialogueState(): DialogueState {
         shouldProceedToNextQuestion = true;
       } else if (await isCategoryMapped(categoryNameToCheck)) {
         console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
+        const mappedCategory = await getMappedCategory(categoryNameToCheck);
+        const updatedMappedCategory = await updateMappedCategoryCounter(mappedCategory);
+
+        // ensures no duplicate categories are added to array of mapped categories
+        const dedupedMappedCategories = mappedCategories.map((c) =>
+          c.category === updatedMappedCategory.category ? updatedMappedCategory : c
+        );
+
+        setMappedCategories(dedupedMappedCategories);
+
+        console.log(
+          `${updatedMappedCategory.category} category counter updated: counter = ${updatedMappedCategory.timesMapped}`
+        );
+
         const interaction: ConversationInteraction = {
           question,
           answer,

@@ -17,6 +17,18 @@ export async function getMappedCategories(): Promise<MappedCategory[]> {
 }
 
 /**
+ * Get specific MappedCategory object
+ */
+export async function getMappedCategory(mappedCategoryName: string): Promise<MappedCategory> {
+  const mappedCategories = await getMappedCategories();
+  const result = mappedCategories.find((c) => c.category === mappedCategoryName);
+  if (!result) {
+    throw new Error(`MappedCategory not found: ${mappedCategoryName}`);
+  }
+  return result;
+}
+
+/**
  * Save a newly mapped category
  */
 export async function saveMappedCategory(category: MappedCategory): Promise<void> {
@@ -99,4 +111,31 @@ export async function getMappingStats(): Promise<{
     totalInteractions: interactions.length,
     lastInteractionDate: interactions.at(-1)?.timestamp,
   };
+}
+
+/**
+ * Update mapped category counter
+ */
+export async function updateMappedCategoryCounter(
+  mappedCategory: MappedCategory
+): Promise<MappedCategory> {
+  try {
+    const current = await getMappedCategories();
+    const updatedMappedCategory = {
+      category: mappedCategory.category,
+      justification: mappedCategory.justification,
+      dateIdentified: mappedCategory.dateIdentified,
+      timesMapped: mappedCategory.timesMapped + 1,
+    };
+
+    const newMappedCategories = current.map((c) =>
+      c.category === updatedMappedCategory.category ? updatedMappedCategory : c
+    );
+
+    await setJSONInStorage(MAPPED_CATEGORIES_KEY, newMappedCategories);
+    return updatedMappedCategory;
+  } catch (error) {
+    console.error("Error updating mapped categories:", error);
+    throw error;
+  }
 }
