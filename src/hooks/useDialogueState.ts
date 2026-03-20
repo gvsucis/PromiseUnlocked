@@ -21,7 +21,7 @@ import {
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { Alert } from "react-native";
-import {} from "../services/sessionManager";
+import { endSession } from "../services/sessionManager";
 
 export type UIState =
   | "idle"
@@ -93,7 +93,7 @@ export function useDialogueState(): DialogueState {
 
   useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
-      void "completed";
+      void endSession("completed");
       setUiState("complete");
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
@@ -207,7 +207,7 @@ export function useDialogueState(): DialogueState {
         setTimeout(() => setShowConfetti(false), 3000);
 
         if (newMappedCategories.length === TOTAL_CATEGORIES) {
-          await "completed";
+          await endSession("completed");
           setUserAnswer("");
           setUiState("complete");
           return;

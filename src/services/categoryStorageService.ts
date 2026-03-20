@@ -87,22 +87,25 @@ export async function addConversationInteraction(
         ? interaction.mappedCategory
         : null;
 
-    enqueueFirestoreWrite(async () => {
-      const { sessionId, userId } = await getFirestoreWriteContext();
-      await saveInteraction(userId, sessionId, {
-        sequenceIndex,
-        question: interaction.question,
-        answer: interaction.answer,
-        inputMethod,
-        mappingOutcome,
-        mappedCategory,
-        isWeakFit,
-        isAlreadyMapped,
-        justification: "",
-        matchedToCategory: interaction.matchedToCategory ?? null,
-        matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,
-      });
-    });
+    enqueueFirestoreWrite(
+      async () => {
+        const { sessionId, userId } = await getFirestoreWriteContext();
+        await saveInteraction(userId, sessionId, {
+          sequenceIndex,
+          question: interaction.question,
+          answer: interaction.answer,
+          inputMethod,
+          mappingOutcome,
+          mappedCategory,
+          isWeakFit,
+          isAlreadyMapped,
+          justification: "",
+          matchedToCategory: interaction.matchedToCategory ?? null,
+          matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,
+        });
+      },
+      { rethrowOnFailure: true }
+    );
   } catch (error) {
     logErrorToFile("Error saving conversation interaction:", error);
     throw error;
@@ -120,30 +123,33 @@ export async function addConversationInteractionWithMapping(
     const updated = [...current, interaction];
     await setJSONInStorage(INTERACTIONS_KEY, updated);
 
-    enqueueFirestoreWrite(async () => {
-      const { sessionId, userId } = await getFirestoreWriteContext();
-      const interactionId = await saveInteraction(userId, sessionId, {
-        sequenceIndex,
-        question: interaction.question,
-        answer: interaction.answer,
-        inputMethod,
-        mappingOutcome: "mapped",
-        mappedCategory: interaction.mappedCategory,
-        isWeakFit: false,
-        isAlreadyMapped: false,
-        justification,
-        matchedToCategory: null,
-        matchedToSequenceIndex: null,
-      });
+    await enqueueFirestoreWrite(
+      async () => {
+        const { sessionId, userId } = await getFirestoreWriteContext();
+        const interactionId = await saveInteraction(userId, sessionId, {
+          sequenceIndex,
+          question: interaction.question,
+          answer: interaction.answer,
+          inputMethod,
+          mappingOutcome: "mapped",
+          mappedCategory: interaction.mappedCategory,
+          isWeakFit: false,
+          isAlreadyMapped: false,
+          justification,
+          matchedToCategory: null,
+          matchedToSequenceIndex: null,
+        });
 
-      await savePassportMapping(
-        userId,
-        sessionId,
-        interactionId,
-        interaction.mappedCategory,
-        justification
-      );
-    });
+        await savePassportMapping(
+          userId,
+          sessionId,
+          interactionId,
+          interaction.mappedCategory,
+          justification
+        );
+      },
+      { rethrowOnFailure: true }
+    );
   } catch (error) {
     logErrorToFile("Error saving conversation interaction with mapping:", error);
     throw error;
