@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   Text,
-  Alert,
   ScrollView,
   Clipboard,
   TouchableOpacity,
@@ -129,6 +128,32 @@ export default function BlueScreen() {
     showSnackbar("Previous transcript selected");
   };
 
+  let statusContent: React.ReactElement;
+  if (isRecording) {
+    statusContent = (
+      <View style={styles.listeningIndicator}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={styles.statusText}>Recording...</Text>
+      </View>
+    );
+  } else if (isTranscribing) {
+    statusContent = (
+      <View style={styles.listeningIndicator}>
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={styles.statusText}>Transcribing...</Text>
+      </View>
+    );
+  } else {
+    statusContent = <Text style={styles.statusText}>Ready to record</Text>;
+  }
+
+  let recordingButtonLabel = "🎤 Start Recording";
+  if (isRecording) {
+    recordingButtonLabel = "⏹️ Stop Recording";
+  } else if (isTranscribing) {
+    recordingButtonLabel = "🔄 Processing...";
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -138,21 +163,7 @@ export default function BlueScreen() {
         </Text>
 
         {/* Status Indicator */}
-        <View style={styles.statusContainer}>
-          {isRecording ? (
-            <View style={styles.listeningIndicator}>
-              <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.statusText}>Recording...</Text>
-            </View>
-          ) : isTranscribing ? (
-            <View style={styles.listeningIndicator}>
-              <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.statusText}>Transcribing...</Text>
-            </View>
-          ) : (
-            <Text style={styles.statusText}>Ready to record</Text>
-          )}
-        </View>
+        <View style={styles.statusContainer}>{statusContent}</View>
 
         {/* Main Control Button */}
         <Button
@@ -163,11 +174,7 @@ export default function BlueScreen() {
           contentStyle={styles.buttonContent}
           labelStyle={styles.buttonLabel}
         >
-          {isRecording
-            ? "⏹️ Stop Recording"
-            : isTranscribing
-              ? "🔄 Processing..."
-              : "🎤 Start Recording"}
+          {recordingButtonLabel}
         </Button>
 
         {/* Permission Status */}

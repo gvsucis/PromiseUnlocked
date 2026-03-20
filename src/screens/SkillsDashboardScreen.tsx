@@ -312,8 +312,11 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                     <Text style={styles.sectionTitle}>Recently Identified</Text>
                   </View>
 
-                  {skillsStats.recentSkills.map((skill: IdentifiedSkill, index: number) => (
-                    <View key={index} style={styles.recentSkillItem}>
+                  {skillsStats.recentSkills.map((skill: IdentifiedSkill) => (
+                    <View
+                      key={`${skill.skill}-${skill.dateIdentified}`}
+                      style={styles.recentSkillItem}
+                    >
                       <View style={styles.recentSkillLeft}>
                         <View
                           style={[

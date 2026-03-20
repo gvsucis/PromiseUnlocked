@@ -5,6 +5,12 @@
 
 import { SKILLS_TAXONOMY } from "./skillTaxonomyService";
 import { getJSONFromStorage, removeFromStorage, setJSONInStorage } from "../util/asyncStorage";
+import { getActiveSessionId, getUserId } from "./sessionManager";
+import {
+  saveIdentifiedSkillToFirestore,
+  saveIdentifiedSkillsToFirestore,
+} from "./firebase/firestoreService";
+import { enqueueFirestoreWrite } from "./firebase/firestoreWriteQueue";
 
 const SKILLS_STORAGE_KEY = "@user_identified_skills";
 
@@ -56,6 +62,11 @@ export async function saveIdentifiedSkill(
 
     await setJSONInStorage(SKILLS_STORAGE_KEY, existingData);
     console.log("Skill saved:", skill);
+
+    enqueueFirestoreWrite(async () => {
+      const [userId, sessionId] = await Promise.all([getUserId(), getActiveSessionId()]);
+      await saveIdentifiedSkillToFirestore(userId, skill, category, source, confidence, sessionId);
+    });
   } catch (error) {
     console.error("Error saving skill:", error);
     throw error;
@@ -97,6 +108,11 @@ export async function saveIdentifiedSkills(
     existingData.lastUpdated = new Date().toISOString();
     await setJSONInStorage(SKILLS_STORAGE_KEY, existingData);
     console.log("Multiple skills saved:", skills.length);
+
+    enqueueFirestoreWrite(async () => {
+      const [userId, sessionId] = await Promise.all([getUserId(), getActiveSessionId()]);
+      await saveIdentifiedSkillsToFirestore(userId, skills, categories, source, sessionId);
+    });
   } catch (error) {
     console.error("Error saving multiple skills:", error);
     throw error;

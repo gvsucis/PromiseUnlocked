@@ -50,6 +50,8 @@
           "cameraPermission": "The app accesses your camera to let you share photos with your friends."
         }
       ],
+
+      "expo-web-browser",
       "expo-build-properties"
     ],
     "extra": {

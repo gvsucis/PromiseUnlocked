@@ -2,7 +2,7 @@
 
 # dependencies
 node_modules/
-
+.comman*
 # Expo
 .expo/
 dist/
@@ -33,6 +33,7 @@ yarn-error.*
 # local env files
 .env*.local
 src/config/env.ts
+src/config/env.secrets.ts
 .env
 
 # typescript
