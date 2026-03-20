@@ -7,9 +7,13 @@
 
 import { MappedCategory, ConversationInteraction } from "./categoryTaxonomyService";
 import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../util/asyncStorage";
+
 import { clearSessionState, endSession, getOrStartSession, getUserId } from "./sessionManager";
 import { saveInteraction, savePassportMapping } from "./firebase/firestoreService";
 import { enqueueFirestoreWrite } from "./firebase/firestoreWriteQueue";
+
+// Log errors to a file instead of console.error
+import { logErrorToFile } from "../util/logToFile";
 
 const MAPPED_CATEGORIES_KEY = "@mappedCategories";
 const INTERACTIONS_KEY = "@userInteractions";
@@ -23,13 +27,28 @@ export async function getMappedCategories(): Promise<MappedCategory[]> {
   return getJSONFromStorage(MAPPED_CATEGORIES_KEY, [] as MappedCategory[]);
 }
 
+/**
+ * Get specific MappedCategory object
+ */
+export async function getMappedCategory(mappedCategoryName: string): Promise<MappedCategory> {
+  const mappedCategories = await getMappedCategories();
+  const result = mappedCategories.find((c) => c.category === mappedCategoryName);
+  if (!result) {
+    throw new Error(`MappedCategory not found: ${mappedCategoryName}`);
+  }
+  return result;
+}
+
+/**
+ * Save a newly mapped category
+ */
 export async function saveMappedCategory(category: MappedCategory): Promise<void> {
   try {
     const current = await getMappedCategories();
     const updated = [...current, category];
     await setJSONInStorage(MAPPED_CATEGORIES_KEY, updated);
   } catch (error) {
-    console.error("Error saving mapped category:", error);
+    logErrorToFile("Error saving mapped category:", error);
     throw error;
   }
 }
@@ -68,24 +87,27 @@ export async function addConversationInteraction(
         ? interaction.mappedCategory
         : null;
 
-    enqueueFirestoreWrite(async () => {
-      const { sessionId, userId } = await getFirestoreWriteContext();
-      await saveInteraction(userId, sessionId, {
-        sequenceIndex,
-        question: interaction.question,
-        answer: interaction.answer,
-        inputMethod,
-        mappingOutcome,
-        mappedCategory,
-        isWeakFit,
-        isAlreadyMapped,
-        justification: "",
-        matchedToCategory: interaction.matchedToCategory ?? null,
-        matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,
-      });
-    });
+    enqueueFirestoreWrite(
+      async () => {
+        const { sessionId, userId } = await getFirestoreWriteContext();
+        await saveInteraction(userId, sessionId, {
+          sequenceIndex,
+          question: interaction.question,
+          answer: interaction.answer,
+          inputMethod,
+          mappingOutcome,
+          mappedCategory,
+          isWeakFit,
+          isAlreadyMapped,
+          justification: "",
+          matchedToCategory: interaction.matchedToCategory ?? null,
+          matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,
+        });
+      },
+      { rethrowOnFailure: true }
+    );
   } catch (error) {
-    console.error("Error saving conversation interaction:", error);
+    logErrorToFile("Error saving conversation interaction:", error);
     throw error;
   }
 }
@@ -101,32 +123,35 @@ export async function addConversationInteractionWithMapping(
     const updated = [...current, interaction];
     await setJSONInStorage(INTERACTIONS_KEY, updated);
 
-    enqueueFirestoreWrite(async () => {
-      const { sessionId, userId } = await getFirestoreWriteContext();
-      const interactionId = await saveInteraction(userId, sessionId, {
-        sequenceIndex,
-        question: interaction.question,
-        answer: interaction.answer,
-        inputMethod,
-        mappingOutcome: "mapped",
-        mappedCategory: interaction.mappedCategory,
-        isWeakFit: false,
-        isAlreadyMapped: false,
-        justification,
-        matchedToCategory: null,
-        matchedToSequenceIndex: null,
-      });
+    await enqueueFirestoreWrite(
+      async () => {
+        const { sessionId, userId } = await getFirestoreWriteContext();
+        const interactionId = await saveInteraction(userId, sessionId, {
+          sequenceIndex,
+          question: interaction.question,
+          answer: interaction.answer,
+          inputMethod,
+          mappingOutcome: "mapped",
+          mappedCategory: interaction.mappedCategory,
+          isWeakFit: false,
+          isAlreadyMapped: false,
+          justification,
+          matchedToCategory: null,
+          matchedToSequenceIndex: null,
+        });
 
-      await savePassportMapping(
-        userId,
-        sessionId,
-        interactionId,
-        interaction.mappedCategory,
-        justification
-      );
-    });
+        await savePassportMapping(
+          userId,
+          sessionId,
+          interactionId,
+          interaction.mappedCategory,
+          justification
+        );
+      },
+      { rethrowOnFailure: true }
+    );
   } catch (error) {
-    console.error("Error saving conversation interaction with mapping:", error);
+    logErrorToFile("Error saving conversation interaction with mapping:", error);
     throw error;
   }
 }
@@ -147,7 +172,7 @@ export async function clearAllData(): Promise<void> {
     await removeManyFromStorage([MAPPED_CATEGORIES_KEY, INTERACTIONS_KEY]);
     await clearSessionState();
   } catch (error) {
-    console.error("Error clearing data:", error);
+    logErrorToFile("Error clearing data:", error);
     throw error;
   }
 }
@@ -167,4 +192,31 @@ export async function getMappingStats(): Promise<{
     totalInteractions: interactions.length,
     lastInteractionDate: interactions.at(-1)?.timestamp,
   };
+}
+
+/**
+ * Update mapped category counter
+ */
+export async function updateMappedCategoryCounter(
+  mappedCategory: MappedCategory
+): Promise<MappedCategory> {
+  try {
+    const current = await getMappedCategories();
+    const updatedMappedCategory = {
+      category: mappedCategory.category,
+      justification: mappedCategory.justification,
+      dateIdentified: mappedCategory.dateIdentified,
+      timesMapped: mappedCategory.timesMapped + 1,
+    };
+
+    const newMappedCategories = current.map((c) =>
+      c.category === updatedMappedCategory.category ? updatedMappedCategory : c
+    );
+
+    await setJSONInStorage(MAPPED_CATEGORIES_KEY, newMappedCategories);
+    return updatedMappedCategory;
+  } catch (error) {
+    console.error("Error updating mapped categories:", error);
+    throw error;
+  }
 }

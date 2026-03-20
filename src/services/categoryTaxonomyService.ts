@@ -15,6 +15,7 @@ export interface MappedCategory {
   category: string;
   justification: string;
   dateIdentified: string;
+  timesMapped: number;
 }
 
 export interface ConversationInteraction {
