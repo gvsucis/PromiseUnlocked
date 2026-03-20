@@ -10,16 +10,7 @@ import {
   Image,
   TouchableOpacity,
 } from "react-native";
-import {
-  FAB,
-  Card,
-  Title,
-  Paragraph,
-  ActivityIndicator,
-  Snackbar,
-  TextInput,
-  Button,
-} from "react-native-paper";
+import { FAB, Card, Title, Paragraph, Snackbar, TextInput, Button } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -216,6 +207,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
         showSnackbar(result.error || "Failed to select image");
       }
     } catch (error) {
+      console.error("Image selection error:", error);
       showSnackbar("An error occurred while selecting image");
     }
   };

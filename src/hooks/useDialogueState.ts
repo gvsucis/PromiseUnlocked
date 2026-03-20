@@ -13,6 +13,7 @@ import {
   saveMappedCategory,
   getConversationHistory,
   addConversationInteraction,
+  addConversationInteractionWithMapping,
   clearAllData,
   isCategoryMapped,
   getMappedCategory,
@@ -20,6 +21,7 @@ import {
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { Alert } from "react-native";
+import {} from "../services/sessionManager";
 
 export type UIState =
   | "idle"
@@ -91,6 +93,7 @@ export function useDialogueState(): DialogueState {
 
   useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
+      void "completed";
       setUiState("complete");
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
@@ -163,6 +166,9 @@ export function useDialogueState(): DialogueState {
           answer,
           mappedCategory: "NO-OP (WEAK FIT)",
           timestamp: new Date().toISOString(),
+          mappingOutcome: "weak_fit",
+          matchedToCategory: null,
+          matchedToSequenceIndex: null,
         };
         await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
@@ -190,14 +196,18 @@ export function useDialogueState(): DialogueState {
           answer,
           mappedCategory: categoryNameToCheck,
           timestamp: new Date().toISOString(),
+          mappingOutcome: "mapped",
+          matchedToCategory: null,
+          matchedToSequenceIndex: null,
         };
-        await addConversationInteraction(interaction);
+        await addConversationInteractionWithMapping(interaction, justification ?? "");
         setInteractions((prev) => [...prev, interaction]);
 
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
 
         if (newMappedCategories.length === TOTAL_CATEGORIES) {
+          await "completed";
           setUserAnswer("");
           setUiState("complete");
           return;
@@ -223,8 +233,11 @@ export function useDialogueState(): DialogueState {
         const interaction: ConversationInteraction = {
           question,
           answer,
-          mappedCategory: "ALREADY MAPPED (IGNORED)",
+          mappedCategory: categoryNameToCheck,
           timestamp: new Date().toISOString(),
+          mappingOutcome: "already_mapped",
+          matchedToCategory: categoryNameToCheck,
+          matchedToSequenceIndex: null,
         };
         await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
@@ -236,6 +249,9 @@ export function useDialogueState(): DialogueState {
           answer,
           mappedCategory: "INVALID CATEGORY (RETRY)",
           timestamp: new Date().toISOString(),
+          mappingOutcome: "invalid",
+          matchedToCategory: null,
+          matchedToSequenceIndex: null,
         };
         await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
@@ -322,7 +338,6 @@ export function useDialogueState(): DialogueState {
 
   const handleTextInputPress = () => {
     setError("");
-
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
       setTimeout(() => setUiState("answering"), 100);

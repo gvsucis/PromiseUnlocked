@@ -100,12 +100,10 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       {
         text: "Reset",
         style: "destructive",
-        onPress: async () => {
-          try {
-            await resetData();
-          } catch {
+        onPress: () => {
+          resetData().catch(() => {
             Alert.alert("Error", "Failed to reset dashboard");
-          }
+          });
         },
       },
     ]);

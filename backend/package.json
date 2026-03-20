@@ -1,0 +1,41 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend for Promise Unlock",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "serve": "firebase emulators:start --only functions,firestore,auth",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@types/swagger-ui-express": "^4.1.8",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.7.0",
+    "http-graceful-shutdown": "^3.1.16",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "eslint": "^8.15.0",
+    "eslint-config-google": "^0.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
