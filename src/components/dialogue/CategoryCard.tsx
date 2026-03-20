@@ -18,6 +18,7 @@ interface CategoryCardProps {
 }
 
 export function CategoryCard({ category, isMapped, mappedData, onPress }: CategoryCardProps) {
+  const timesMapped = mappedData?.timesMapped ?? 0;
   return (
     <TouchableOpacity
       style={[
@@ -34,6 +35,7 @@ export function CategoryCard({ category, isMapped, mappedData, onPress }: Catego
         />
       </View>
       <Text style={styles.categoryTitle}>{category.category}</Text>
+      {mappedData ? <Text style={styles.categoryDescription}>Count: {timesMapped}</Text> : null}
       <Text style={styles.categoryDescription}>{category.description}</Text>
       {isMapped && (
         <View style={styles.mappedBadge}>

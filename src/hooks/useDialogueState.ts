@@ -16,9 +16,12 @@ import {
   addConversationInteractionWithMapping,
   clearAllData,
   isCategoryMapped,
+  getMappedCategory,
+  updateMappedCategoryCounter,
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
-import { endSession } from "../services/sessionManager";
+import { Alert } from "react-native";
+import {} from "../services/sessionManager";
 
 export type UIState =
   | "idle"
@@ -90,7 +93,7 @@ export function useDialogueState(): DialogueState {
 
   useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
-      void endSession("completed");
+      void "completed";
       setUiState("complete");
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
@@ -177,11 +180,16 @@ export function useDialogueState(): DialogueState {
           category: categoryNameToCheck,
           justification: justification ?? "",
           dateIdentified: new Date().toISOString(),
+          timesMapped: 1,
         };
 
         await saveMappedCategory(newMappedCategory);
         const newMappedCategories = [...mappedCategories, newMappedCategory];
         setMappedCategories(newMappedCategories);
+
+        console.log(
+          `NEW ${categoryNameToCheck} category added: counter = ${newMappedCategory.timesMapped}`
+        );
 
         const interaction: ConversationInteraction = {
           question,
@@ -199,7 +207,7 @@ export function useDialogueState(): DialogueState {
         setTimeout(() => setShowConfetti(false), 3000);
 
         if (newMappedCategories.length === TOTAL_CATEGORIES) {
-          await endSession("completed");
+          await "completed";
           setUserAnswer("");
           setUiState("complete");
           return;
@@ -208,9 +216,18 @@ export function useDialogueState(): DialogueState {
         shouldProceedToNextQuestion = true;
       } else if (await isCategoryMapped(categoryNameToCheck)) {
         console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
+        const mappedCategory = await getMappedCategory(categoryNameToCheck);
+        const updatedMappedCategory = await updateMappedCategoryCounter(mappedCategory);
 
-        const matchedToSequenceIndex = interactions.findIndex(
-          (item) => item.mappedCategory === categoryNameToCheck
+        // ensures no duplicate categories are added to array of mapped categories
+        const dedupedMappedCategories = mappedCategories.map((c) =>
+          c.category === updatedMappedCategory.category ? updatedMappedCategory : c
+        );
+
+        setMappedCategories(dedupedMappedCategories);
+
+        console.log(
+          `${updatedMappedCategory.category} category counter updated: counter = ${updatedMappedCategory.timesMapped}`
         );
 
         const interaction: ConversationInteraction = {
@@ -220,7 +237,7 @@ export function useDialogueState(): DialogueState {
           timestamp: new Date().toISOString(),
           mappingOutcome: "already_mapped",
           matchedToCategory: categoryNameToCheck,
-          matchedToSequenceIndex: matchedToSequenceIndex >= 0 ? matchedToSequenceIndex : null,
+          matchedToSequenceIndex: null,
         };
         await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
@@ -368,6 +385,16 @@ export function useDialogueState(): DialogueState {
 
   const handleSubmitAnswer = () => {
     if (!userAnswer.trim()) {
+      Alert.alert(
+        "Empty Text Error",
+        "Cannot evaluate an empty text field. Please provide a valid response.",
+        [
+          {
+            text: "OK",
+            onPress: () => console.log("Empty Text Error - OK pressed"),
+          },
+        ]
+      );
       setError("Answer cannot be empty. Please provide a substantive response.");
       return;
     }

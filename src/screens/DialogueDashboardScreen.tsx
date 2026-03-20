@@ -335,11 +335,19 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         { text: "OK" },
       ]);
     } else {
-      Alert.alert(
-        "Not Yet Mapped",
-        "This trait is not yet mapped to you. Click the + button to discover new traits!",
-        [{ text: "OK" }]
-      );
+      {
+        mappedCategories.length === 0
+          ? Alert.alert(
+              "Not Yet Mapped",
+              "This trait is not yet mapped to you. Click the 'Start' button to discover new traits!",
+              [{ text: "OK" }]
+            )
+          : Alert.alert(
+              "Not Yet Mapped",
+              "This trait is not yet mapped to you. Click the 'Continue' button to discover new traits!",
+              [{ text: "OK" }]
+            );
+      }
     }
   };
 
