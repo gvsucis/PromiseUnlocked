@@ -31,6 +31,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    void flushPendingFirestoreWrites();
+
     const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       if (nextState === "active") {
         void flushPendingFirestoreWrites();
