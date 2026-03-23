@@ -21,6 +21,7 @@ import { AnswerModal } from "../components/dialogue/AnswerModal";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
 import { CategoryCard } from "../components/dialogue/CategoryCard";
 import { useDialogueState } from "../hooks/useDialogueState";
+import { useAuth } from "../context/AuthContext";
 
 const { width } = Dimensions.get("window");
 
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export default function DialogueDashboardScreen({ navigation }: Props) {
+  const { session, logoutToGuest } = useAuth();
   const {
     mappedCategories,
     uiState,
@@ -79,20 +81,58 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          onPress={handleReset}
-          style={{ marginRight: 15 }}
-          disabled={uiState !== "idle" && uiState !== "complete"}
-        >
-          <MaterialIcons
-            name="refresh"
-            size={24}
-            color={uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"}
-          />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={session.mode === "authenticated" ? handleLogout : handleAccountPress}
+            style={styles.headerActionButton}
+          >
+            <MaterialIcons
+              name={session.mode === "authenticated" ? "logout" : "person"}
+              size={24}
+              color="#fff"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleReset}
+            style={styles.headerActionButton}
+            disabled={uiState !== "idle" && uiState !== "complete"}
+          >
+            <MaterialIcons
+              name="refresh"
+              size={24}
+              color={uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"}
+            />
+          </TouchableOpacity>
+        </View>
       ),
     });
-  }, [navigation, uiState]);
+  }, [navigation, session.mode, uiState]);
+
+  const handleAccountPress = () => {
+    navigation.navigate("Login");
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Switch to Guest",
+      "You will keep this account's saved progress, and the app will continue in guest mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => {
+            void logoutToGuest()
+              .then(() => {
+                navigation.replace("Welcome");
+              })
+              .catch(() => {
+                Alert.alert("Error", "Failed to switch to guest mode.");
+              });
+          },
+        },
+      ]
+    );
+  };
 
   const handleReset = () => {
     Alert.alert("Reset Dashboard", "Are you sure you want to reset? All progress will be lost.", [
@@ -534,6 +574,14 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  headerActionButton: {
+    marginLeft: 12,
+  },
   container: {
     flex: 1,
   },

@@ -16,11 +16,10 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { signInAnonymously } from "firebase/auth";
 import { db, auth } from "../../config/firebase";
 import { setJSONInStorage } from "../../util/asyncStorage";
+import { waitForAuthReady } from "../auth/authSessionService";
 import type {
-  UserDocument,
   SessionDocument,
   InteractionDocument,
   IdentifiedSkillDocument,
@@ -84,6 +83,8 @@ async function ensureSessionDocument(userId: string, sessionId: string): Promise
 }
 
 export async function getOrCreateUserId(): Promise<string> {
+  await waitForAuthReady();
+
   if (_cachedUserId && auth.currentUser?.uid === _cachedUserId) {
     return _cachedUserId;
   }
@@ -94,28 +95,8 @@ export async function getOrCreateUserId(): Promise<string> {
     return currentUid;
   }
 
-  try {
-    const credential = await signInAnonymously(auth);
-    const uid = credential.user.uid;
-
-    await cacheUserId(uid);
-
-    const userRef = doc(db, "participants", uid);
-    const userDoc: UserDocument = {
-      email: null,
-      displayName: null,
-      createdAt: serverTimestamp() as unknown as Timestamp,
-      lastActiveAt: serverTimestamp() as unknown as Timestamp,
-      isAnonymous: true,
-    };
-    await setDoc(userRef, userDoc, { merge: true });
-
-    return uid;
-  } catch (err) {
-    console.error("[Firestore] Failed to get/create user:", err);
-    _cachedUserId = null;
-    throw err;
-  }
+  _cachedUserId = null;
+  throw new Error("No Firebase auth user is available for Firestore writes.");
 }
 
 //

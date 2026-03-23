@@ -1,25 +1,19 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Alert, ActivityIndicator, ScrollView } from "react-native";
+import { View, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import { Button, Card, Divider, TextInput, HelperText } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
-import {
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  GoogleAuthProvider,
-  signInWithCredential,
-} from "firebase/auth";
-import { auth } from "../config/firebase";
-//import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { useAuth } from "../context/AuthContext";
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
 interface Props {
   navigation: LoginScreenNavigationProp;
 }
 
-export default function LoginScreen({ navigation }: Props) {
+export default function LoginScreen({ navigation }: Readonly<Props>) {
+  const { signInWithEmail, continueAsGuest, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,35 +24,65 @@ export default function LoginScreen({ navigation }: Props) {
   const hasPasswordError = password.length > 0 && !passwordValid;
   const formValid = emailValid && passwordValid;
 
+  const getErrorDetails = (error: unknown) => {
+    if (error instanceof Error) {
+      return {
+        code: (error as Error & { code?: string }).code,
+        message: error.message,
+      };
+    }
+
+    return { code: undefined, message: "Unknown error" };
+  };
+
   const handleForgotPassword = async () => {
     if (!email) return Alert.alert("Email Required", "Enter your email above first.");
     try {
-      await sendPasswordResetEmail(auth, email);
+      await resetPassword(email);
       Alert.alert("Reset Sent", "Check your email for a reset link.");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const { code, message } = getErrorDetails(error);
       Alert.alert(
         "Error",
-        error.code === "auth/user-not-found" ? "No account exists with that email." : error.message
+        code === "auth/user-not-found" ? "No account exists with that email." : message
       );
     }
   };
 
   const handleLogin = async () => {
+    if (loading) return;
     if (!email || !password) return Alert.alert("Missing Info", "Please fill in all fields.");
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmail(email, password);
       navigation.replace("DialogueDashboard");
-    } catch (error: any) {
-      const msg =
-        error.code === "auth/user-not-found"
-          ? "No account found with that email."
-          : error.code === "auth/wrong-password"
-            ? "Incorrect password."
-            : error.code === "auth/invalid-email"
-              ? "Invalid email address."
-              : error.message;
+    } catch (error: unknown) {
+      const { code, message } = getErrorDetails(error);
+      let msg = message;
+
+      if (code === "auth/user-not-found") {
+        msg = "No account found with that email.";
+      } else if (code === "auth/wrong-password") {
+        msg = "Incorrect password.";
+      } else if (code === "auth/invalid-email") {
+        msg = "Invalid email address.";
+      }
+
       Alert.alert("Error", msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleContinueAsGuest = async () => {
+    if (loading) return;
+    try {
+      setLoading(true);
+      await continueAsGuest();
+      navigation.replace("DialogueDashboard");
+    } catch (error: unknown) {
+      const { message } = getErrorDetails(error);
+      Alert.alert("Error", message || "Failed to continue as guest.");
     } finally {
       setLoading(false);
     }
@@ -165,9 +189,16 @@ export default function LoginScreen({ navigation }: Props) {
                 style={[styles.pill, styles.secondaryContained]}
                 contentStyle={styles.primaryContent}
                 labelStyle={styles.secondaryLabel}
-                onPress={() => navigation.replace("DialogueDashboard")}
+                onPress={handleContinueAsGuest}
+                disabled={loading}
               >
                 Continue without signing in
+              </Button>
+
+              <Divider style={styles.divider} />
+
+              <Button onPress={() => navigation.navigate("Welcome")} labelStyle={styles.linkLabel}>
+                Back to welcome
               </Button>
 
               <Divider style={styles.divider} />
