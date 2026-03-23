@@ -6,23 +6,36 @@
  */
 
 import { getJSONFromStorage, setJSONInStorage, removeFromStorage } from "../util/asyncStorage";
+import { getScopedStorageKey, waitForAuthReady } from "./auth/authSessionService";
 import { createSession, closeSession, getOrCreateUserId } from "./firebase/firestoreService";
 
 const SESSION_ID_KEY = "@active_session_id";
 
 let _activeSessionId: string | null = null;
+let _activeSessionScope: string | null = null;
 let _userId: string | null = null;
+let _userScope: string | null = null;
+
+async function getCurrentScope(): Promise<string> {
+  const session = await waitForAuthReady();
+  return session.uid ?? "signed_out";
+}
 
 export async function getUserId(): Promise<string> {
-  if (_userId) return _userId;
+  const scope = await getCurrentScope();
+  if (_userId && _userScope === scope) return _userId;
   _userId = await getOrCreateUserId();
+  _userScope = scope;
   return _userId;
 }
 
 export async function getActiveSessionId(): Promise<string | null> {
-  if (_activeSessionId) return _activeSessionId;
-  const stored = await getJSONFromStorage<string | null>(SESSION_ID_KEY, null);
+  const scope = await getCurrentScope();
+  if (_activeSessionId && _activeSessionScope === scope) return _activeSessionId;
+  const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
+  const stored = await getJSONFromStorage<string | null>(sessionStorageKey, null);
   _activeSessionId = stored;
+  _activeSessionScope = scope;
   return stored;
 }
 
@@ -30,7 +43,9 @@ export async function startNewSession(): Promise<string> {
   const userId = await getUserId();
   const sessionId = await createSession(userId);
   _activeSessionId = sessionId;
-  await setJSONInStorage(SESSION_ID_KEY, sessionId);
+  _activeSessionScope = await getCurrentScope();
+  const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
+  await setJSONInStorage(sessionStorageKey, sessionId);
   return sessionId;
 }
 
@@ -48,10 +63,14 @@ export async function endSession(status: "completed" | "abandoned"): Promise<voi
   await closeSession(userId, sessionId, status);
 
   _activeSessionId = null;
-  await removeFromStorage(SESSION_ID_KEY);
+  _activeSessionScope = null;
+  const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
+  await removeFromStorage(sessionStorageKey);
 }
 
 export async function clearSessionState(): Promise<void> {
   _activeSessionId = null;
-  await removeFromStorage(SESSION_ID_KEY);
+  _activeSessionScope = null;
+  const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
+  await removeFromStorage(sessionStorageKey);
 }
