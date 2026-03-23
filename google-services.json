@@ -12,7 +12,12 @@
           "package_name": "com.anonymous.TranscriptAnalyzer"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "524335478039-3i48996bcqjkaa8sispcrq3agc6ohbk9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDpDIOERwVnTfWb7mdoi5IUqhZgU_uU37E"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "524335478039-3i48996bcqjkaa8sispcrq3agc6ohbk9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "524335478039-jfrsl2q3rtbaii2tv9kfnr5uu8u79v69.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.anonymous.TranscriptAnalyzer"
+              }
+            }
+          ]
         }
       }
     }
