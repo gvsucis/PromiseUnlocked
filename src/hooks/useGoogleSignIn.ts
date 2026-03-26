@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Platform } from "react-native";
 import { Alert } from "react-native";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
@@ -9,6 +10,18 @@ WebBrowser.maybeCompleteAuthSession();
 
 interface UseGoogleSignInOptions {
   onSuccess?: () => void | Promise<void>;
+}
+
+function getNativeGoogleRedirectUri(): string | undefined {
+  const nativeClientId =
+    Platform.OS === "ios" ? CONFIG.GOOGLE_IOS_CLIENT_ID : CONFIG.GOOGLE_ANDROID_CLIENT_ID;
+
+  const clientIdPrefix = nativeClientId?.replace(".apps.googleusercontent.com", "");
+  if (!clientIdPrefix || clientIdPrefix === nativeClientId) {
+    return undefined;
+  }
+
+  return `com.googleusercontent.apps.${clientIdPrefix}:/oauthredirect`;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -25,6 +38,7 @@ export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
     iosClientId: CONFIG.GOOGLE_IOS_CLIENT_ID,
     androidClientId: CONFIG.GOOGLE_ANDROID_CLIENT_ID,
     webClientId: CONFIG.GOOGLE_EXPO_CLIENT_ID,
+    redirectUri: Platform.OS === "web" ? undefined : getNativeGoogleRedirectUri(),
     selectAccount: true,
   });
 

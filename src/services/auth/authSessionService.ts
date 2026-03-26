@@ -48,7 +48,7 @@ function buildSession(user: User | null): AppAuthSession {
     mode: user.isAnonymous ? "guest" : "authenticated",
     isAnonymous: user.isAnonymous,
     email: user.email ?? null,
-    displayName: user.displayName ?? null,
+    displayName: user.displayName ?? user.email?.split("@")[0] ?? null,
   };
 }
 
