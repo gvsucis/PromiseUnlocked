@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
-    "@getlimelight/sdk": "^0.6.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/native": "^7.1.17",
     "@react-navigation/stack": "^7.4.7",
@@ -20,8 +19,8 @@
     "expo": "~54.0.0",
     "expo-auth-session": "~7.0.10",
     "expo-av": "^16.0.7",
-    "expo-crypto": "~15.0.8",
     "expo-build-properties": "~1.0.9",
+    "expo-crypto": "~15.0.8",
     "expo-file-system": "~19.0.14",
     "expo-image-manipulator": "~14.0.7",
     "expo-image-picker": "~17.0.8",

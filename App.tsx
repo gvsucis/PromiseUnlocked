@@ -18,7 +18,6 @@ import DialogueDashboardScreen from "./src/screens/DialogueDashboardScreen";
 import { RootStackParamList } from "./src/types/navigation";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
-import { Limelight } from "@getlimelight/sdk";
 import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 
@@ -26,11 +25,6 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 function AppNavigator() {
   const { isReady } = useAuth();
-
-  useEffect(() => {
-    // Initialize Limelight SDK after component mounts
-    Limelight.connect();
-  }, []);
 
   useEffect(() => {
     void flushPendingFirestoreWrites();
