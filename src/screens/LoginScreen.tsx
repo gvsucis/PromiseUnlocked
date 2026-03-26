@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
+import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
 interface Props {
@@ -17,6 +18,9 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
+    onSuccess: () => navigation.replace("DialogueDashboard"),
+  });
 
   const emailValid = /.+@.+\..+/.test(email.trim());
   const passwordValid = password.length >= 6;
@@ -64,8 +68,16 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
         msg = "No account found with that email.";
       } else if (code === "auth/wrong-password") {
         msg = "Incorrect password.";
+      } else if (code === "auth/invalid-credential") {
+        msg = "Incorrect email or password.";
       } else if (code === "auth/invalid-email") {
         msg = "Invalid email address.";
+      } else if (code === "auth/user-disabled") {
+        msg = "This account has been disabled. Please contact support.";
+      } else if (code === "auth/too-many-requests") {
+        msg = "Too many login attempts. Please wait a bit and try again.";
+      } else if (code === "auth/network-request-failed") {
+        msg = "Network error. Check your connection and try again.";
       }
 
       Alert.alert("Error", msg);
@@ -87,24 +99,6 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
       setLoading(false);
     }
   };
-
-  {
-    /*const handleGoogleSignIn = async () => {
-    try {
-      setLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.data?.idToken;
-      if (!idToken) throw new Error('No ID token');
-      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
-      navigation.replace('DialogueDashboard');
-    } catch (error: any) {
-      if (error.code !== 'sign_in_cancelled')
-        Alert.alert('Error', error.message || 'Google sign-in failed');
-    } finally { setLoading(false); }
-  };
-  */
-  }
 
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
@@ -171,11 +165,17 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
 
               <Divider style={styles.divider} />
 
-              {/*<Button mode="outlined" icon="google" style={[styles.outlined, styles.pill]}
-                labelStyle={styles.outlinedLabel} disabled={loading} onPress={handleGoogleSignIn}>
+              <Button
+                mode="outlined"
+                icon="google"
+                style={[styles.outlined, styles.pill]}
+                labelStyle={styles.outlinedLabel}
+                disabled={loading || googleLoading}
+                onPress={handleGoogleSignIn}
+              >
                 Sign in with Google
               </Button>
-              <Button mode="outlined" icon="apple" style={[styles.outlined, styles.apple, styles.pill]}
+              {/*<Button mode="outlined" icon="apple" style={[styles.outlined, styles.apple, styles.pill]}
                 labelStyle={styles.outlinedLabel}
                 onPress={() => Alert.alert('Coming Soon', 'Apple sign-in not yet implemented.')}>
                 Sign in with Apple

@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
+import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, "Register">;
 interface Props {
@@ -22,6 +23,9 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
+    onSuccess: () => navigation.replace("DialogueDashboard"),
+  });
 
   const emailValid = useMemo(() => EMAIL_REGEX.test(email.trim()), [email]);
   const passwordLongEnough = useMemo(() => password.length >= 6, [password]);
@@ -47,7 +51,6 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
   };
 
   const handleSignUp = async () => {
-    if (loading) return;
     if (!agreed) return Alert.alert("Terms Required", "You must agree to the Terms of Service.");
     if (!email || !password || !confirmPassword)
       return Alert.alert("Missing Info", "Please fill in all fields.");
@@ -163,7 +166,7 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
                   <MaterialIcons
                     name={agreed ? "check-box" : "check-box-outline-blank"}
                     size={20}
-                    color={agreed ? "#FFE082" : "#FFFFFF"}
+                    color={agreed ? "#ebe4cf" : "#FFFFFF"}
                   />
                 </View>
                 <View style={styles.termsTextWrap}>
@@ -189,7 +192,16 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
               </Button>
 
               <Divider style={styles.divider} />
-
+              <Button
+                mode="outlined"
+                icon="google"
+                style={[styles.outlined, styles.pill]}
+                labelStyle={styles.outlinedLabel}
+                disabled={loading || googleLoading}
+                onPress={handleGoogleSignIn}
+              >
+                Google
+              </Button>
               <Button onPress={() => navigation.navigate("Welcome")} labelStyle={styles.linkLabel}>
                 Back to welcome
               </Button>
@@ -253,4 +265,6 @@ const styles = StyleSheet.create({
   pill: { borderRadius: 28 },
   divider: { marginVertical: 12, backgroundColor: "rgba(255,255,255,0.2)" },
   linkLabel: { color: "#fff" },
+  outlined: { borderColor: "rgba(255,255,255,0.7)", marginBottom: 8 },
+  outlinedLabel: { color: "#fff" },
 });
