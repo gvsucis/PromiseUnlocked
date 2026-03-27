@@ -24,7 +24,7 @@ import { AuthProvider, useAuth } from "./src/context/AuthContext";
 const Stack = createStackNavigator<RootStackParamList>();
 
 function AppNavigator() {
-  const { isReady } = useAuth();
+  const { isReady, session } = useAuth();
 
   useEffect(() => {
     void flushPendingFirestoreWrites();
@@ -52,7 +52,7 @@ function AppNavigator() {
     <NavigationContainer>
       <StatusBar style="auto" />
       <Stack.Navigator
-        initialRouteName="Welcome"
+        initialRouteName={session.mode === "authenticated" ? "DialogueDashboard" : "Welcome"}
         screenOptions={{
           headerStyle: {
             backgroundColor: "#2196F3",
