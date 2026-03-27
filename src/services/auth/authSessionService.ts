@@ -62,6 +62,9 @@ async function persistSession(session: AppAuthSession): Promise<void> {
 
 function emitSession(session: AppAuthSession): void {
   currentSession = session;
+  if (session.mode !== "loading") {
+    bootstrapPromise = null;
+  }
   for (const subscriber of subscribers) {
     subscriber(session);
   }
@@ -129,11 +132,15 @@ function initializeAuthListener(): void {
 }
 
 export async function bootstrapAuthSession(): Promise<AppAuthSession> {
+  initializeAuthListener();
+
+  if (currentSession.mode !== "loading") {
+    return currentSession;
+  }
+
   if (bootstrapPromise !== null) {
     return bootstrapPromise;
   }
-
-  initializeAuthListener();
 
   bootstrapPromise = new Promise<AppAuthSession>((resolve) => {
     const unsubscribe = subscribeToAuthSession((session) => {
