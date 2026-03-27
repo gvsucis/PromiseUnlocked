@@ -115,7 +115,6 @@ export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
       setLoading(true);
       processedResponseUrlRef.current = null;
       const result = await promptGoogleSignIn();
-      console.log("Rexford Google sign-in result:", result);
 
       if (result.type !== "success") {
         setLoading(false);
