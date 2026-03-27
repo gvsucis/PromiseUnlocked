@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { Alert } from "react-native";
 import * as Google from "expo-auth-session/providers/google";
@@ -34,13 +34,74 @@ function getErrorMessage(error: unknown): string {
 
 export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
   const [loading, setLoading] = useState(false);
-  const [googleRequest, , promptGoogleSignIn] = Google.useIdTokenAuthRequest({
+  const processedResponseUrlRef = useRef<string | null>(null);
+  const [googleRequest, googleResponse, promptGoogleSignIn] = Google.useIdTokenAuthRequest({
     iosClientId: CONFIG.GOOGLE_IOS_CLIENT_ID,
     androidClientId: CONFIG.GOOGLE_ANDROID_CLIENT_ID,
     webClientId: CONFIG.GOOGLE_EXPO_CLIENT_ID,
     redirectUri: Platform.OS === "web" ? undefined : getNativeGoogleRedirectUri(),
     selectAccount: true,
   });
+
+  useEffect(() => {
+    if (!loading || !googleResponse) {
+      return;
+    }
+
+    const responseKey =
+      "url" in googleResponse ? googleResponse.url : `non-url-response:${googleResponse.type}`;
+
+    if (processedResponseUrlRef.current === responseKey) {
+      return;
+    }
+
+    if (googleResponse.type !== "success") {
+      processedResponseUrlRef.current = responseKey;
+      setLoading(false);
+
+      if (googleResponse.type === "error") {
+        Alert.alert("Error", googleResponse.error?.message ?? "Google sign-in failed.");
+      }
+
+      return;
+    }
+
+    const idToken = googleResponse.params.id_token ?? googleResponse.authentication?.idToken;
+    const accessToken =
+      googleResponse.params.access_token ?? googleResponse.authentication?.accessToken;
+
+    // Native Google auth can resolve twice: first with an authorization code,
+    // then again after Expo exchanges that code for tokens.
+    if (!idToken && googleResponse.params.code && !googleResponse.authentication) {
+      return;
+    }
+
+    processedResponseUrlRef.current = responseKey;
+
+    if (!idToken) {
+      setLoading(false);
+      Alert.alert("Error", "Google sign-in did not return an ID token.");
+      return;
+    }
+
+    void (async () => {
+      try {
+        const credential = await signInWithGoogleTokens(idToken, accessToken);
+        const username =
+          credential.user.displayName ?? credential.user.email?.split("@")[0] ?? null;
+
+        if (username) {
+          console.log("[Auth] Google sign-in user:", username);
+        }
+
+        await options.onSuccess?.();
+      } catch (error: unknown) {
+        Alert.alert("Error", getErrorMessage(error));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [googleResponse, loading, options]);
 
   const handleGoogleSignIn = async () => {
     if (loading) return;
@@ -52,29 +113,16 @@ export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
 
     try {
       setLoading(true);
+      processedResponseUrlRef.current = null;
       const result = await promptGoogleSignIn();
+      console.log("Rexford Google sign-in result:", result);
 
       if (result.type !== "success") {
-        return;
+        setLoading(false);
       }
-
-      const idToken = result.params.id_token;
-      if (!idToken) {
-        throw new Error("Google sign-in did not return an ID token.");
-      }
-
-      const credential = await signInWithGoogleTokens(idToken);
-      const username = credential.user.displayName ?? credential.user.email?.split("@")[0] ?? null;
-
-      if (username) {
-        console.log("[Auth] Google sign-in user:", username);
-      }
-
-      await options.onSuccess?.();
     } catch (error: unknown) {
-      Alert.alert("Error", getErrorMessage(error));
-    } finally {
       setLoading(false);
+      Alert.alert("Error", getErrorMessage(error));
     }
   };
 
