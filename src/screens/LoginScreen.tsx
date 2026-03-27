@@ -6,7 +6,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
-import { useAppleSignIn } from "../hooks/useAppleSignIn";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
@@ -15,14 +14,11 @@ interface Props {
 }
 
 export default function LoginScreen({ navigation }: Readonly<Props>) {
-  const { signInWithEmail, continueAsGuest, resetPassword } = useAuth();
+  const { session, signInWithEmail, continueAsGuest, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
-    onSuccess: () => navigation.replace("DialogueDashboard"),
-  });
-  const { handleAppleSignIn, appleLoading } = useAppleSignIn({
     onSuccess: () => navigation.replace("DialogueDashboard"),
   });
 
@@ -31,6 +27,12 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
   const hasEmailError = email.length > 0 && !emailValid;
   const hasPasswordError = password.length > 0 && !passwordValid;
   const formValid = emailValid && passwordValid;
+
+  React.useEffect(() => {
+    if (session.mode === "authenticated") {
+      navigation.replace("DialogueDashboard");
+    }
+  }, [navigation, session.mode]);
 
   const getErrorDetails = (error: unknown) => {
     if (error instanceof Error) {
@@ -174,7 +176,7 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
                   icon="google"
                   style={[styles.outlined, styles.pill]}
                   labelStyle={styles.outlinedLabel}
-                  disabled={loading || googleLoading || appleLoading}
+                  disabled={loading || googleLoading}
                   onPress={handleGoogleSignIn}
                 >
                   Sign in with Google

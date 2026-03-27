@@ -27,10 +27,26 @@ export async function signInWithAppleToken(
   });
 
   const currentUser = auth.currentUser;
-  const authResult =
-    currentUser?.isAnonymous
-      ? await linkWithCredential(currentUser, credential)
-      : await signInWithCredential(auth, credential);
+  let authResult;
+
+  if (currentUser?.isAnonymous) {
+    try {
+      authResult = await linkWithCredential(currentUser, credential);
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+
+      // This Apple credential is already linked to an existing Firebase user.
+      // Recover by signing into that account.
+      if (code === "auth/credential-already-in-use") {
+        authResult = await signInWithCredential(auth, credential);
+      } else {
+        throw error;
+      }
+    }
+  } else {
+    authResult = await signInWithCredential(auth, credential);
+  }
 
   const displayName = buildDisplayName(profile);
   if (displayName && !authResult.user.displayName) {

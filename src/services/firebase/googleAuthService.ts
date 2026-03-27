@@ -6,7 +6,20 @@ export async function signInWithGoogleTokens(idToken: string, accessToken?: stri
   const currentUser = auth.currentUser;
 
   if (currentUser?.isAnonymous) {
-    return linkWithCredential(currentUser, credential);
+    try {
+      return await linkWithCredential(currentUser, credential);
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+
+      // This Google account already belongs to an existing Firebase user.
+      // Fall back to signing into that account instead of failing the flow.
+      if (code === "auth/credential-already-in-use") {
+        return signInWithCredential(auth, credential);
+      }
+
+      throw error;
+    }
   }
 
   return signInWithCredential(auth, credential);

@@ -14,8 +14,14 @@ interface Props {
 }
 
 export default function WelcomeScreen({ navigation }: Readonly<Props>) {
-  const { continueAsGuest } = useAuth();
+  const { continueAsGuest, session } = useAuth();
   const [loadingGuest, setLoadingGuest] = useState(false);
+
+  React.useEffect(() => {
+    if (session.mode === "authenticated") {
+      navigation.replace("DialogueDashboard");
+    }
+  }, [navigation, session.mode]);
 
   const handleStartJourney = async () => {
     if (loadingGuest) return;

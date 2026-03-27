@@ -11,11 +11,21 @@ import {
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "../../config/firebase";
-import { setJSONInStorage } from "../../util/asyncStorage";
+import { removeManyFromStorage, setJSONInStorage } from "../../util/asyncStorage";
 import type { AppAuthSession } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
 
 const AUTH_SESSION_STORAGE_KEY = "@app_auth_session";
+const SCOPED_STORAGE_KEYS = [
+  "@active_session_id",
+  "@mappedCategories",
+  "@userInteractions",
+] as const;
+const GLOBAL_USER_STORAGE_KEYS = [
+  "@user_identified_skills",
+  "userProgress",
+  "@firestore_user_id",
+] as const;
 
 const DEFAULT_SESSION: AppAuthSession = {
   uid: null,
@@ -31,6 +41,11 @@ let authListenerInitialized = false;
 let resolvingAnonymousUser = false;
 
 const subscribers = new Set<(session: AppAuthSession) => void>();
+
+async function clearLocalDataForUid(uid: string): Promise<void> {
+  const scopedKeys = SCOPED_STORAGE_KEYS.map((key) => `${key}:${uid}`);
+  await removeManyFromStorage([...scopedKeys, ...GLOBAL_USER_STORAGE_KEYS]);
+}
 
 function buildSession(user: User | null): AppAuthSession {
   if (!user) {
@@ -87,6 +102,8 @@ async function syncUserDocument(user: User): Promise<void> {
 }
 
 async function handleAuthState(user: User | null): Promise<AppAuthSession> {
+  const previousSession = currentSession;
+
   if (!user) {
     if (!resolvingAnonymousUser) {
       resolvingAnonymousUser = true;
@@ -108,8 +125,24 @@ async function handleAuthState(user: User | null): Promise<AppAuthSession> {
     return signedOutSession;
   }
 
-  await syncUserDocument(user);
   const nextSession = buildSession(user);
+  const shouldClearPreviousLocalData =
+    previousSession.mode !== "loading" &&
+    previousSession.uid !== null &&
+    previousSession.uid !== nextSession.uid;
+
+  if (shouldClearPreviousLocalData) {
+    try {
+      const previousUid = previousSession.uid;
+      if (previousUid) {
+        await clearLocalDataForUid(previousUid);
+      }
+    } catch (error) {
+      console.warn("[AuthSession] Failed to clear previous local user data:", error);
+    }
+  }
+
+  await syncUserDocument(user);
   emitSession(nextSession);
   await persistSession(nextSession);
   return nextSession;

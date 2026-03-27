@@ -6,7 +6,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
-import { useAppleSignIn } from "../hooks/useAppleSignIn";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, "Register">;
@@ -17,7 +16,7 @@ interface Props {
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function RegisterScreen({ navigation }: Readonly<Props>) {
-  const { signUpWithEmail } = useAuth();
+  const { session, signUpWithEmail } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,9 +24,6 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
-    onSuccess: () => navigation.replace("DialogueDashboard"),
-  });
-  const { handleAppleSignIn, appleLoading } = useAppleSignIn({
     onSuccess: () => navigation.replace("DialogueDashboard"),
   });
 
@@ -42,6 +38,12 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
   const hasPasswordError = password.length > 0 && !passwordLongEnough;
   const hasConfirmError = confirmPassword.length > 0 && !passwordsMatch;
   const formValid = emailValid && passwordLongEnough && passwordsMatch && agreed;
+
+  React.useEffect(() => {
+    if (session.mode === "authenticated") {
+      navigation.replace("DialogueDashboard");
+    }
+  }, [navigation, session.mode]);
 
   const getErrorDetails = (error: unknown) => {
     if (error instanceof Error) {
@@ -202,7 +204,7 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
                   icon="google"
                   style={[styles.outlined, styles.pill]}
                   labelStyle={styles.outlinedLabel}
-                  disabled={loading || googleLoading || appleLoading}
+                  disabled={loading || googleLoading}
                   onPress={handleGoogleSignIn}
                 >
                   Sign in with Google
