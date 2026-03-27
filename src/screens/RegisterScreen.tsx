@@ -205,7 +205,7 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
                   disabled={loading || googleLoading || appleLoading}
                   onPress={handleGoogleSignIn}
                 >
-                  Google
+                  Sign in with Google
                 </Button>
               </View>
               <Button onPress={() => navigation.navigate("Welcome")} labelStyle={styles.linkLabel}>
