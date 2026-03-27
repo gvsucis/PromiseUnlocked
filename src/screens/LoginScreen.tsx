@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
+import { useAppleSignIn } from "../hooks/useAppleSignIn";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
@@ -19,6 +20,9 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
+    onSuccess: () => navigation.replace("DialogueDashboard"),
+  });
+  const { handleAppleSignIn, appleLoading } = useAppleSignIn({
     onSuccess: () => navigation.replace("DialogueDashboard"),
   });
 
@@ -164,24 +168,18 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
               </Button>
 
               <Divider style={styles.divider} />
-
-              <Button
-                mode="outlined"
-                icon="google"
-                style={[styles.outlined, styles.pill]}
-                labelStyle={styles.outlinedLabel}
-                disabled={loading || googleLoading}
-                onPress={handleGoogleSignIn}
-              >
-                Sign in with Google
-              </Button>
-              {/*<Button mode="outlined" icon="apple" style={[styles.outlined, styles.apple, styles.pill]}
-                labelStyle={styles.outlinedLabel}
-                onPress={() => Alert.alert('Coming Soon', 'Apple sign-in not yet implemented.')}>
-                Sign in with Apple
-              </Button>
-              */}
-
+              <View style={styles.fixToText}>
+                <Button
+                  mode="outlined"
+                  icon="google"
+                  style={[styles.outlined, styles.pill]}
+                  labelStyle={styles.outlinedLabel}
+                  disabled={loading || googleLoading || appleLoading}
+                  onPress={handleGoogleSignIn}
+                >
+                  Sign in with Google
+                </Button>
+              </View>
               <Divider style={styles.divider} />
 
               <Button
@@ -242,4 +240,8 @@ const styles = StyleSheet.create({
   linkLabel: { color: "#fff" },
   secondaryContained: { backgroundColor: "rgba(255,255,255,0.18)" },
   secondaryLabel: { color: "#fff", fontWeight: "600" },
+  fixToText: {
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+  },
 });

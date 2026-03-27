@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
+import { useAppleSignIn } from "../hooks/useAppleSignIn";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, "Register">;
@@ -24,6 +25,9 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
+    onSuccess: () => navigation.replace("DialogueDashboard"),
+  });
+  const { handleAppleSignIn, appleLoading } = useAppleSignIn({
     onSuccess: () => navigation.replace("DialogueDashboard"),
   });
 
@@ -192,16 +196,18 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
               </Button>
 
               <Divider style={styles.divider} />
-              <Button
-                mode="outlined"
-                icon="google"
-                style={[styles.outlined, styles.pill]}
-                labelStyle={styles.outlinedLabel}
-                disabled={loading || googleLoading}
-                onPress={handleGoogleSignIn}
-              >
-                Google
-              </Button>
+              <View style={styles.fixToText}>
+                <Button
+                  mode="outlined"
+                  icon="google"
+                  style={[styles.outlined, styles.pill]}
+                  labelStyle={styles.outlinedLabel}
+                  disabled={loading || googleLoading || appleLoading}
+                  onPress={handleGoogleSignIn}
+                >
+                  Google
+                </Button>
+              </View>
               <Button onPress={() => navigation.navigate("Welcome")} labelStyle={styles.linkLabel}>
                 Back to welcome
               </Button>
@@ -267,4 +273,8 @@ const styles = StyleSheet.create({
   linkLabel: { color: "#fff" },
   outlined: { borderColor: "rgba(255,255,255,0.7)", marginBottom: 8 },
   outlinedLabel: { color: "#fff" },
+  fixToText: {
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+  },
 });
