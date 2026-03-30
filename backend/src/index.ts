@@ -7,24 +7,30 @@ import usersRouter from "./api/users";
 import sessionsRouter from "./api/sessions";
 import interactionsRouter from "./api/interactions";
 import authRouter from "./api/auth";
+import { authenticateToken } from "./middleware/auth";
 import { setupSwagger } from "./swagger";
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 8000;
 
 app.use(cors());
 app.use(express.json());
 
 setupSwagger(app);
 
+// Public routes
 app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({ status: "Server is running" });
 });
-
 app.use("/api/auth", authRouter);
-app.use("/api/users", usersRouter);
+
+// Protected routes
+app.use("/api/users", authenticateToken, usersRouter);
+app.use("/api/sessions", authenticateToken, sessionsRouter);
+app.use("/api/interactions", authenticateToken, interactionsRouter);
+
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/interactions", interactionsRouter);
 

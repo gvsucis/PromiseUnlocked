@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateToken } from "@/middleware/auth";
-import { admin, usersCollection } from "@/services/firestore";
+import { admin, participantsCollection } from "@/services/firestore";
 import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
 
 const router = express.Router();
@@ -22,7 +22,7 @@ const buildProfileFromRecord = (
 };
 
 const fetchOrCreateProfile = async (uid: string): Promise<UserProfile> => {
-  const snapshot = await usersCollection.doc(uid).get();
+  const snapshot = await participantsCollection.doc(uid).get();
   if (snapshot.exists) {
     const data = snapshot.data();
     if (data) {
@@ -31,7 +31,7 @@ const fetchOrCreateProfile = async (uid: string): Promise<UserProfile> => {
   }
   const userRecord = await admin.auth().getUser(uid);
   const profile = buildProfileFromRecord(userRecord);
-  await usersCollection.doc(uid).set(profile);
+  await participantsCollection.doc(uid).set(profile);
   return profile;
 };
 
@@ -50,10 +50,10 @@ router.post("/", async (req, res) => {
     const baseProfile = buildProfileFromRecord(userRecord, metadata);
     const profile: UserProfile = {
       ...baseProfile,
-      displayName: typeof displayName !== "undefined" ? displayName : baseProfile.displayName,
-      photoURL: typeof photoURL !== "undefined" ? photoURL : baseProfile.photoURL,
+      displayName: displayName === "undefined" ? baseProfile.displayName : displayName,
+      photoURL: photoURL === "undefined" ? baseProfile.photoURL : photoURL,
     };
-    await usersCollection.doc(userRecord.uid).set(profile);
+    await participantsCollection.doc(userRecord.uid).set(profile);
     return res.status(201).json({ user: profile });
   } catch (error) {
     console.error("Error creating user:", error);
@@ -99,12 +99,23 @@ router.patch("/me", authenticateToken, async (req, res) => {
     if (metadata !== "undefined") {
       updates.metadata = metadata;
     }
-    await usersCollection.doc(uid).set(updates, { merge: true });
+    await participantsCollection.doc(uid).set(updates, { merge: true });
     const profile = await fetchOrCreateProfile(uid);
     return res.json({ user: profile });
   } catch (error) {
     console.error("Error updating profile:", error);
     return res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+router.get("/all", authenticateToken, async (_req, res) => {
+  try {
+    const snapshot = await participantsCollection.get();
+    const users = snapshot.docs.map((doc) => doc.data());
+    return res.json({ users });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    return res.status(500).json({ error: "Failed to fetch users" });
   }
 });
 
@@ -130,11 +141,23 @@ router.delete("/:uid", authenticateToken, async (req, res) => {
     return res.status(403).json({ error: "Forbidden" });
   }
   try {
-    await Promise.all([admin.auth().deleteUser(uid), usersCollection.doc(uid).delete()]);
+    await Promise.all([admin.auth().deleteUser(uid), participantsCollection.doc(uid).delete()]);
     return res.status(204).send();
   } catch (error) {
     console.error("Error deleting user:", error);
     return res.status(500).json({ error: "Failed to delete user" });
+  }
+});
+
+router.get("/", authenticateToken, async (req, res) => {
+  const { uid } = (req as AuthenticatedRequest).user;
+  try {
+    const snapshot = await participantsCollection.get();
+    const users = snapshot.docs.map((doc) => doc.data()).filter((user) => user.uid === uid);
+    return res.json({ users });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    return res.status(500).json({ error: "Failed to fetch users" });
   }
 });
 
