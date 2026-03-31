@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import gracefulShutdown from "http-graceful-shutdown";
-import usersRouter from "./api/users";
+import participantsRouter from "./api/participants";
 import sessionsRouter from "./api/sessions";
 import interactionsRouter from "./api/interactions";
 import authRouter from "./api/auth";
@@ -27,7 +27,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 
 // Protected routes
-app.use("/api/users", authenticateToken, usersRouter);
+app.use("/api/participants", authenticateToken, participantsRouter);
 app.use("/api/sessions", authenticateToken, sessionsRouter);
 app.use("/api/interactions", authenticateToken, interactionsRouter);
 

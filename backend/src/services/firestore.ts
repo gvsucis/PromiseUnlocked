@@ -23,7 +23,8 @@ const userConverter: FirestoreDataConverter<UserProfile> = {
       displayName: data.displayName,
       photoURL: data.photoURL,
       createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
+      updatedAt: data.lastActivityAt,
+      isAnonymous: data.isAnonymous,
       metadata: data.metadata ?? {},
     };
   },
@@ -65,16 +66,22 @@ export const usersCollection = participantsCollection;
 
 export const participantDoc = (uid: string) => participantsCollection.doc(uid);
 
-export const participantSessionsCollection = (uid: string): CollectionReference<SessionRecord> =>
-  participantDoc(uid).collection("sessions").withConverter(sessionConverter);
+export const participantSessionsCollection = (uid: string) =>
+  participantDoc(uid).collection("sessions");
+export const participantSessionsCollectionInteractions = (uid: string, sessionId: string) =>
+  participantSessionDoc(uid, sessionId)
+    .collection("interactions")
+    .withConverter(interactionConverter);
 
 export const participantSessionDoc = (uid: string, sessionId: string) =>
-  participantSessionsCollection(uid).doc(sessionId);
+  participantDoc(uid).collection("sessions").doc(sessionId);
 
 export const participantSessionInteractionsCollection = (
   uid: string,
   sessionId: string
 ): CollectionReference<InteractionRecord> =>
-  participantSessionDoc(uid, sessionId).collection("interactions").withConverter(interactionConverter);
+  participantSessionDoc(uid, sessionId)
+    .collection("interactions")
+    .withConverter(interactionConverter);
 
 export { admin, db };

@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateToken } from "@/middleware/auth";
-import { admin, participantsCollection } from "@/services/firestore";
+import { admin, participantsCollection, participantSessionsCollection } from "@/services/firestore";
 import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
 
 const router = express.Router();
@@ -112,6 +112,7 @@ router.get("/all", authenticateToken, async (_req, res) => {
   try {
     const snapshot = await participantsCollection.get();
     const users = snapshot.docs.map((doc) => doc.data());
+    console.log("Fetched users:", users);
     return res.json({ users });
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -120,32 +121,34 @@ router.get("/all", authenticateToken, async (_req, res) => {
 });
 
 router.get("/:uid", authenticateToken, async (req, res) => {
-  const requester = (req as AuthenticatedRequest).user;
   const { uid } = req.params;
-  if (requester.uid !== uid) {
-    return res.status(403).json({ error: "Forbidden" });
+  if (typeof uid !== "string") {
+    return res.status(400).json({ error: "Invalid user id" });
   }
   try {
-    const profile = await fetchOrCreateProfile(uid);
-    return res.json({ user: profile });
+    const sessionSnapshot = await participantsCollection.doc(uid).get();
+    if (!sessionSnapshot.exists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    return res.json({ user: sessionSnapshot });
   } catch (error) {
     console.error("Error fetching user:", error);
     return res.status(500).json({ error: "Failed to fetch user" });
   }
 });
 
-router.delete("/:uid", authenticateToken, async (req, res) => {
-  const requester = (req as AuthenticatedRequest).user;
-  const { uid } = req.params;
-  if (requester.uid !== uid) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
+router.get("/:uid/sessions", authenticateToken, async (req, res) => {
+  const { uid } = req.params as { uid: string };
   try {
-    await Promise.all([admin.auth().deleteUser(uid), participantsCollection.doc(uid).delete()]);
-    return res.status(204).send();
+    const sessionsSnapshot = await participantSessionsCollection(uid).get();
+    const sessions = sessionsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    return res.json({ sessions });
   } catch (error) {
-    console.error("Error deleting user:", error);
-    return res.status(500).json({ error: "Failed to delete user" });
+    console.error("Error fetching sessions for user:", error);
+    return res.status(500).json({ error: "Failed to fetch sessions" });
   }
 });
 

@@ -1,8 +1,7 @@
 import express from "express";
-import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { authenticateToken } from "@/middleware/auth";
 import { participantSessionDoc, participantSessionsCollection } from "@/services/firestore";
-import type { AuthenticatedRequest, SessionRecord } from "@/types/firestore";
+import type { SessionRecord } from "@/types/firestore";
 
 const router = express.Router();
 
@@ -16,15 +15,15 @@ const parseLimit = (value?: string | string[]) => {
 };
 
 router.get("/", authenticateToken, async (req, res) => {
-  const { uid } = (req as AuthenticatedRequest).user;
   const { status, limit } = req.query;
+  const { uid } = req.params as { uid: string };
   let query = participantSessionsCollection(uid).orderBy("startedAt", "desc");
   if (typeof status === "string" && ["active", "completed", "cancelled"].includes(status)) {
     query = query.where("status", "==", status);
   }
   try {
     const snapshot = await query.limit(parseLimit(limit as string | undefined)).get();
-    const sessions = snapshot.docs.map((doc: QueryDocumentSnapshot<SessionRecord>) => doc.data());
+    const sessions = snapshot.docs.map((doc) => doc.data() as SessionRecord);
     return res.json({ sessions });
   } catch (error) {
     console.error("Error listing sessions:", error);
@@ -33,7 +32,7 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 router.get("/:sessionId", authenticateToken, async (req, res) => {
-  const { uid } = (req as AuthenticatedRequest).user;
+  const { uid } = req.params as { uid: string };
   const { sessionId } = req.params as { sessionId: string };
   try {
     const doc = await participantSessionDoc(uid, sessionId).get();
