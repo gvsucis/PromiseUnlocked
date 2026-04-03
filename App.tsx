@@ -21,6 +21,8 @@ import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import { Limelight } from "@getlimelight/sdk";
 import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
+import "./global.css";
+import { Text, View } from "react-native";
 
 const Stack = createStackNavigator<RootStackParamList>();
 
