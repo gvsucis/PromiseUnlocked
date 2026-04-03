@@ -2,6 +2,7 @@ import React, { useRef } from "react";
 import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { Text, Card, ActivityIndicator } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
+import TopTabBar from "../components/TopTabBar";
 import { MaterialIcons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
@@ -436,6 +437,27 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
           </Card.Content>
         </Card>
 
+        <TopTabBar
+          containerStyle={styles.topTabBarInPassport}
+          tabs={[
+            {
+              key: "profile",
+              title: "Profile",
+              onPress: () => navigation.navigate("Profile"),
+            },
+            {
+              key: "schools",
+              title: "Schools",
+              onPress: () => {},
+            },
+            {
+              key: "interests",
+              title: "Interests",
+              onPress: () => {},
+            },
+          ]}
+        />
+
         {error ? (
           <Card style={styles.errorCard}>
             <Card.Content>
@@ -564,6 +586,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#fff",
     marginTop: 10,
+  },
+  topTabBarInPassport: {
+    marginTop: 14,
+    marginBottom: 14,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.45)",
   },
   subtitle: {
     fontSize: 16,

@@ -16,6 +16,7 @@ import SignUpScreen from "./src/screens/SignUpScreen";
 import FollowUpQuestionScreen from "./src/screens/FollowUpQuestionScreen";
 import SkillsDashboardScreen from "./src/screens/SkillsDashboardScreen";
 import DialogueDashboardScreen from "./src/screens/DialogueDashboardScreen";
+import ProfileScreen from "./src/screens/ProfileScreen";
 import { RootStackParamList } from "./src/types/navigation";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
@@ -94,6 +95,11 @@ export default function App() {
             name="Dashboard"
             component={DashboardScreen}
             options={{ title: "Achievement Dashboard" }}
+          />
+          <Stack.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{ title: "My Profile" }}
           />
           <Stack.Screen
             name="SkillsDashboard"
