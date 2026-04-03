@@ -1,17 +1,55 @@
 import admin from "firebase-admin";
-import type { CollectionReference, FirestoreDataConverter } from "firebase-admin/firestore";
+import type { FirestoreDataConverter } from "firebase-admin/firestore";
 import type { ServiceAccount } from "firebase-admin";
 import serviceAccount from "../../serviceAccountKey.json";
 import type { InteractionRecord, SessionRecord, UserProfile } from "../types/firestore";
-const typedServiceAccount = serviceAccount as ServiceAccount;
 
+// --- Firebase Admin App ---
+const typedServiceAccount = serviceAccount as ServiceAccount;
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(typedServiceAccount),
   });
 }
-
 const db = admin.firestore();
+
+// --- Timestamp Normalization ---
+export function normalizeTimestamps(
+  obj: Record<string, any>,
+  fields: string[]
+): Record<string, any> {
+  const toIso = (ts: any) => {
+    if (!ts) return null;
+    if (typeof ts === "string") return ts;
+    if (typeof ts.toDate === "function") return ts.toDate().toISOString();
+    if (typeof ts._seconds === "number") return new Date(ts._seconds * 1000).toISOString();
+    return null;
+  };
+  const result: Record<string, any> = {};
+  for (const field of fields) {
+    result[field] = toIso(obj?.[field]);
+  }
+  return result;
+}
+
+export function normalizeSession(
+  doc: FirebaseFirestore.DocumentSnapshot | (SessionRecord & { id?: string })
+): unknown {
+  const data = "data" in doc ? doc.data() : doc;
+
+  const id = "id" in doc && typeof doc.id === "string" ? doc.id : (doc as any).id;
+  return {
+    id: id ?? null,
+    alreadyMappedCount: data?.alreadyMappedCount ?? 0,
+    categoriesMapped: data?.categoriesMapped ?? [],
+    categoriesMappedCount: data?.categoriesMappedCount ?? 0,
+    status: data?.status ?? null,
+    totalInteractions: data?.totalInteractions ?? 0,
+    weakFitCount: data?.weakFitCount ?? 0,
+    interactions: data?.interactions ?? [],
+    ...normalizeTimestamps(data!, ["completedAt", "lastActiveAt", "startedAt"]),
+  };
+}
 
 const userConverter: FirestoreDataConverter<UserProfile> = {
   toFirestore: (user) => user,
@@ -61,25 +99,19 @@ const interactionConverter: FirestoreDataConverter<InteractionRecord> = {
   },
 };
 
+// --- Collection/Doc Helpers ---
 export const participantsCollection = db.collection("participants").withConverter(userConverter);
 export const usersCollection = participantsCollection;
 
 export const participantDoc = (uid: string) => participantsCollection.doc(uid);
 
 export const participantSessionsCollection = (uid: string) =>
-  participantDoc(uid).collection("sessions");
-export const participantSessionsCollectionInteractions = (uid: string, sessionId: string) =>
-  participantSessionDoc(uid, sessionId)
-    .collection("interactions")
-    .withConverter(interactionConverter);
+  participantDoc(uid).collection("sessions").withConverter(sessionConverter);
 
 export const participantSessionDoc = (uid: string, sessionId: string) =>
-  participantDoc(uid).collection("sessions").doc(sessionId);
+  participantSessionsCollection(uid).doc(sessionId);
 
-export const participantSessionInteractionsCollection = (
-  uid: string,
-  sessionId: string
-): CollectionReference<InteractionRecord> =>
+export const participantSessionInteractionsCollection = (uid: string, sessionId: string) =>
   participantSessionDoc(uid, sessionId)
     .collection("interactions")
     .withConverter(interactionConverter);

@@ -1,9 +1,6 @@
-// This file has been renamed from users.ts to participants.ts as part of the RESTful API refactor.
-// All routes and variable names have been updated to use 'participant' instead of 'user'.
-
 import express from "express";
 import { authenticateToken } from "@/middleware/auth";
-import { admin, participantsCollection, participantSessionsCollection } from "@/services/firestore";
+import { admin, participantsCollection } from "@/services/firestore";
 import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
 
 const router = express.Router();
@@ -78,7 +75,7 @@ router.get("/", authenticateToken, async (_req, res) => {
 });
 
 // Get individual participant
-router.get(":uid", authenticateToken, async (req, res) => {
+router.get("/:uid", authenticateToken, async (req, res) => {
   const { uid } = req.params;
   if (typeof uid !== "string") {
     return res.status(400).json({ error: "Invalid participant id" });
@@ -95,24 +92,8 @@ router.get(":uid", authenticateToken, async (req, res) => {
   }
 });
 
-// Get sessions for a participant
-router.get(":uid/sessions", authenticateToken, async (req, res) => {
-  const { uid } = req.params as { uid: string };
-  try {
-    const sessionsSnapshot = await participantSessionsCollection(uid).get();
-    const sessions = sessionsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    return res.json({ sessions });
-  } catch (error) {
-    console.error("Error fetching sessions for participant:", error);
-    return res.status(500).json({ error: "Failed to fetch sessions" });
-  }
-});
-
 // Delete participant
-router.delete(":uid", authenticateToken, async (req, res) => {
+router.delete("/:uid", authenticateToken, async (req, res) => {
   const requester = (req as AuthenticatedRequest).user;
   const { uid } = req.params;
   if (requester.uid !== uid) {

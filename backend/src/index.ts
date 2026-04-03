@@ -28,11 +28,12 @@ app.use("/api/auth", authRouter);
 
 // Protected routes
 app.use("/api/participants", authenticateToken, participantsRouter);
-app.use("/api/sessions", authenticateToken, sessionsRouter);
-app.use("/api/interactions", authenticateToken, interactionsRouter);
-
-app.use("/api/sessions", sessionsRouter);
-app.use("/api/interactions", interactionsRouter);
+app.use("/api/participants/:participantId/sessions", authenticateToken, sessionsRouter);
+app.use(
+  "/api/participants/:participantId/sessions/:sessionId/interactions",
+  authenticateToken,
+  interactionsRouter
+);
 
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.path} not found` });

@@ -1,10 +1,13 @@
 import express from "express";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { authenticateToken } from "@/middleware/auth";
-import { participantSessionDoc, participantSessionInteractionsCollection } from "@/services/firestore";
-import type { AuthenticatedRequest, InteractionRecord } from "@/types/firestore";
+import {
+  participantSessionDoc,
+  participantSessionInteractionsCollection,
+} from "@/services/firestore";
+import type { InteractionRecord } from "@/types/firestore";
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
 const parseLimit = (value?: string | string[]) => {
   const asString = Array.isArray(value) ? value[0] : value;
@@ -15,8 +18,19 @@ const parseLimit = (value?: string | string[]) => {
   return Math.min(parsed, 200);
 };
 
-const ensureSessionOwnership = async (sessionId: string, uid: string) => {
-  const sessionDoc = await participantSessionDoc(uid, sessionId).get();
+// Utility to resolve participantId and sessionId from params
+function resolveParticipantAndSessionId(params: Record<string, any>): {
+  participantId?: string;
+  sessionId?: string;
+} {
+  return {
+    participantId: params.participantId || params.uid || params.id,
+    sessionId: params.sessionId,
+  };
+}
+
+const ensureSessionOwnership = async (participantId: string, sessionId: string) => {
+  const sessionDoc = await participantSessionDoc(participantId, sessionId).get();
   if (!sessionDoc.exists) {
     return { code: 404 as const };
   }
@@ -27,26 +41,53 @@ const ensureSessionOwnership = async (sessionId: string, uid: string) => {
   return { code: 200 as const };
 };
 
-router.get("/:sessionId", authenticateToken, async (req, res) => {
-  const { uid } = (req as AuthenticatedRequest).user;
-  const { sessionId } = req.params as { sessionId: string };
+// GET all interactions for a session
+router.get("/", authenticateToken, async (req, res) => {
+  const { participantId, sessionId } = resolveParticipantAndSessionId(req.params);
   const { limit } = req.query;
+  if (!participantId || !sessionId) {
+    return res.status(400).json({ error: "Missing participantId or sessionId in route." });
+  }
   try {
-    const ownership = await ensureSessionOwnership(sessionId, uid);
+    const ownership = await ensureSessionOwnership(participantId, sessionId);
     if (ownership.code === 404) {
       return res.status(404).json({ error: "Session not found" });
     }
-    const snapshot = await participantSessionInteractionsCollection(uid, sessionId)
+    const snapshot = await participantSessionInteractionsCollection(participantId, sessionId)
       .orderBy("createdAt", "asc")
       .limit(parseLimit(limit as string | undefined))
       .get();
-    const interactions = snapshot.docs.map((doc: QueryDocumentSnapshot<InteractionRecord>) =>
-      doc.data()
-    );
+    const interactions = snapshot.docs.map((doc: QueryDocumentSnapshot<InteractionRecord>) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
     return res.json({ interactions });
   } catch (error) {
     console.error("Error fetching interactions:", error);
     return res.status(500).json({ error: "Failed to fetch interactions" });
+  }
+});
+
+// GET a single interaction by id
+router.get("/:interactionId", authenticateToken, async (req, res) => {
+  const { participantId, sessionId } = resolveParticipantAndSessionId(req.params);
+  const { interactionId } = req.params as { interactionId: string };
+  if (!participantId || !sessionId || !interactionId) {
+    return res
+      .status(400)
+      .json({ error: "Missing participantId, sessionId, or interactionId in route." });
+  }
+  try {
+    const doc = await participantSessionInteractionsCollection(participantId, sessionId)
+      .doc(interactionId)
+      .get();
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Interaction not found" });
+    }
+    return res.json({ interaction: { id: doc.id, ...doc.data() } });
+  } catch (error) {
+    console.error("Error fetching interaction:", error);
+    return res.status(500).json({ error: "Failed to fetch interaction" });
   }
 });
 

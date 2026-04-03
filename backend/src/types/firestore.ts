@@ -20,7 +20,15 @@ export interface SessionRecord {
   status: SessionStatus;
   startedAt: number;
   endedAt?: number;
-  metadata: Record<string, unknown>;
+
+  alreadyMappedCount?: number;
+  categoriesMapped?: string[];
+  categoriesMappedCount?: number;
+  completedAt?: number | string | FirebaseFirestore.Timestamp | null;
+  lastActiveAt?: number | string | FirebaseFirestore.Timestamp | null;
+  weakFitCount?: number;
+  totalInteractions?: number;
+  interactions?: any[];
 }
 
 export interface InteractionRecord {

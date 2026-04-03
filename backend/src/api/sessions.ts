@@ -3,7 +3,7 @@ import { authenticateToken } from "@/middleware/auth";
 import { participantSessionDoc, participantSessionsCollection } from "@/services/firestore";
 import type { SessionRecord } from "@/types/firestore";
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
 const parseLimit = (value?: string | string[]) => {
   const asString = Array.isArray(value) ? value[0] : value;
@@ -14,16 +14,26 @@ const parseLimit = (value?: string | string[]) => {
   return Math.min(parsed, 100);
 };
 
+// Utility to resolve participantId from req.params
+function resolveParticipantId(params: Record<string, any>): string | undefined {
+  return params.participantId || params.uid || params.id;
+}
+
 router.get("/", authenticateToken, async (req, res) => {
   const { status, limit } = req.query;
-  const { uid } = req.params as { uid: string };
-  let query = participantSessionsCollection(uid).orderBy("startedAt", "desc");
+  const participantId = resolveParticipantId(req.params);
+  if (!participantId) {
+    return res.status(400).json({ error: "Missing participantId in route." });
+  }
+  let query = participantSessionsCollection(participantId).orderBy("startedAt", "desc");
   if (typeof status === "string" && ["active", "completed", "cancelled"].includes(status)) {
     query = query.where("status", "==", status);
   }
   try {
     const snapshot = await query.limit(parseLimit(limit as string | undefined)).get();
-    const sessions = snapshot.docs.map((doc) => doc.data() as SessionRecord);
+    // Use normalizeSession for each doc
+    const { normalizeSession } = await import("@/services/firestore");
+    const sessions = snapshot.docs.map((doc) => normalizeSession(doc));
     return res.json({ sessions });
   } catch (error) {
     console.error("Error listing sessions:", error);
@@ -32,17 +42,21 @@ router.get("/", authenticateToken, async (req, res) => {
 });
 
 router.get("/:sessionId", authenticateToken, async (req, res) => {
-  const { uid } = req.params as { uid: string };
+  const participantId = resolveParticipantId(req.params);
   const { sessionId } = req.params as { sessionId: string };
+  if (!participantId) {
+    return res.status(400).json({ error: "Missing participantId in route." });
+  }
   try {
-    const doc = await participantSessionDoc(uid, sessionId).get();
+    const doc = await participantSessionDoc(participantId, sessionId).get();
     if (!doc.exists) {
       return res.status(404).json({ error: "Session not found" });
     }
-    const session = doc.data();
-    if (!session) {
+    const { normalizeSession } = await import("@/services/firestore");
+    if (!doc.exists) {
       return res.status(404).json({ error: "Session not found" });
     }
+    const session = normalizeSession(doc);
     return res.json({ session });
   } catch (error) {
     console.error("Error fetching session:", error);
