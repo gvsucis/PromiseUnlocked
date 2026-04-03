@@ -16,8 +16,11 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/native": "^7.1.17",
     "@react-navigation/stack": "^7.4.7",
+    "@rn-primitives/portal": "^1.4.0",
     "axios": "^1.11.0",
     "babel-preset-expo": "^55.0.15",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "expo": "~54.0.0",
     "expo-auth-session": "~7.0.10",
     "expo-av": "^16.0.7",
@@ -43,7 +46,9 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-vector-icons": "^10.3.0",
-    "tailwindcss": "^3.4.19"
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^3.4.19",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

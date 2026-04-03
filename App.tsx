@@ -23,6 +23,7 @@ import { Limelight } from "@getlimelight/sdk";
 import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
 import "./global.css";
 import { Text, View } from "react-native";
+import { PortalHost } from "@rn-primitives/portal";
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -121,6 +122,7 @@ export default function App() {
           />
         </Stack.Navigator>
       </NavigationContainer>
+      <PortalHost />
     </PaperProvider>
   );
 }
