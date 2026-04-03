@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Button, Card, ActivityIndicator, Chip } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
+import TopTabBar from "../components/TopTabBar";
 import { getTaxonomySkillsWithStatus, getSkillsStats } from "../services/userSkillsService";
 import { getJSONFromStorage, setJSONInStorage } from "../util/asyncStorage";
 
@@ -592,6 +593,26 @@ export default function DashboardScreen({ route, navigation }: any) {
           <Text style={styles.title}>🎯 Your Achievement Dashboard</Text>
           <Text style={styles.subtitle}>Track your identified skills and achievements!</Text>
         </View>
+
+        <TopTabBar
+          tabs={[
+            {
+              key: "profile",
+              title: "Profile",
+              onPress: () => navigation.navigate("Profile"),
+            },
+            {
+              key: "schools",
+              title: "Schools",
+              onPress: () => {},
+            },
+            {
+              key: "interests",
+              title: "Interests",
+              onPress: () => {},
+            },
+          ]}
+        />
 
         {/* Progress Overview (Skills) */}
         <Card style={styles.progressCard}>
