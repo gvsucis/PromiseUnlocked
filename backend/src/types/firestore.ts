@@ -13,6 +13,8 @@ export interface UserProfile {
 
 export type SessionStatus = "active" | "completed" | "cancelled";
 
+export type FirestoreDateValue = number | string | FirebaseFirestore.Timestamp | null;
+
 export interface SessionRecord {
   id?: string;
   userId: string;
@@ -24,20 +26,27 @@ export interface SessionRecord {
   alreadyMappedCount?: number;
   categoriesMapped?: string[];
   categoriesMappedCount?: number;
-  completedAt?: number | string | FirebaseFirestore.Timestamp | null;
-  lastActiveAt?: number | string | FirebaseFirestore.Timestamp | null;
+  completedAt?: FirestoreDateValue;
+  lastActiveAt?: FirestoreDateValue;
   weakFitCount?: number;
   totalInteractions?: number;
-  interactions?: any[];
+  interactions?: InteractionRecord[];
 }
 
 export interface InteractionRecord {
   id?: string;
-  sessionId: string;
-  userId: string;
-  type: string;
-  payload: Record<string, unknown>;
-  createdAt: number;
+  sequenceIndex: number;
+  question: string;
+  answer: string;
+  inputMethod: "text" | "voice" | "image";
+  mappingOutcome: "mapped" | "already_mapped" | "weak_fit" | "invalid";
+  mappedCategory: string | null;
+  isWeakFit: boolean;
+  isAlreadyMapped: boolean;
+  justification: string;
+  matchedToCategory: string | null;
+  matchedToSequenceIndex: number | null;
+  timestamp: FirestoreDateValue;
 }
 
 export type AuthenticatedRequest = Request & {

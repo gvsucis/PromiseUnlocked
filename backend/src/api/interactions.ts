@@ -2,10 +2,12 @@ import express from "express";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { authenticateToken } from "@/middleware/auth";
 import {
+  normalizeInteraction,
   participantSessionDoc,
   participantSessionInteractionsCollection,
 } from "@/services/firestore";
-import type { InteractionRecord } from "@/types/firestore";
+import type { AuthenticatedRequest, InteractionRecord } from "@/types/firestore";
+import { canAccessParticipant } from "@/utils/authz";
 
 const router = express.Router({ mergeParams: true });
 
@@ -45,22 +47,25 @@ const ensureSessionOwnership = async (participantId: string, sessionId: string) 
 router.get("/", authenticateToken, async (req, res) => {
   const { participantId, sessionId } = resolveParticipantAndSessionId(req.params);
   const { limit } = req.query;
+  const requester = (req as AuthenticatedRequest).user;
   if (!participantId || !sessionId) {
     return res.status(400).json({ error: "Missing participantId or sessionId in route." });
   }
   try {
+    if (!(await canAccessParticipant(requester, participantId))) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const ownership = await ensureSessionOwnership(participantId, sessionId);
     if (ownership.code === 404) {
       return res.status(404).json({ error: "Session not found" });
     }
     const snapshot = await participantSessionInteractionsCollection(participantId, sessionId)
-      .orderBy("createdAt", "asc")
+      .orderBy("timestamp", "asc")
       .limit(parseLimit(limit as string | undefined))
       .get();
-    const interactions = snapshot.docs.map((doc: QueryDocumentSnapshot<InteractionRecord>) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const interactions = snapshot.docs.map((doc: QueryDocumentSnapshot<InteractionRecord>) =>
+      normalizeInteraction(doc)
+    );
     return res.json({ interactions });
   } catch (error) {
     console.error("Error fetching interactions:", error);
@@ -72,23 +77,48 @@ router.get("/", authenticateToken, async (req, res) => {
 router.get("/:interactionId", authenticateToken, async (req, res) => {
   const { participantId, sessionId } = resolveParticipantAndSessionId(req.params);
   const { interactionId } = req.params as { interactionId: string };
+  const requester = (req as AuthenticatedRequest).user;
   if (!participantId || !sessionId || !interactionId) {
     return res
       .status(400)
       .json({ error: "Missing participantId, sessionId, or interactionId in route." });
   }
   try {
+    if (!(await canAccessParticipant(requester, participantId))) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const doc = await participantSessionInteractionsCollection(participantId, sessionId)
       .doc(interactionId)
       .get();
     if (!doc.exists) {
       return res.status(404).json({ error: "Interaction not found" });
     }
-    return res.json({ interaction: { id: doc.id, ...doc.data() } });
+    return res.json({ interaction: normalizeInteraction(doc) });
   } catch (error) {
     console.error("Error fetching interaction:", error);
     return res.status(500).json({ error: "Failed to fetch interaction" });
   }
 });
 
+//Get Interaction for authenticated participant's session
+router.get("/me/:interactionId", authenticateToken, async (req, res) => {
+  const { sessionId } = req.params as { sessionId: string };
+  const { interactionId } = req.params as { interactionId: string };
+  const requester = (req as AuthenticatedRequest).user;
+  if (!sessionId || !interactionId) {
+    return res.status(400).json({ error: "Missing sessionId or interactionId in route." });
+  }
+  try {
+    const doc = await participantSessionInteractionsCollection(requester.uid, sessionId)
+      .doc(interactionId)
+      .get();
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Interaction not found" });
+    }
+    return res.json({ interaction: normalizeInteraction(doc) });
+  } catch (error) {
+    console.error("Error fetching interaction:", error);
+    return res.status(500).json({ error: "Failed to fetch interaction" });
+  }
+});
 export default router;
