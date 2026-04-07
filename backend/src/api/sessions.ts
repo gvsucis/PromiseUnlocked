@@ -1,7 +1,8 @@
 import express from "express";
 import { authenticateToken } from "@/middleware/auth";
 import { participantSessionDoc, participantSessionsCollection } from "@/services/firestore";
-import type { SessionRecord } from "@/types/firestore";
+import type { AuthenticatedRequest, SessionRecord } from "@/types/firestore";
+import { canAccessParticipant } from "@/utils/authz";
 
 const router = express.Router({ mergeParams: true });
 
@@ -22,8 +23,12 @@ function resolveParticipantId(params: Record<string, any>): string | undefined {
 router.get("/", authenticateToken, async (req, res) => {
   const { status, limit } = req.query;
   const participantId = resolveParticipantId(req.params);
+  const requester = (req as AuthenticatedRequest).user;
   if (!participantId) {
     return res.status(400).json({ error: "Missing participantId in route." });
+  }
+  if (!(await canAccessParticipant(requester, participantId))) {
+    return res.status(403).json({ error: "Forbidden" });
   }
   let query = participantSessionsCollection(participantId).orderBy("startedAt", "desc");
   if (typeof status === "string" && ["active", "completed", "cancelled"].includes(status)) {
@@ -44,8 +49,12 @@ router.get("/", authenticateToken, async (req, res) => {
 router.get("/:sessionId", authenticateToken, async (req, res) => {
   const participantId = resolveParticipantId(req.params);
   const { sessionId } = req.params as { sessionId: string };
+  const requester = (req as AuthenticatedRequest).user;
   if (!participantId) {
     return res.status(400).json({ error: "Missing participantId in route." });
+  }
+  if (!(await canAccessParticipant(requester, participantId))) {
+    return res.status(403).json({ error: "Forbidden" });
   }
   try {
     const doc = await participantSessionDoc(participantId, sessionId).get();

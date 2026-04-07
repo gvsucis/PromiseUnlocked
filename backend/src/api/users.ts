@@ -1,6 +1,12 @@
 import express from "express";
 import { authenticateToken } from "@/middleware/auth";
-import { admin, participantsCollection, participantSessionsCollection } from "@/services/firestore";
+import {
+  admin,
+  normalizeSession,
+  normalizeUser,
+  participantsCollection,
+  participantSessionsCollection,
+} from "@/services/firestore";
 import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
 
 const router = express.Router();
@@ -54,7 +60,7 @@ router.post("/", async (req, res) => {
       photoURL: photoURL === "undefined" ? baseProfile.photoURL : photoURL,
     };
     await participantsCollection.doc(userRecord.uid).set(profile);
-    return res.status(201).json({ user: profile });
+    return res.status(201).json({ user: normalizeUser(profile) });
   } catch (error) {
     console.error("Error creating user:", error);
     return res.status(500).json({ error: "Failed to create user" });
@@ -65,7 +71,7 @@ router.get("/me", authenticateToken, async (req, res) => {
   const { uid } = (req as AuthenticatedRequest).user;
   try {
     const profile = await fetchOrCreateProfile(uid);
-    return res.json({ user: profile });
+    return res.json({ user: normalizeUser(profile) });
   } catch (error) {
     console.error("Error fetching authenticated user:", error);
     return res.status(500).json({ error: "Failed to fetch profile" });
@@ -101,7 +107,7 @@ router.patch("/me", authenticateToken, async (req, res) => {
     }
     await participantsCollection.doc(uid).set(updates, { merge: true });
     const profile = await fetchOrCreateProfile(uid);
-    return res.json({ user: profile });
+    return res.json({ user: normalizeUser(profile) });
   } catch (error) {
     console.error("Error updating profile:", error);
     return res.status(500).json({ error: "Failed to update profile" });
@@ -111,7 +117,7 @@ router.patch("/me", authenticateToken, async (req, res) => {
 router.get("/all", authenticateToken, async (_req, res) => {
   try {
     const snapshot = await participantsCollection.get();
-    const users = snapshot.docs.map((doc) => doc.data());
+    const users = snapshot.docs.map((doc) => normalizeUser(doc));
     console.log("Fetched users:", users);
     return res.json({ users });
   } catch (error) {
@@ -130,7 +136,7 @@ router.get("/:uid", authenticateToken, async (req, res) => {
     if (!sessionSnapshot.exists) {
       return res.status(404).json({ error: "User not found" });
     }
-    return res.json({ user: sessionSnapshot });
+    return res.json({ user: normalizeUser(sessionSnapshot) });
   } catch (error) {
     console.error("Error fetching user:", error);
     return res.status(500).json({ error: "Failed to fetch user" });
@@ -141,10 +147,7 @@ router.get("/:uid/sessions", authenticateToken, async (req, res) => {
   const { uid } = req.params as { uid: string };
   try {
     const sessionsSnapshot = await participantSessionsCollection(uid).get();
-    const sessions = sessionsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const sessions = sessionsSnapshot.docs.map((doc) => normalizeSession(doc));
     return res.json({ sessions });
   } catch (error) {
     console.error("Error fetching sessions for user:", error);
@@ -156,7 +159,9 @@ router.get("/", authenticateToken, async (req, res) => {
   const { uid } = (req as AuthenticatedRequest).user;
   try {
     const snapshot = await participantsCollection.get();
-    const users = snapshot.docs.map((doc) => doc.data()).filter((user) => user.uid === uid);
+    const users = snapshot.docs
+      .map((doc) => normalizeUser(doc) as UserProfile)
+      .filter((user) => user.uid === uid);
     return res.json({ users });
   } catch (error) {
     console.error("Error fetching users:", error);
