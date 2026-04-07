@@ -1,0 +1,313 @@
+{
+  "info": {
+    "_postman_id": "promiseunlocked-api-collection-merged",
+    "name": "PromiseUnlocked API (Merged)",
+    "description": "Merged collection: Auth, Participation/Sessions, and all endpoints from the original root collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Participation/Sessions",
+      "item": [
+        {
+          "name": "List Participants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/participants",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "participants"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Save a random participantId for the next dependent requests.",
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  var participants = Array.isArray(data.participants) ? data.participants.filter(function (participant) {",
+                  "    return participant && participant.uid;",
+                  "  }) : [];",
+                  "  if (participants.length > 0) {",
+                  "    var randomParticipant = participants[Math.floor(Math.random() * participants.length)];",
+                  "    pm.environment.set('participantId', randomParticipant.uid);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Participant Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "participants", "me"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Save the authenticated participantId for later dependent requests.",
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  if (data.participant && data.participant.uid) {",
+                  "    pm.environment.set('participantId', data.participant.uid);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List My Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/me/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "participants", "me", "sessions"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Save a random sessionId for the next dependent requests.",
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  var sessions = Array.isArray(data.sessions) ? data.sessions.filter(function (session) {",
+                  "    return session && session.id;",
+                  "  }) : [];",
+                  "  if (sessions.length > 0) {",
+                  "    var randomSession = sessions[Math.floor(Math.random() * sessions.length)];",
+                  "    pm.environment.set('sessionId', randomSession.id);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Other Endpoints",
+      "item": [
+        {
+          "name": "Get Participant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/{{participantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "participants", "{{participantId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Sessions for Participant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "participants", "{{participantId}}", "sessions"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Save a random sessionId for the next dependent requests.",
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  var sessions = Array.isArray(data.sessions) ? data.sessions.filter(function (session) {",
+                  "    return session && session.id;",
+                  "  }) : [];",
+                  "  if (sessions.length > 0) {",
+                  "    var randomSession = sessions[Math.floor(Math.random() * sessions.length)];",
+                  "    pm.environment.set('sessionId', randomSession.id);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "participants", "{{participantId}}", "sessions", "{{sessionId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Interactions for Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "api",
+                "participants",
+                "{{participantId}}",
+                "sessions",
+                "{{sessionId}}",
+                "interactions"
+              ],
+              "query": [{ "key": "limit", "value": "50", "description": "Optional. Max 200." }]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Save a random interactionId for the next dependent request.",
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  var interactions = Array.isArray(data.interactions) ? data.interactions.filter(function (interaction) {",
+                  "    return interaction && interaction.id;",
+                  "  }) : [];",
+                  "  if (interactions.length > 0) {",
+                  "    var randomInteraction = interactions[Math.floor(Math.random() * interactions.length)];",
+                  "    pm.environment.set('interactionId', randomInteraction.id);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Interaction",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "api",
+                "participants",
+                "{{participantId}}",
+                "sessions",
+                "{{sessionId}}",
+                "interactions",
+                "{{interactionId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:4000" }]
+}
