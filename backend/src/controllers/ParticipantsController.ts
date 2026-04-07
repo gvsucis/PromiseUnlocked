@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { authenticateToken } from "@/middleware/auth";
 import {
   admin,
   normalizeSession,

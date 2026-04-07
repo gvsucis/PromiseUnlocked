@@ -1,8 +1,6 @@
 import express from "express";
 import { authenticateToken } from "@/middleware/auth";
 import { ParticipantsController } from "../controllers/ParticipantsController";
-import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
-import { canAccessParticipant, isAdminUser } from "@/utils/authz";
 
 const router = express.Router();
 
