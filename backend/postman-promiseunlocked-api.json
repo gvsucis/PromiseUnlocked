@@ -2,6 +2,7 @@
   "info": {
     "_postman_id": "promiseunlocked-api-collection",
     "name": "PromiseUnlocked API",
+    "description": "Postman notes:\n1. Run `Login` first to store `bearerToken`.\n2. Requests that use `{{participantId}}`, `{{sessionId}}`, or `{{interactionId}}` depend on a previous list request.\n3. The list requests automatically save a random id from the response into the matching environment variable so the next request can reuse it.\n4. For participant self-serve flows, `List Participants` returns only the authenticated participant unless the token belongs to an admin.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -47,6 +48,7 @@
     {
       "name": "List Participants",
       "request": {
+        "description": "Dependency note: run this before `Get Participant`, `List Sessions for Participant`, `Get Session`, `List Interactions for Session`, or `Get Interaction`. On success, a random `participantId` from the response is stored in the environment.",
         "auth": {
           "type": "bearer",
           "bearer": [
@@ -71,11 +73,15 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// Set the first participantId as an environment variable",
+              "// Save a random participantId for the next dependent requests.",
               "if (pm.response.code === 200) {",
               "  var data = pm.response.json();",
-              "  if (data.participants && data.participants.length > 0) {",
-              "    pm.environment.set('participantId', data.participants[0].uid);",
+              "  var participants = Array.isArray(data.participants) ? data.participants.filter(function (participant) {",
+              "    return participant && participant.uid;",
+              "  }) : [];",
+              "  if (participants.length > 0) {",
+              "    var randomParticipant = participants[Math.floor(Math.random() * participants.length)];",
+              "    pm.environment.set('participantId', randomParticipant.uid);",
               "  }",
               "}"
             ],
@@ -85,8 +91,119 @@
       ]
     },
     {
+      "name": "Get My Participant Profile",
+      "request": {
+        "description": "Authenticated participant route. Use this for the signed-in user's own participant profile. On success, the returned `participant.uid` is saved as `participantId` so later participant/session requests can reuse it.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/participants/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "participants", "me"]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save the authenticated participantId for later dependent requests.",
+              "if (pm.response.code === 200) {",
+              "  var data = pm.response.json();",
+              "  if (data.participant && data.participant.uid) {",
+              "    pm.environment.set('participantId', data.participant.uid);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "List My Sessions",
+      "request": {
+        "description": "Authenticated participant route. Lists only the signed-in user's sessions. On success, a random `sessionId` is saved for the next dependent request.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/participants/me/sessions",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "participants", "me", "sessions"]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save a random sessionId for the next dependent requests.",
+              "if (pm.response.code === 200) {",
+              "  var data = pm.response.json();",
+              "  var sessions = Array.isArray(data.sessions) ? data.sessions.filter(function (session) {",
+              "    return session && session.id;",
+              "  }) : [];",
+              "  if (sessions.length > 0) {",
+              "    var randomSession = sessions[Math.floor(Math.random() * sessions.length)];",
+              "    pm.environment.set('sessionId', randomSession.id);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get My Session",
+      "request": {
+        "description": "Authenticated participant route. Requires `sessionId`. Run `List My Sessions` first so the environment variable is set automatically.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/participants/me/sessions/{{sessionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "participants", "me", "sessions", "{{sessionId}}"]
+        }
+      },
+      "response": []
+    },
+    {
       "name": "Get Participant",
       "request": {
+        "description": "Dependency note: requires `participantId`. Run `List Participants` first so the environment variable is set automatically.",
         "auth": {
           "type": "bearer",
           "bearer": [
@@ -110,6 +227,7 @@
     {
       "name": "List Sessions for Participant",
       "request": {
+        "description": "Dependency note: requires `participantId` from `List Participants`. On success, a random `sessionId` from the response is stored in the environment for the next dependent requests.",
         "auth": {
           "type": "bearer",
           "bearer": [
@@ -134,11 +252,15 @@
           "listen": "test",
           "script": {
             "exec": [
-              "// Set the first sessionId as an environment variable",
+              "// Save a random sessionId for the next dependent requests.",
               "if (pm.response.code === 200) {",
               "  var data = pm.response.json();",
-              "  if (data.sessions && data.sessions.length > 0) {",
-              "    pm.environment.set('sessionId', data.sessions[0].id);",
+              "  var sessions = Array.isArray(data.sessions) ? data.sessions.filter(function (session) {",
+              "    return session && session.id;",
+              "  }) : [];",
+              "  if (sessions.length > 0) {",
+              "    var randomSession = sessions[Math.floor(Math.random() * sessions.length)];",
+              "    pm.environment.set('sessionId', randomSession.id);",
               "  }",
               "}"
             ],
@@ -150,6 +272,7 @@
     {
       "name": "Get Session",
       "request": {
+        "description": "Dependency note: requires both `participantId` and `sessionId`. Run `List Participants` and then `List Sessions for Participant` first.",
         "auth": {
           "type": "bearer",
           "bearer": [
@@ -173,6 +296,7 @@
     {
       "name": "List Interactions for Session",
       "request": {
+        "description": "Returns the interaction documents for a session ordered by timestamp ascending. Optional query param: limit.\nDependency note: requires `participantId` and `sessionId`. Run `List Participants` and `List Sessions for Participant` first. On success, a random `interactionId` from the response is stored in the environment.",
         "auth": {
           "type": "bearer",
           "bearer": [
@@ -186,7 +310,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions",
+          "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
           "host": ["{{baseUrl}}"],
           "path": [
             "api",
@@ -195,19 +319,67 @@
             "sessions",
             "{{sessionId}}",
             "interactions"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "50",
+              "description": "Optional. Max 200."
+            }
           ]
         }
       },
-      "response": [],
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "api",
+                "participants",
+                "{{participantId}}",
+                "sessions",
+                "{{sessionId}}",
+                "interactions"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"interactions\": [\n    {\n      \"id\": \"abc123\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs and isolating the failing service.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem Solving\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"The answer shows structured analysis and resolution of a complex issue.\",\n      \"matchedToCategory\": null,\n      \"matchedToSequenceIndex\": null,\n      \"timestamp\": \"2026-04-03T15:22:11.000Z\"\n    }\n  ]\n}"
+        }
+      ],
       "event": [
         {
           "listen": "test",
           "script": {
             "exec": [
+              "// Save a random interactionId for the next dependent request.",
               "if (pm.response.code === 200) {",
               "  var data = pm.response.json();",
-              "  if (data.interactions && data.interactions.length > 0) {",
-              "    pm.environment.set('interactionId', data.interactions[0].id);",
+              "  var interactions = Array.isArray(data.interactions) ? data.interactions.filter(function (interaction) {",
+              "    return interaction && interaction.id;",
+              "  }) : [];",
+              "  if (interactions.length > 0) {",
+              "    var randomInteraction = interactions[Math.floor(Math.random() * interactions.length)];",
+              "    pm.environment.set('interactionId', randomInteraction.id);",
               "  }",
               "}"
             ],
@@ -219,6 +391,7 @@
     {
       "name": "Get Interaction",
       "request": {
+        "description": "Returns a single interaction document for the session.\nDependency note: requires `participantId`, `sessionId`, and `interactionId`. Run the list requests first so Postman sets those environment variables automatically.",
         "auth": {
           "type": "bearer",
           "bearer": [
@@ -244,6 +417,44 @@
             "{{interactionId}}"
           ]
         }
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "api",
+                "participants",
+                "{{participantId}}",
+                "sessions",
+                "{{sessionId}}",
+                "interactions",
+                "{{interactionId}}"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"interaction\": {\n    \"id\": \"abc123\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs and isolating the failing service.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem Solving\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"The answer shows structured analysis and resolution of a complex issue.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-04-03T15:22:11.000Z\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Notes - Skills, Stamps, Awarded",
+      "request": {
+        "description": "Backend status note: there are currently no Express API routes in `backend/src` for authenticated `me` skills, stamps, awarded items, or dedicated `me` interactions. The available self-service routes today are `/api/participants/me`, `/api/participants/me/sessions`, and `/api/participants/me/sessions/:sessionId`. For interactions, use the existing participant/session route after `Get My Participant Profile` sets `participantId`."
       },
       "response": []
     }

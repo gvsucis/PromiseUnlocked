@@ -51,8 +51,8 @@ const server = app.listen(PORT || 4000, () => {
 gracefulShutdown(server, {
   signals: "SIGINT SIGTERM",
   timeout: 20000,
-  development: false,
-  forceExit: true,
+  development: true,
+  forceExit: false,
   onShutdown: async () => {
     console.log("Performing graceful shutdown...");
   },

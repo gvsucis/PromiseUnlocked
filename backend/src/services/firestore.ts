@@ -21,6 +21,7 @@ export function normalizeTimestamps(
   const toIso = (ts: any) => {
     if (!ts) return null;
     if (typeof ts === "string") return ts;
+    if (typeof ts === "number") return new Date(ts).toISOString();
     if (typeof ts.toDate === "function") return ts.toDate().toISOString();
     if (typeof ts._seconds === "number") return new Date(ts._seconds * 1000).toISOString();
     return null;
@@ -48,6 +49,45 @@ export function normalizeSession(
     weakFitCount: data?.weakFitCount ?? 0,
     interactions: data?.interactions ?? [],
     ...normalizeTimestamps(data!, ["completedAt", "lastActiveAt", "startedAt"]),
+  };
+}
+
+export function normalizeUser(
+  doc: FirebaseFirestore.DocumentSnapshot | (UserProfile & { id?: string })
+): unknown {
+  const data = "data" in doc ? doc.data() : doc;
+  const id = "id" in doc && typeof doc.id === "string" ? doc.id : (doc as any).id;
+
+  return {
+    uid: data?.uid ?? id ?? null,
+    email: data?.email ?? null,
+    displayName: data?.displayName ?? null,
+    photoURL: data?.photoURL ?? null,
+    metadata: data?.metadata ?? {},
+    ...normalizeTimestamps(data!, ["createdAt", "updatedAt", "lastActiveAt"]),
+  };
+}
+
+export function normalizeInteraction(
+  doc: FirebaseFirestore.DocumentSnapshot | (InteractionRecord & { id?: string })
+): unknown {
+  const data = "data" in doc ? doc.data() : doc;
+  const id = "id" in doc && typeof doc.id === "string" ? doc.id : (doc as any).id;
+
+  return {
+    id: id ?? null,
+    sequenceIndex: data?.sequenceIndex ?? null,
+    question: data?.question ?? null,
+    answer: data?.answer ?? null,
+    inputMethod: data?.inputMethod ?? null,
+    mappingOutcome: data?.mappingOutcome ?? null,
+    mappedCategory: data?.mappedCategory ?? null,
+    isWeakFit: data?.isWeakFit ?? false,
+    isAlreadyMapped: data?.isAlreadyMapped ?? false,
+    justification: data?.justification ?? "",
+    matchedToCategory: data?.matchedToCategory ?? null,
+    matchedToSequenceIndex: data?.matchedToSequenceIndex ?? null,
+    ...normalizeTimestamps(data!, ["timestamp"]),
   };
 }
 
@@ -90,11 +130,18 @@ const interactionConverter: FirestoreDataConverter<InteractionRecord> = {
     const data = snapshot.data();
     return {
       id: snapshot.id,
-      sessionId: data.sessionId,
-      userId: data.userId,
-      type: data.type,
-      payload: data.payload ?? {},
-      createdAt: data.createdAt,
+      sequenceIndex: data.sequenceIndex,
+      question: data.question,
+      answer: data.answer,
+      inputMethod: data.inputMethod,
+      mappingOutcome: data.mappingOutcome,
+      mappedCategory: data.mappedCategory ?? null,
+      isWeakFit: data.isWeakFit ?? false,
+      isAlreadyMapped: data.isAlreadyMapped ?? false,
+      justification: data.justification ?? "",
+      matchedToCategory: data.matchedToCategory ?? null,
+      matchedToSequenceIndex: data.matchedToSequenceIndex ?? null,
+      timestamp: data.timestamp ?? null,
     };
   },
 };

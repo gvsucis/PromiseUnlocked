@@ -8,8 +8,6 @@ const endpoints = {
   login: `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
   register: `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
 };
-// Debug log for login endpoint
-console.log("[DEBUG] Firebase login endpoint:", endpoints.login);
 
 function mapFirebaseError(code: string) {
   switch (code) {
