@@ -106,6 +106,9 @@ export async function firebaseRegister(
         idToken: response.data.idToken,
         refreshToken: response.data.refreshToken,
         userId,
+        firstName,
+        lastName,
+        role: response.data.role,
       },
     };
   } catch (error: any) {
