@@ -14,8 +14,8 @@ export class AuthController {
   }
 
   static async register(req: Request, res: Response) {
-    const { email, password } = req.body;
-    const result = await firebaseRegister(email, password);
+    const { email, password, firstName, lastName } = req.body;
+    const result = await firebaseRegister(email, password, firstName, lastName);
     if (result.success) {
       return res.json(result.data);
     }

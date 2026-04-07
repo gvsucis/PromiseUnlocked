@@ -4,7 +4,6 @@ import type { ServiceAccount } from "firebase-admin";
 import serviceAccount from "../../serviceAccountKey.json";
 import type { InteractionRecord, SessionRecord, UserProfile } from "../types/firestore";
 
-// --- Firebase Admin App ---
 const typedServiceAccount = serviceAccount as ServiceAccount;
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -13,7 +12,6 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-// --- Timestamp Normalization ---
 export function normalizeTimestamps(
   obj: Record<string, any>,
   fields: string[]
