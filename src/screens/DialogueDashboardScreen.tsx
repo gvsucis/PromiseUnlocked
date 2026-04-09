@@ -283,6 +283,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    setCurrentPrompt("");
     setUiState("idle");
     setIsRecording(false);
     setRecordingUri(null);
@@ -298,9 +299,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       [
         { text: "Take Photo", onPress: () => handleImageSelection(true) },
         { text: "Choose from Gallery", onPress: () => handleImageSelection(false) },
-        { text: "Cancel", style: "cancel" },
+        { text: "Cancel", style: "cancel", onPress: () => setCurrentPrompt("") },
       ],
-      { cancelable: true }
+      { cancelable: true, onDismiss: () => setCurrentPrompt("") }
     );
   };
 
@@ -341,6 +342,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   const handleImageEditorCancel = () => {
     setShowImageEditor(false);
     setTempImageUri(null);
+    setCurrentPrompt("");
     setUiState("idle");
   };
 
@@ -417,11 +419,11 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
 
   React.useEffect(() => {
-    if (uiState === "idle" && currentPrompt && !showQuestionInputModal) {
+    if (uiState === "idle" && currentPrompt) {
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
     }
-  }, [uiState, currentPrompt, showQuestionInputModal]);
+  }, [uiState, currentPrompt]);
 
   React.useEffect(() => {
     if (showInputMethodModal && prefetchedQuestion) {

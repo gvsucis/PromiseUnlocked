@@ -32,6 +32,7 @@ export function QuestionInputModal({ visible, question, onSelectInputType, onClo
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.container}>
+              <Text style={styles.heading}>Question</Text>
               <Text style={styles.question}>{question}</Text>
               <Text style={styles.subtitle}>Choose how you want to answer:</Text>
               <View style={styles.inputRow}>
@@ -73,11 +74,20 @@ const styles = StyleSheet.create({
     width: "85%",
     alignItems: "center",
   },
+  heading: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: "#667eea",
+    marginBottom: 10,
+  },
   question: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 16,
     textAlign: "center",
+    color: "#222",
   },
   subtitle: {
     fontSize: 15,

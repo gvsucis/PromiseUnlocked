@@ -339,6 +339,10 @@ export function useDialogueState(): DialogueState {
 
   const handleTextInputPress = () => {
     setError("");
+    if (currentPrompt) {
+      setTimeout(() => setUiState("answering"), 100);
+      return;
+    }
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
       setTimeout(() => setUiState("answering"), 100);
@@ -353,7 +357,10 @@ export function useDialogueState(): DialogueState {
 
   const handleVoiceInputPress = () => {
     setError("");
-
+    if (currentPrompt) {
+      setTimeout(() => setUiState("voice-recording"), 100);
+      return;
+    }
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
       setTimeout(() => setUiState("voice-recording"), 100);
@@ -368,7 +375,10 @@ export function useDialogueState(): DialogueState {
 
   const prepareImageQuestion = (): boolean => {
     setError("");
-
+    if (currentPrompt) {
+      setSavedQuestion(currentPrompt);
+      return true;
+    }
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
       setSavedQuestion(INITIAL_PROMPT);
