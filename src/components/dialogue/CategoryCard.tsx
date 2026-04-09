@@ -7,7 +7,7 @@ interface CategoryData {
   category: string;
   description: string;
   example: string;
-  icon: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
 }
 
 interface CategoryCardProps {
@@ -17,7 +17,8 @@ interface CategoryCardProps {
   onPress: () => void;
 }
 
-export function CategoryCard({ category, isMapped, mappedData, onPress }: CategoryCardProps) {
+export function CategoryCard(props: Readonly<CategoryCardProps>) {
+  const { category, isMapped, mappedData, onPress } = props;
   const timesMapped = mappedData?.timesMapped ?? 0;
   return (
     <TouchableOpacity
@@ -29,7 +30,7 @@ export function CategoryCard({ category, isMapped, mappedData, onPress }: Catego
     >
       <View style={styles.categoryHeader}>
         <MaterialIcons
-          name={(category.icon as any) || "category"}
+          name={category.icon || "category"}
           size={28}
           color={isMapped ? "#667eea" : "#999"}
         />

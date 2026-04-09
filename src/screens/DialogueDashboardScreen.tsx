@@ -17,7 +17,8 @@ import ImageEditor from "../components/ImageEditor";
 import { LoadingModal } from "../components/dialogue/LoadingModal";
 import { CompletionModal } from "../components/dialogue/CompletionModal";
 import { WeakFitModal } from "../components/dialogue/WeakFitModal";
-import { InputMethodModal } from "../components/dialogue/InputMethodModal";
+import { useState } from "react";
+import { QuestionInputModal, InputMethod } from "../components/dialogue/QuestionInputModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
 import { CategoryCard } from "../components/dialogue/CategoryCard";
@@ -45,8 +46,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     error,
     weakFitJustification,
     showConfetti,
-    showInputMethodModal,
     loading,
+    prefetchedQuestion,
+    showInputMethodModal,
     setUserAnswer,
     setUiState,
     setCurrentPrompt,
@@ -62,6 +64,10 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     handleWeakFitNewQuestion,
     dismissAnswerModal,
   } = useDialogueState();
+
+  // New state for showing the combined question+input modal
+  const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
   // Voice recording state
   const [isRecording, setIsRecording] = React.useState(false);
@@ -150,10 +156,10 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     ]);
   };
 
-  const handleInputMethodSelect = async (method: "text" | "voice" | "image") => {
-    setShowInputMethodModal(false);
+  // New handler for input type selection in the combined modal
+  const handleInputTypeSelect = async (method: InputMethod) => {
+    setShowQuestionInputModal(false);
     await new Promise((resolve) => setTimeout(resolve, 150));
-
     if (method === "text") {
       handleTextInputPress();
     } else if (method === "voice") {
@@ -375,20 +381,18 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       Alert.alert(categoryName, `Why you have this trait:\n\n"${mapped.justification}"`, [
         { text: "OK" },
       ]);
+    } else if (mappedCategories.length === 0) {
+      Alert.alert(
+        "Not Yet Mapped",
+        "This trait is not yet mapped to you. Click the 'Start' button to discover new traits!",
+        [{ text: "OK" }]
+      );
     } else {
-      {
-        mappedCategories.length === 0
-          ? Alert.alert(
-              "Not Yet Mapped",
-              "This trait is not yet mapped to you. Click the 'Start' button to discover new traits!",
-              [{ text: "OK" }]
-            )
-          : Alert.alert(
-              "Not Yet Mapped",
-              "This trait is not yet mapped to you. Click the 'Continue' button to discover new traits!",
-              [{ text: "OK" }]
-            );
-      }
+      Alert.alert(
+        "Not Yet Mapped",
+        "This trait is not yet mapped to you. Click the 'Continue' button to discover new traits!",
+        [{ text: "OK" }]
+      );
     }
   };
 
@@ -401,7 +405,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         category={{
           ...item,
           example: "",
-          icon: item.icon || "category",
+          icon: (item.icon && typeof item.icon === "string" ? item.icon : "category") as any,
         }}
         isMapped={mappedNames.has(item.category)}
         mappedData={mappedNames.get(item.category)}
@@ -411,6 +415,21 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   };
 
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
+
+  React.useEffect(() => {
+    if (uiState === "idle" && currentPrompt && !showQuestionInputModal) {
+      setPendingQuestion(currentPrompt);
+      setShowQuestionInputModal(true);
+    }
+  }, [uiState, currentPrompt, showQuestionInputModal]);
+
+  React.useEffect(() => {
+    if (showInputMethodModal && prefetchedQuestion) {
+      setPendingQuestion(prefetchedQuestion);
+      setShowQuestionInputModal(true);
+      setShowInputMethodModal(false);
+    }
+  }, [showInputMethodModal, prefetchedQuestion]);
 
   if (loading) {
     return (
@@ -560,10 +579,16 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         onCancel={handleVoiceCancel}
       />
 
-      <InputMethodModal
-        visible={showInputMethodModal}
-        onSelect={handleInputMethodSelect}
-        onClose={() => setShowInputMethodModal(false)}
+      {/* Combined Question + Input Type Modal */}
+      <QuestionInputModal
+        visible={showQuestionInputModal && !!pendingQuestion}
+        question={pendingQuestion || ""}
+        onSelectInputType={handleInputTypeSelect}
+        onClose={() => {
+          setShowQuestionInputModal(false);
+          setPendingQuestion(null);
+          setCurrentPrompt("");
+        }}
       />
 
       {showImageEditor && tempImageUri && (
@@ -596,6 +621,54 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  questionInputModalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  questionInputModalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "85%",
+    alignItems: "center",
+  },
+  questionInputModalQuestion: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  questionInputModalSubtitle: {
+    fontSize: 15,
+    marginBottom: 18,
+    color: "#555",
+    textAlign: "center",
+  },
+  questionInputModalInputRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+  },
+  questionInputModalInputButton: {
+    alignItems: "center",
+    marginHorizontal: 12,
+  },
+  questionInputModalInputLabel: {
+    marginTop: 6,
+  },
+  questionInputModalCancelButton: {
+    marginTop: 24,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#eee",
+  },
+  questionInputModalCancelText: {
+    color: "#667eea",
+    fontWeight: "bold",
+  },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",

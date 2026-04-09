@@ -23,6 +23,100 @@ interface VoiceRecordingModalProps {
   onCancel: () => void;
 }
 
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+interface RecordingInterfaceProps {
+  isRecording: boolean;
+  recordingDuration: number;
+  isProcessingAudio: boolean;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+}
+
+function RecordingInterface({
+  isRecording,
+  recordingDuration,
+  isProcessingAudio,
+  onStartRecording,
+  onStopRecording,
+}: Readonly<RecordingInterfaceProps>) {
+  return (
+    <>
+      <View style={styles.recordingVisualization}>
+        <View style={[styles.recordingCircle, isRecording && styles.recordingActive]}>
+          <Ionicons
+            name={isRecording ? "stop" : "mic"}
+            size={48}
+            color={isRecording ? "white" : "#666"}
+          />
+        </View>
+      </View>
+
+      {isRecording && (
+        <Text style={styles.recordingTimer}>{formatDuration(recordingDuration)}</Text>
+      )}
+
+      <Text style={styles.recordingInstruction}>
+        {isRecording ? "Recording... Tap to stop" : "Tap to start recording"}
+      </Text>
+
+      <TouchableOpacity
+        style={[styles.recordButton, isRecording && styles.recordButtonActive]}
+        onPress={isRecording ? onStopRecording : onStartRecording}
+        disabled={isProcessingAudio}
+      >
+        <Text style={[styles.recordButtonText, isRecording && styles.recordButtonTextActive]}>
+          {isRecording ? "Stop Recording" : "Start Recording"}
+        </Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+interface PlaybackInterfaceProps {
+  recordingDuration: number;
+  isProcessingAudio: boolean;
+  onRecordAgain: () => void;
+  onSubmit: () => void;
+}
+
+function PlaybackInterface({
+  recordingDuration,
+  isProcessingAudio,
+  onRecordAgain,
+  onSubmit,
+}: Readonly<PlaybackInterfaceProps>) {
+  return (
+    <>
+      <View style={styles.playbackContainer}>
+        <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
+        <Text style={styles.playbackTitle}>Recording Complete!</Text>
+        <Text style={styles.playbackDuration}>Duration: {formatDuration(recordingDuration)}</Text>
+      </View>
+
+      <View style={styles.voiceActions}>
+        <TouchableOpacity style={styles.voiceActionButton} onPress={onRecordAgain}>
+          <Text style={styles.voiceActionButtonText}>Record Again</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.voiceActionButton, styles.voiceActionButtonPrimary]}
+          onPress={onSubmit}
+          disabled={isProcessingAudio}
+        >
+          <Text style={[styles.voiceActionButtonText, styles.voiceActionButtonTextPrimary]}>
+            {isProcessingAudio ? "Processing..." : "Submit Recording"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+}
+
 export function VoiceRecordingModal({
   visible,
   currentPrompt,
@@ -35,13 +129,7 @@ export function VoiceRecordingModal({
   onSubmit,
   onRecordAgain,
   onCancel,
-}: VoiceRecordingModalProps) {
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
+}: Readonly<VoiceRecordingModalProps>) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <TouchableWithoutFeedback onPress={onCancel}>
@@ -52,74 +140,21 @@ export function VoiceRecordingModal({
               <Text style={styles.questionText}>{currentPrompt || "(No question loaded)"}</Text>
 
               <View style={styles.voiceRecordingContainer}>
-                {!recordingUri ? (
-                  /* Recording Interface */
-                  <>
-                    <View style={styles.recordingVisualization}>
-                      <View style={[styles.recordingCircle, isRecording && styles.recordingActive]}>
-                        <Ionicons
-                          name={isRecording ? "stop" : "mic"}
-                          size={48}
-                          color={isRecording ? "white" : "#666"}
-                        />
-                      </View>
-                    </View>
-
-                    {isRecording && (
-                      <Text style={styles.recordingTimer}>{formatDuration(recordingDuration)}</Text>
-                    )}
-
-                    <Text style={styles.recordingInstruction}>
-                      {isRecording ? "Recording... Tap to stop" : "Tap to start recording"}
-                    </Text>
-
-                    <TouchableOpacity
-                      style={[styles.recordButton, isRecording && styles.recordButtonActive]}
-                      onPress={isRecording ? onStopRecording : onStartRecording}
-                      disabled={isProcessingAudio}
-                    >
-                      <Text
-                        style={[
-                          styles.recordButtonText,
-                          isRecording && styles.recordButtonTextActive,
-                        ]}
-                      >
-                        {isRecording ? "Stop Recording" : "Start Recording"}
-                      </Text>
-                    </TouchableOpacity>
-                  </>
+                {recordingUri ? (
+                  <PlaybackInterface
+                    recordingDuration={recordingDuration}
+                    isProcessingAudio={isProcessingAudio}
+                    onRecordAgain={onRecordAgain}
+                    onSubmit={onSubmit}
+                  />
                 ) : (
-                  /* Playback Interface */
-                  <>
-                    <View style={styles.playbackContainer}>
-                      <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
-                      <Text style={styles.playbackTitle}>Recording Complete!</Text>
-                      <Text style={styles.playbackDuration}>
-                        Duration: {formatDuration(recordingDuration)}
-                      </Text>
-                    </View>
-
-                    <View style={styles.voiceActions}>
-                      <TouchableOpacity style={styles.voiceActionButton} onPress={onRecordAgain}>
-                        <Text style={styles.voiceActionButtonText}>Record Again</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={[styles.voiceActionButton, styles.voiceActionButtonPrimary]}
-                        onPress={onSubmit}
-                        disabled={isProcessingAudio}
-                      >
-                        <Text
-                          style={[
-                            styles.voiceActionButtonText,
-                            styles.voiceActionButtonTextPrimary,
-                          ]}
-                        >
-                          {isProcessingAudio ? "Processing..." : "Submit Recording"}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
+                  <RecordingInterface
+                    isRecording={isRecording}
+                    recordingDuration={recordingDuration}
+                    isProcessingAudio={isProcessingAudio}
+                    onStartRecording={onStartRecording}
+                    onStopRecording={onStopRecording}
+                  />
                 )}
               </View>
             </View>

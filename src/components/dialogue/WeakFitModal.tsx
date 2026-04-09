@@ -21,7 +21,7 @@ export function WeakFitModal({
   justification,
   onTryAgain,
   onNewQuestion,
-}: WeakFitModalProps) {
+}: Readonly<WeakFitModalProps>) {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <TouchableWithoutFeedback onPress={onNewQuestion}>
