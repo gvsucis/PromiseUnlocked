@@ -13,9 +13,7 @@
           "name": "Register",
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
@@ -43,7 +41,25 @@
               "path": ["api", "auth", "login"]
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Set environment variables after login response.",
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  if (data.token) pm.environment.set('bearerToken', data.token);",
+                  "  if (data.refreshToken) pm.environment.set('refreshToken', data.refreshToken);",
+                  "  if (data.user && data.user.id) pm.environment.set('userId', data.user.id);",
+                  "  if (data.user && data.user.email) pm.environment.set('userEmail', data.user.email);",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -70,8 +86,10 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "// Save a random participantId for the next dependent requests.",
+                  "// Also randomize participant IDs in the response array.",
                   "if (pm.response.code === 200) {",
                   "  var data = pm.response.json();",
                   "  var participants = Array.isArray(data.participants) ? data.participants.filter(function (participant) {",
@@ -81,9 +99,14 @@
                   "    var randomParticipant = participants[Math.floor(Math.random() * participants.length)];",
                   "    pm.environment.set('participantId', randomParticipant.uid);",
                   "  }",
+                  "  // Randomize IDs in the participants array for testing.",
+                  "  participants.forEach(function (p) {",
+                  "    p.uid = 'id_' + Math.random().toString(36).substr(2, 9);",
+                  "  });",
+                  "  // Optionally, log the randomized array.",
+                  "  console.log('Randomized participants:', participants);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ]
@@ -142,8 +165,10 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "// Save a random sessionId for the next dependent requests.",
+                  "// Also randomize session IDs in the response array.",
                   "if (pm.response.code === 200) {",
                   "  var data = pm.response.json();",
                   "  var sessions = Array.isArray(data.sessions) ? data.sessions.filter(function (session) {",
@@ -153,9 +178,13 @@
                   "    var randomSession = sessions[Math.floor(Math.random() * sessions.length)];",
                   "    pm.environment.set('sessionId', randomSession.id);",
                   "  }",
+                  "  // Randomize IDs in the sessions array for testing.",
+                  "  sessions.forEach(function (s) {",
+                  "    s.id = 'id_' + Math.random().toString(36).substr(2, 9);",
+                  "  });",
+                  "  console.log('Randomized sessions:', sessions);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ]
@@ -202,8 +231,10 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "// Save a random sessionId for the next dependent requests.",
+                  "// Also randomize session IDs in the response array.",
                   "if (pm.response.code === 200) {",
                   "  var data = pm.response.json();",
                   "  var sessions = Array.isArray(data.sessions) ? data.sessions.filter(function (session) {",
@@ -213,9 +244,13 @@
                   "    var randomSession = sessions[Math.floor(Math.random() * sessions.length)];",
                   "    pm.environment.set('sessionId', randomSession.id);",
                   "  }",
+                  "  // Randomize IDs in the sessions array for testing.",
+                  "  sessions.forEach(function (s) {",
+                  "    s.id = 'id_' + Math.random().toString(36).substr(2, 9);",
+                  "  });",
+                  "  console.log('Randomized sessions:', sessions);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ]
@@ -265,8 +300,10 @@
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "// Save a random interactionId for the next dependent request.",
+                  "// Also randomize interaction IDs in the response array.",
                   "if (pm.response.code === 200) {",
                   "  var data = pm.response.json();",
                   "  var interactions = Array.isArray(data.interactions) ? data.interactions.filter(function (interaction) {",
@@ -276,9 +313,13 @@
                   "    var randomInteraction = interactions[Math.floor(Math.random() * interactions.length)];",
                   "    pm.environment.set('interactionId', randomInteraction.id);",
                   "  }",
+                  "  // Randomize IDs in the interactions array for testing.",
+                  "  interactions.forEach(function (i) {",
+                  "    i.id = 'id_' + Math.random().toString(36).substr(2, 9);",
+                  "  });",
+                  "  console.log('Randomized interactions:', interactions);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ]
