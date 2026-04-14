@@ -1,6 +1,8 @@
 // Centralized Skills Taxonomy config
 // Exported for use across services and screens
 
+import { Stamp } from "../types/dashboard";
+
 export type SkillsTaxonomy = Record<string, string[]>;
 
 export const SKILLS_TAXONOMY: SkillsTaxonomy = {
@@ -130,3 +132,138 @@ export const SKILL_SYNONYMS: Record<string, string[]> = {
   "Time Management": ["managing time", "scheduling", "planning", "organizing time"],
   "Goal Setting": ["setting goals", "planning goals", "objective setting", "target setting"],
 };
+
+export const AVAILABLE_STAMPS: Stamp[] = [
+  //Academic Stamps
+  {
+    id: "math",
+    name: "Mathematics",
+    icon: "🧮",
+    category: "Academic",
+    description: "Completed mathematics course",
+    unlocked: false,
+  },
+  {
+    id: "science",
+    name: "Science Scholar",
+    icon: "🔬",
+    category: "Academic",
+    description: "Excelled in science subjects",
+    unlocked: false,
+  },
+  {
+    id: "literature",
+    name: "Literature Lover",
+    icon: "📚",
+    category: "Academic",
+    description: "Studied literature and languages",
+    unlocked: false,
+  },
+  {
+    id: "history",
+    name: "History Buff",
+    icon: "🏛️",
+    category: "Academic",
+    description: "Passionate about history",
+    unlocked: false,
+  },
+  {
+    id: "arts",
+    name: "Creative Artist",
+    icon: "🎨",
+    category: "Academic",
+    description: "Pursued arts and creativity",
+    unlocked: false,
+  },
+  {
+    id: "music",
+    name: "Music Maestro",
+    icon: "🎵",
+    category: "Academic",
+    description: "Talented in music c",
+    unlocked: false,
+  },
+  //Achievement Stamps
+
+  {
+    id: "deans_list",
+    name: "Dean's List",
+    icon: "⭐",
+    category: "Achievement",
+    description: "Made it to the Dean's List",
+    unlocked: false,
+  },
+  {
+    id: "honor_roll",
+    name: "Honor Roll",
+    icon: "🏆",
+    category: "Achievement",
+    description: "Achieved Honor Roll status",
+    unlocked: false,
+  },
+  {
+    id: "graduate",
+    name: "Graduate",
+    icon: "🎓",
+    category: "Achievement",
+    description: "Successfully graduated",
+    unlocked: false,
+  },
+  {
+    id: "scholarship",
+    name: "Scholar",
+    icon: "💎",
+    category: "Achievement",
+    description: "Received scholarships",
+    unlocked: false,
+  },
+  //Interest Stamps
+  {
+    id: "technology",
+    name: "Tech Enthusiast",
+    icon: "💻",
+    category: "Interest",
+    description: "Passionate about technology",
+    unlocked: false,
+  },
+  {
+    id: "sports",
+    name: "Athletic Spirit",
+    icon: "⚽",
+    category: "Interest",
+    description: "Active in sports",
+    unlocked: false,
+  },
+  {
+    id: "leadership",
+    name: "Natural Leader",
+    icon: "👑",
+    category: "Interest",
+    description: "Demonstrated leadership skills",
+    unlocked: false,
+  },
+  {
+    id: "community",
+    name: "Community Helper",
+    icon: "🤝",
+    category: "Interest",
+    description: "Engaged in community service",
+    unlocked: false,
+  },
+  {
+    id: "research",
+    name: "Research Pioneer",
+    icon: "🔍",
+    category: "Interest",
+    description: "Involved in research projects",
+    unlocked: false,
+  },
+  {
+    id: "international",
+    name: "Global Citizen",
+    icon: "🌍",
+    category: "Interest",
+    description: "International experience",
+    unlocked: false,
+  },
+];
