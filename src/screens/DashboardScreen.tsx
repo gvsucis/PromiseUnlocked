@@ -17,8 +17,11 @@ import { Stamp, UserProgress, TranscriptSummary, CourseAnalysis } from "../types
 import { AVAILABLE_STAMPS } from "../config/skillsTaxonomy";
 const { width } = Dimensions.get("window");
 
+interface UnknownType {
+  [key: string]: string;
+}
 // Helper functions for transcript analysis
-const analyzeCourses = (courses: any[]): CourseAnalysis => {
+const analyzeCourses = (courses: { [key: string]: string }[]): CourseAnalysis => {
   const subjects: { [key: string]: number } = {};
   let advancedCourses = 0;
 
@@ -117,7 +120,7 @@ const analyzeCourses = (courses: any[]): CourseAnalysis => {
 };
 
 const getSubjectStampId = (subject: string): string => {
-  const subjectMap: { [key: string]: string } = {
+  const subjectMap: UnknownType = {
     math: "math",
     science: "science",
     literature: "literature",
@@ -133,7 +136,7 @@ const getSubjectStampId = (subject: string): string => {
   return subjectMap[subject] || subject;
 };
 
-const generateDynamicStamps = (transcriptData: any): Stamp[] => {
+const generateDynamicStamps = (transcriptData: UnknownType): Stamp[] => {
   const dynamicStamps: Stamp[] = [];
 
   // Create stamps based on specific institution
@@ -176,7 +179,7 @@ const createTranscriptSummary = (transcriptData: any): TranscriptSummary => {
     Object.assign(coursesBySubject, courseAnalysis.subjects);
 
     // Find top grades (A or A+ grades)
-    transcriptData.courses.forEach((course: any) => {
+    transcriptData.courses.forEach((course: UnknownType) => {
       if (course.grade === "A" || course.grade === "A+" || course.grade === "A-") {
         topGrades.push(`${course.name}: ${course.grade}`);
       }

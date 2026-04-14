@@ -18,7 +18,7 @@ import { LoadingModal } from "../components/dialogue/LoadingModal";
 import { CompletionModal } from "../components/dialogue/CompletionModal";
 import { WeakFitModal } from "../components/dialogue/WeakFitModal";
 import { useState } from "react";
-import { QuestionInputModal, InputMethod } from "../components/dialogue/QuestionInputModal";
+import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
 import { CategoryCard } from "../components/dialogue/CategoryCard";
@@ -56,7 +56,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     resetData,
     mapAnswerToCategory,
     handleStartButtonPress,
-    handleTextInputPress,
     handleVoiceInputPress,
     prepareImageQuestion,
     handleSubmitAnswer,
@@ -65,9 +64,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     dismissAnswerModal,
   } = useDialogueState();
 
-  // New state for showing the combined question+input modal
   const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const suppressModalReopenRef = useRef(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = React.useState(false);
@@ -156,13 +155,24 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     ]);
   };
 
-  // New handler for input type selection in the combined modal
-  const handleInputTypeSelect = async (method: InputMethod) => {
+  const handleSubmitTextFromModal = (text: string) => {
+    if (!text.trim()) return;
+    suppressModalReopenRef.current = true;
     setShowQuestionInputModal(false);
+    const q = pendingQuestion || currentPrompt;
+    setPendingQuestion(null);
+    setCurrentPrompt("");
+    suppressModalReopenRef.current = false;
+    mapAnswerToCategory(q, text);
+  };
+
+  const handleInputTypeSelect = async (method: "voice" | "image") => {
+    suppressModalReopenRef.current = true;
+    setShowQuestionInputModal(false);
+    setPendingQuestion(null);
     await new Promise((resolve) => setTimeout(resolve, 150));
-    if (method === "text") {
-      handleTextInputPress();
-    } else if (method === "voice") {
+    suppressModalReopenRef.current = false;
+    if (method === "voice") {
       handleVoiceInputPress();
     } else if (method === "image") {
       const ready = prepareImageQuestion();
@@ -283,7 +293,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    setCurrentPrompt("");
     setUiState("idle");
     setIsRecording(false);
     setRecordingUri(null);
@@ -299,9 +308,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       [
         { text: "Take Photo", onPress: () => handleImageSelection(true) },
         { text: "Choose from Gallery", onPress: () => handleImageSelection(false) },
-        { text: "Cancel", style: "cancel", onPress: () => setCurrentPrompt("") },
+        { text: "Cancel", style: "cancel" },
       ],
-      { cancelable: true, onDismiss: () => setCurrentPrompt("") }
+      { cancelable: true }
     );
   };
 
@@ -342,7 +351,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   const handleImageEditorCancel = () => {
     setShowImageEditor(false);
     setTempImageUri(null);
-    setCurrentPrompt("");
     setUiState("idle");
   };
 
@@ -407,7 +415,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         category={{
           ...item,
           example: "",
-          icon: (item.icon && typeof item.icon === "string" ? item.icon : "category") as any,
+          icon: (item.icon as any) || ("category" as any),
         }}
         isMapped={mappedNames.has(item.category)}
         mappedData={mappedNames.get(item.category)}
@@ -419,11 +427,16 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
 
   React.useEffect(() => {
-    if (uiState === "idle" && currentPrompt) {
+    if (
+      uiState === "idle" &&
+      currentPrompt &&
+      !showQuestionInputModal &&
+      !suppressModalReopenRef.current
+    ) {
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
     }
-  }, [uiState, currentPrompt]);
+  }, [uiState, currentPrompt, showQuestionInputModal]);
 
   React.useEffect(() => {
     if (showInputMethodModal && prefetchedQuestion) {
@@ -444,7 +457,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <MaterialIcons name="explore" size={40} color="#fff" />
           <Text style={styles.title}>My Skills Passport</Text>
@@ -586,6 +599,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         visible={showQuestionInputModal && !!pendingQuestion}
         question={pendingQuestion || ""}
         onSelectInputType={handleInputTypeSelect}
+        onSubmitText={handleSubmitTextFromModal}
         onClose={() => {
           setShowQuestionInputModal(false);
           setPendingQuestion(null);

@@ -1,19 +1,25 @@
-import React from "react";
-import { Modal, View, TouchableOpacity, TouchableWithoutFeedback, StyleSheet } from "react-native";
+import React, { useState } from "react";
+import {
+  Modal,
+  View,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  StyleSheet,
+  TextInput,
+} from "react-native";
 import { Text } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 
 export type InputMethod = "text" | "voice" | "image";
 
-interface InputOption {
-  method: InputMethod;
+interface AltInputOption {
+  method: Exclude<InputMethod, "text">;
   label: string;
   icon: React.ComponentProps<typeof Ionicons>["name"];
   color: string;
 }
 
-const INPUT_OPTIONS: InputOption[] = [
-  { method: "text", label: "Text", icon: "chatbubble", color: "#45B7D1" },
+const ALT_INPUT_OPTIONS: AltInputOption[] = [
   { method: "voice", label: "Voice", icon: "mic", color: "#4ECDC4" },
   { method: "image", label: "Image", icon: "camera", color: "#FF6B6B" },
 ];
@@ -21,37 +27,87 @@ const INPUT_OPTIONS: InputOption[] = [
 interface Props {
   visible: boolean;
   question: string;
-  onSelectInputType: (method: InputMethod) => void;
+  onSelectInputType: (method: Exclude<InputMethod, "text">) => void;
+  onSubmitText: (text: string) => void;
   onClose: () => void;
 }
 
-export function QuestionInputModal({ visible, question, onSelectInputType, onClose }: Readonly<Props>) {
+export function QuestionInputModal({
+  visible,
+  question,
+  onSelectInputType,
+  onSubmitText,
+  onClose,
+}: Readonly<Props>) {
+  const [textValue, setTextValue] = useState("");
+
+  const resetText = () => setTextValue("");
+
+  const handleClose = () => {
+    resetText();
+    onClose();
+  };
+
+  const handleAltInput = (method: Exclude<InputMethod, "text">) => {
+    resetText();
+    onSelectInputType(method);
+  };
+
+  const handleSubmit = () => {
+    if (!textValue.trim()) return;
+    onSubmitText(textValue.trim());
+    resetText();
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.container}>
               <Text style={styles.heading}>Question</Text>
               <Text style={styles.question}>{question}</Text>
-              <Text style={styles.subtitle}>Choose how you want to answer:</Text>
-              <View style={styles.inputRow}>
-                {INPUT_OPTIONS.map(({ method, label, icon, color }) => (
+
+              <TextInput
+                style={styles.textInput}
+                placeholder="Type your answer..."
+                placeholderTextColor="#aaa"
+                multiline
+                numberOfLines={5}
+                value={textValue}
+                onChangeText={setTextValue}
+                textAlignVertical="top"
+              />
+
+              {/* Alt input options — right-aligned below text input */}
+              <View style={styles.altInputRow}>
+                {ALT_INPUT_OPTIONS.map(({ method, label, icon, color }) => (
                   <TouchableOpacity
                     key={method}
-                    style={styles.inputButton}
-                    onPress={() => onSelectInputType(method)}
+                    style={styles.altInputButton}
+                    onPress={() => handleAltInput(method)}
                   >
-                    <View style={[styles.iconCircle, { backgroundColor: color }]}>
-                      <Ionicons name={icon} size={32} color="white" />
+                    <View style={[styles.altIconCircle, { backgroundColor: color }]}>
+                      <Ionicons name={icon} size={18} color="white" />
                     </View>
-                    <Text style={styles.inputLabel}>{label}</Text>
+                    <Text style={styles.altInputLabel}>{label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
+
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.submitButton, !textValue.trim() && styles.submitButtonDisabled]}
+                  onPress={handleSubmit}
+                  disabled={!textValue.trim()}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.submitText}>Submit</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -89,45 +145,68 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#222",
   },
-  subtitle: {
-    fontSize: 15,
-    marginBottom: 18,
-    color: "#555",
-    textAlign: "center",
-  },
-  inputRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
+  textInput: {
     width: "100%",
+    minHeight: 100,
+    borderWidth: 1.5,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 15,
+    color: "#222",
+    backgroundColor: "#fafafa",
   },
-  inputButton: {
+  altInputRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    width: "100%",
+    marginTop: 10,
+    gap: 12,
+  },
+  altInputButton: {
     alignItems: "center",
-    marginHorizontal: 12,
-    padding: 15,
-    borderRadius: 15,
-    backgroundColor: "#f8f8f8",
-    flex: 1,
   },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  altIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
   },
-  inputLabel: {
-    marginTop: 6,
-    fontSize: 14,
+  altInputLabel: {
+    marginTop: 4,
+    fontSize: 10,
     fontWeight: "600",
-    color: "#333",
-    textAlign: "center",
+    color: "#555",
+  },
+  actionRow: {
+    flexDirection: "row",
+    marginTop: 20,
+    gap: 10,
+    width: "100%",
+  },
+  submitButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#4CAF50",
+    alignItems: "center",
+  },
+  submitButtonDisabled: {
+    backgroundColor: "#b0bec5",
+  },
+  submitText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   cancelButton: {
-    marginTop: 24,
-    padding: 8,
-    borderRadius: 8,
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
     backgroundColor: "#eee",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cancelText: {
     color: "#667eea",
