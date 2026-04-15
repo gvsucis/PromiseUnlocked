@@ -38,17 +38,17 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.actionCardsContainer}>
-          <View style={styles.actionCard}>
+          <TouchableOpacity style={styles.actionCard}>
             <MaterialIcons name="public" size={36} color="#ffffff" />
             <Text style={styles.actionCardTitle}>My Experiences</Text>
             <Text style={styles.actionCardSubtitle}>Track your journey</Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={[styles.actionCard, styles.passportCard]}>
+          <TouchableOpacity style={styles.actionCard}>
             <MaterialIcons name="card-travel" size={36} color="#ffffff" />
             <Text style={styles.actionCardTitle}>Passport</Text>
             <Text style={styles.actionCardSubtitle}>View your stamps</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </LinearGradient>
@@ -164,9 +164,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  passportCard: {
-    backgroundColor: "#667eea",
   },
   actionCardTitle: {
     fontSize: 14,
