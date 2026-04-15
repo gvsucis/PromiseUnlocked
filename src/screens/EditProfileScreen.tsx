@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { ScrollView, View, StyleSheet, TouchableOpacity, Platform } from "react-native";
+import { ScrollView, View, StyleSheet, TouchableOpacity, Platform, Modal } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { Picker } from "@react-native-picker/picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
@@ -21,6 +22,36 @@ export default function EditProfileScreen() {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [highSchool, setHighSchool] = useState("Hometown High School");
+  const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [showEthnicityPicker, setShowEthnicityPicker] = useState(false);
+
+  const genderOptions = [
+    { label: "Select gender", value: "" },
+    { label: "Male", value: "male" },
+    { label: "Female", value: "female" },
+    { label: "Non-binary", value: "non-binary" },
+    { label: "Prefer not to say", value: "prefer-not-to-say" },
+    { label: "Other", value: "other" },
+  ];
+
+  const ethnicityOptions = [
+    { label: "Select ethnicity", value: "" },
+    { label: "American Indian or Alaska Native", value: "american-indian-alaska-native" },
+    { label: "Asian", value: "asian" },
+    { label: "Black or African American", value: "black-african-american" },
+    { label: "Hispanic or Latino", value: "hispanic-latino" },
+    {
+      label: "Native Hawaiian or Other Pacific Islander",
+      value: "native-hawaiian-pacific-islander",
+    },
+    { label: "White", value: "white" },
+    { label: "Two or More Races", value: "two-or-more" },
+    { label: "Prefer not to say", value: "prefer-not-to-say" },
+    { label: "Other", value: "other" },
+  ];
+
+  const getLabel = (options: { label: string; value: string }[], value: string) =>
+    options.find((o) => o.value === value)?.label ?? "";
 
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
@@ -41,32 +72,67 @@ export default function EditProfileScreen() {
 
           <View style={styles.fieldGroup}>
             <Label style={styles.label}>Date of birth</Label>
-            <Input
-              placeholder="MM / DD / YYYY"
-              value={dob}
-              onChangeText={setDob}
-              className="bg-white border-gray-200 h-12 rounded-lg text-base"
-            />
+            <View style={styles.inputWrapper}>
+              <Input
+                placeholder="MM / DD / YYYY"
+                value={dob}
+                onChangeText={setDob}
+                className="bg-white border-0 h-10 text-sm px-0"
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
 
           <View style={styles.fieldGroup}>
             <Label style={styles.label}>Gender</Label>
-            <Input
-              placeholder="Gender"
-              value={gender}
-              onChangeText={setGender}
-              className="bg-white border-gray-200 h-12 rounded-lg text-base"
-            />
+            {Platform.OS === "ios" ? (
+              <TouchableOpacity
+                style={styles.pickerWrapper}
+                onPress={() => setShowGenderPicker(true)}
+              >
+                <Text style={gender ? styles.pickerText : styles.pickerPlaceholder}>
+                  {gender ? getLabel(genderOptions, gender) : "Select gender"}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={gender}
+                  onValueChange={(value) => setGender(value)}
+                  style={styles.picker}
+                >
+                  {genderOptions.map((opt) => (
+                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                  ))}
+                </Picker>
+              </View>
+            )}
           </View>
 
           <View style={styles.fieldGroup}>
             <Label style={styles.label}>Ethnicity</Label>
-            <Input
-              placeholder="Ethnicity"
-              value={ethnicity}
-              onChangeText={setEthnicity}
-              className="bg-white border-gray-200 h-12 rounded-lg text-base"
-            />
+            {Platform.OS === "ios" ? (
+              <TouchableOpacity
+                style={styles.pickerWrapper}
+                onPress={() => setShowEthnicityPicker(true)}
+              >
+                <Text style={ethnicity ? styles.pickerText : styles.pickerPlaceholder}>
+                  {ethnicity ? getLabel(ethnicityOptions, ethnicity) : "Select ethnicity"}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={ethnicity}
+                  onValueChange={(value) => setEthnicity(value)}
+                  style={styles.picker}
+                >
+                  {ethnicityOptions.map((opt) => (
+                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                  ))}
+                </Picker>
+              </View>
+            )}
           </View>
         </View>
 
@@ -76,25 +142,31 @@ export default function EditProfileScreen() {
 
           <View style={styles.fieldGroup}>
             <Label style={styles.label}>Phone</Label>
-            <Input
-              placeholder="(555) 000-0000"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              className="bg-white border-gray-200 h-12 rounded-lg text-base"
-            />
+            <View style={styles.inputWrapper}>
+              <Input
+                placeholder="(555) 000-0000"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                className="bg-white border-0 h-10 text-sm px-0"
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
 
           <View style={styles.fieldGroup}>
             <Label style={styles.label}>Email</Label>
-            <Input
-              placeholder="student@email.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              className="bg-white border-gray-200 h-12 rounded-lg text-base"
-            />
+            <View style={styles.inputWrapper}>
+              <Input
+                placeholder="student@email.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                className="bg-white border-0 h-10 text-sm px-0"
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
         </View>
 
@@ -104,33 +176,42 @@ export default function EditProfileScreen() {
 
           <View style={styles.fieldGroup}>
             <Label style={styles.label}>Street address</Label>
-            <Input
-              placeholder="123 Main St"
-              value={street}
-              onChangeText={setStreet}
-              className="bg-white border-gray-200 h-12 rounded-lg text-base"
-            />
+            <View style={styles.inputWrapper}>
+              <Input
+                placeholder="123 Main St"
+                value={street}
+                onChangeText={setStreet}
+                className="bg-white border-0 h-10 text-sm px-0"
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
 
           <View style={styles.fieldRow}>
             <View style={styles.fieldHalf}>
               <Label style={styles.label}>City</Label>
-              <Input
-                placeholder="City"
-                value={city}
-                onChangeText={setCity}
-                className="bg-white border-gray-200 h-12 rounded-lg text-base"
-              />
+              <View style={styles.inputWrapper}>
+                <Input
+                  placeholder="City"
+                  value={city}
+                  onChangeText={setCity}
+                  className="bg-white border-0 h-10 text-sm px-0"
+                  style={{ flex: 1 }}
+                />
+              </View>
             </View>
 
             <View style={styles.fieldHalf}>
               <Label style={styles.label}>State</Label>
-              <Input
-                placeholder="State"
-                value={state}
-                onChangeText={setState}
-                className="bg-white border-gray-200 h-12 rounded-lg text-base"
-              />
+              <View style={styles.inputWrapper}>
+                <Input
+                  placeholder="State"
+                  value={state}
+                  onChangeText={setState}
+                  className="bg-white border-0 h-10 text-sm px-0"
+                  style={{ flex: 1 }}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -141,12 +222,15 @@ export default function EditProfileScreen() {
 
           <View style={styles.fieldGroup}>
             <Label style={styles.label}>High school</Label>
-            <Input
-              placeholder="Hometown High School"
-              value={highSchool}
-              onChangeText={setHighSchool}
-              className="bg-white border-gray-200 h-12 rounded-lg text-base"
-            />
+            <View style={styles.inputWrapper}>
+              <Input
+                placeholder="Hometown High School"
+                value={highSchool}
+                onChangeText={setHighSchool}
+                className="bg-white border-0 h-10 text-sm px-0"
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
         </View>
 
@@ -159,6 +243,45 @@ export default function EditProfileScreen() {
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* iOS Modal Pickers */}
+      {Platform.OS === "ios" && (
+        <>
+          <Modal visible={showGenderPicker} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
+                    <Text style={styles.modalDone}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <Picker selectedValue={gender} onValueChange={(value) => setGender(value)}>
+                  {genderOptions.map((opt) => (
+                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          </Modal>
+
+          <Modal visible={showEthnicityPicker} transparent animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity onPress={() => setShowEthnicityPicker(false)}>
+                    <Text style={styles.modalDone}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <Picker selectedValue={ethnicity} onValueChange={(value) => setEthnicity(value)}>
+                  {ethnicityOptions.map((opt) => (
+                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          </Modal>
+        </>
+      )}
     </LinearGradient>
   );
 }
@@ -227,6 +350,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#374151",
     marginBottom: 6,
+  },
+  inputWrapper: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    overflow: "hidden",
+    height: 42,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  pickerWrapper: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    overflow: "hidden",
+    height: 42,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  picker: {
+    height: 42,
+  },
+  pickerText: {
+    fontSize: 14,
+    color: "#111827",
+  },
+  pickerPlaceholder: {
+    fontSize: 14,
+    color: "#9ca3af",
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  modalContent: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e5e7eb",
+  },
+  modalDone: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#667eea",
   },
   saveButton: {
     backgroundColor: "#667eea",
