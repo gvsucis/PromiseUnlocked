@@ -1,7 +1,7 @@
 import admin from "firebase-admin";
 import type { FirestoreDataConverter } from "firebase-admin/firestore";
 import type { ServiceAccount } from "firebase-admin";
-import serviceAccount from "../../serviceAccountKey.json";
+import serviceAccount from "../../../backend/serviceAccountKey.json";
 import type { InteractionRecord, SessionRecord, UserProfile } from "../types/firestore";
 
 const typedServiceAccount = serviceAccount as ServiceAccount;
