@@ -3,8 +3,14 @@ import { ScrollView, View, StyleSheet, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/ui/text";
+import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { RootStackParamList } from "../types/navigation";
+
+type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
 
 export default function ProfileScreen() {
+  const navigation = useNavigation<ProfileNav>();
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -32,7 +38,10 @@ export default function ProfileScreen() {
             I am on a journey to become a full-stack engineer with project-based milestones.
           </Text>
 
-          <TouchableOpacity style={styles.editButton} onPress={() => {}}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => navigation.navigate("EditProfile")}
+          >
             <Text style={styles.editButtonText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>

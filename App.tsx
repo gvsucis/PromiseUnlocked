@@ -16,6 +16,7 @@ import FollowUpQuestionScreen from "./src/screens/FollowUpQuestionScreen";
 import SkillsDashboardScreen from "./src/screens/SkillsDashboardScreen";
 import DialogueDashboardScreen from "./src/screens/DialogueDashboardScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import EditProfileScreen from "./src/screens/EditProfileScreen";
 import { RootStackParamList } from "./src/types/navigation";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
@@ -122,6 +123,11 @@ function AppNavigator() {
           options={{ title: "Answer Follow-up Question" }}
         />
         <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
+        <Stack.Screen
+          name="EditProfile"
+          component={EditProfileScreen}
+          options={{ title: "Edit Profile", headerShown: true }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
