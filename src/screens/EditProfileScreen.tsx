@@ -364,17 +364,21 @@ export default function EditProfileScreen() {
                     <Text style={styles.modalDone}>Done</Text>
                   </TouchableOpacity>
                 </View>
-                <DateTimePicker
-                  value={dob ?? new Date()}
-                  mode="date"
-                  display="spinner"
-                  maximumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    if (selectedDate) {
-                      setDob(selectedDate);
-                    }
-                  }}
-                />
+                <View style={{ alignItems: "center" }}>
+                  <DateTimePicker
+                    value={dob ?? new Date()}
+                    mode="date"
+                    display="spinner"
+                    maximumDate={new Date()}
+                    themeVariant="light"
+                    style={{ width: "100%" }}
+                    onChange={(event, selectedDate) => {
+                      if (selectedDate) {
+                        setDob(selectedDate);
+                      }
+                    }}
+                  />
+                </View>
               </View>
             </View>
           </Modal>
@@ -387,7 +391,11 @@ export default function EditProfileScreen() {
                     <Text style={styles.modalDone}>Done</Text>
                   </TouchableOpacity>
                 </View>
-                <Picker selectedValue={gender} onValueChange={(value) => setGender(value)}>
+                <Picker
+                  selectedValue={gender}
+                  onValueChange={(value) => setGender(value)}
+                  itemStyle={{ color: "#000" }}
+                >
                   {genderOptions.map((opt) => (
                     <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
                   ))}
@@ -404,7 +412,11 @@ export default function EditProfileScreen() {
                     <Text style={styles.modalDone}>Done</Text>
                   </TouchableOpacity>
                 </View>
-                <Picker selectedValue={ethnicity} onValueChange={(value) => setEthnicity(value)}>
+                <Picker
+                  selectedValue={ethnicity}
+                  onValueChange={(value) => setEthnicity(value)}
+                  itemStyle={{ color: "#000" }}
+                >
                   {ethnicityOptions.map((opt) => (
                     <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
                   ))}
@@ -421,7 +433,11 @@ export default function EditProfileScreen() {
                     <Text style={styles.modalDone}>Done</Text>
                   </TouchableOpacity>
                 </View>
-                <Picker selectedValue={state} onValueChange={(value) => setState(value)}>
+                <Picker
+                  selectedValue={state}
+                  onValueChange={(value) => setState(value)}
+                  itemStyle={{ color: "#000" }}
+                >
                   {stateOptions.map((opt) => (
                     <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
                   ))}
