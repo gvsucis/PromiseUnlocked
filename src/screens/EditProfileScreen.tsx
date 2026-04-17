@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
+import { states } from "states-us";
 export default function EditProfileScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -58,58 +58,7 @@ export default function EditProfileScreen() {
     options.find((o) => o.value === value)?.label ?? "";
 
   const stateOptions = [
-    { label: "Select state", value: "" },
-    { label: "Alabama", value: "AL" },
-    { label: "Alaska", value: "AK" },
-    { label: "Arizona", value: "AZ" },
-    { label: "Arkansas", value: "AR" },
-    { label: "California", value: "CA" },
-    { label: "Colorado", value: "CO" },
-    { label: "Connecticut", value: "CT" },
-    { label: "Delaware", value: "DE" },
-    { label: "Florida", value: "FL" },
-    { label: "Georgia", value: "GA" },
-    { label: "Hawaii", value: "HI" },
-    { label: "Idaho", value: "ID" },
-    { label: "Illinois", value: "IL" },
-    { label: "Indiana", value: "IN" },
-    { label: "Iowa", value: "IA" },
-    { label: "Kansas", value: "KS" },
-    { label: "Kentucky", value: "KY" },
-    { label: "Louisiana", value: "LA" },
-    { label: "Maine", value: "ME" },
-    { label: "Maryland", value: "MD" },
-    { label: "Massachusetts", value: "MA" },
-    { label: "Michigan", value: "MI" },
-    { label: "Minnesota", value: "MN" },
-    { label: "Mississippi", value: "MS" },
-    { label: "Missouri", value: "MO" },
-    { label: "Montana", value: "MT" },
-    { label: "Nebraska", value: "NE" },
-    { label: "Nevada", value: "NV" },
-    { label: "New Hampshire", value: "NH" },
-    { label: "New Jersey", value: "NJ" },
-    { label: "New Mexico", value: "NM" },
-    { label: "New York", value: "NY" },
-    { label: "North Carolina", value: "NC" },
-    { label: "North Dakota", value: "ND" },
-    { label: "Ohio", value: "OH" },
-    { label: "Oklahoma", value: "OK" },
-    { label: "Oregon", value: "OR" },
-    { label: "Pennsylvania", value: "PA" },
-    { label: "Rhode Island", value: "RI" },
-    { label: "South Carolina", value: "SC" },
-    { label: "South Dakota", value: "SD" },
-    { label: "Tennessee", value: "TN" },
-    { label: "Texas", value: "TX" },
-    { label: "Utah", value: "UT" },
-    { label: "Vermont", value: "VT" },
-    { label: "Virginia", value: "VA" },
-    { label: "Washington", value: "WA" },
-    { label: "West Virginia", value: "WV" },
-    { label: "Wisconsin", value: "WI" },
-    { label: "Wyoming", value: "WY" },
-    { label: "District of Columbia", value: "DC" },
+    ...states.map((state) => ({ label: state.name, value: state.abbreviation })),
   ];
 
   return (
@@ -229,7 +178,7 @@ export default function EditProfileScreen() {
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
-                className="bg-white border-0 h-10 text-sm px-0"
+                className="h-10 px-0 text-sm bg-white border-0"
                 style={{ flex: 1 }}
               />
             </View>
@@ -244,7 +193,7 @@ export default function EditProfileScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                className="bg-white border-0 h-10 text-sm px-0"
+                className="h-10 px-0 text-sm bg-white border-0"
                 style={{ flex: 1 }}
               />
             </View>
@@ -262,7 +211,7 @@ export default function EditProfileScreen() {
                 placeholder="123 Main St"
                 value={street}
                 onChangeText={setStreet}
-                className="bg-white border-0 h-10 text-sm px-0"
+                className="h-10 px-0 text-sm bg-white border-0"
                 style={{ flex: 1 }}
               />
             </View>
@@ -276,7 +225,7 @@ export default function EditProfileScreen() {
                   placeholder="City"
                   value={city}
                   onChangeText={setCity}
-                  className="bg-white border-0 h-10 text-sm px-0"
+                  className="h-10 px-0 text-sm bg-white border-0"
                   style={{ flex: 1 }}
                 />
               </View>
@@ -318,7 +267,7 @@ export default function EditProfileScreen() {
                 onChangeText={setZip}
                 keyboardType="number-pad"
                 maxLength={5}
-                className="bg-white border-0 h-10 text-sm px-0"
+                className="h-10 px-0 text-sm bg-white border-0"
                 style={{ flex: 1 }}
               />
             </View>
@@ -336,7 +285,7 @@ export default function EditProfileScreen() {
                 placeholder="Hometown High School"
                 value={highSchool}
                 onChangeText={setHighSchool}
-                className="bg-white border-0 h-10 text-sm px-0"
+                className="h-10 px-0 text-sm bg-white border-0"
                 style={{ flex: 1 }}
               />
             </View>
