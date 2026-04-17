@@ -1,8 +1,9 @@
 import axios from "axios";
 import { firebaseAuthSchema } from "../validation/firebaseAuthSchema";
+import "dotenv/config";
+import { db as firestore } from "./firestore";
 
-const FIREBASE_API_KEY =
-  process.env.FIREBASE_API_KEY || "AIzaSyD9KKN0M--DKCwdi5WkLn6sfLkycRlwerwerwr";
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
 
 const endpoints = {
   login: `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
@@ -37,12 +38,22 @@ export async function firebaseLogin(email: string, password: string) {
       password,
       returnSecureToken: true,
     });
+    const userId = response.data.localId;
+    // Ensure user profile exists in Firestore
+    const userDoc = await firestore.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      await firestore.collection("users").doc(userId).set({
+        email,
+        createdAt: new Date().toISOString(),
+        role: "user",
+      });
+    }
     return {
       success: true,
       data: {
         idToken: response.data.idToken,
         refreshToken: response.data.refreshToken,
-        userId: response.data.localId,
+        userId,
       },
     };
   } catch (error: any) {
@@ -55,7 +66,12 @@ export async function firebaseLogin(email: string, password: string) {
   }
 }
 
-export async function firebaseRegister(email: string, password: string) {
+export async function firebaseRegister(
+  email: string,
+  password: string,
+  firstName?: string,
+  lastName?: string
+) {
   const parseResult = firebaseAuthSchema.safeParse({ email, password });
   if (!parseResult.success) {
     return {
@@ -71,12 +87,28 @@ export async function firebaseRegister(email: string, password: string) {
       password,
       returnSecureToken: true,
     });
+    // Create user profile in Firestore (users collection)
+    const userId = response.data.localId;
+    // Only include firstName/lastName if defined
+    const userProfile: any = {
+      email,
+      firstName,
+      lastName,
+      createdAt: new Date().toISOString(),
+      role: "user",
+    };
+    if (firstName !== undefined) userProfile.firstName = firstName;
+    if (lastName !== undefined) userProfile.lastName = lastName;
+    await firestore.collection("users").doc(userId).set(userProfile);
     return {
       success: true,
       data: {
         idToken: response.data.idToken,
         refreshToken: response.data.refreshToken,
-        userId: response.data.localId,
+        userId,
+        firstName,
+        lastName,
+        role: response.data.role,
       },
     };
   } catch (error: any) {

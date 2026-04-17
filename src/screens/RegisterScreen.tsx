@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from "react";
-import { View, StyleSheet, Alert, ActivityIndicator } from "react-native";
-import { Button, Card, Divider, TextInput, HelperText, Text, Checkbox } from "react-native-paper";
+import { View, StyleSheet, Alert, ActivityIndicator, Pressable } from "react-native";
+import { Button, Card, Divider, TextInput, HelperText, Text } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../config/firebase";
+import { useAuth } from "../context/AuthContext";
+import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, "Register">;
 interface Props {
@@ -15,13 +15,17 @@ interface Props {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function RegisterScreen({ navigation }: Props) {
+export default function RegisterScreen({ navigation }: Readonly<Props>) {
+  const { session, signUpWithEmail } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
+    onSuccess: () => navigation.replace("DialogueDashboard"),
+  });
 
   const emailValid = useMemo(() => EMAIL_REGEX.test(email.trim()), [email]);
   const passwordLongEnough = useMemo(() => password.length >= 6, [password]);
@@ -35,6 +39,23 @@ export default function RegisterScreen({ navigation }: Props) {
   const hasConfirmError = confirmPassword.length > 0 && !passwordsMatch;
   const formValid = emailValid && passwordLongEnough && passwordsMatch && agreed;
 
+  React.useEffect(() => {
+    if (session.mode === "authenticated") {
+      navigation.replace("DialogueDashboard");
+    }
+  }, [navigation, session.mode]);
+
+  const getErrorDetails = (error: unknown) => {
+    if (error instanceof Error) {
+      return {
+        code: (error as Error & { code?: string }).code,
+        message: error.message,
+      };
+    }
+
+    return { code: undefined, message: "Unknown error" };
+  };
+
   const handleSignUp = async () => {
     if (!agreed) return Alert.alert("Terms Required", "You must agree to the Terms of Service.");
     if (!email || !password || !confirmPassword)
@@ -46,17 +67,20 @@ export default function RegisterScreen({ navigation }: Props) {
 
     try {
       setLoading(true);
-      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await signUpWithEmail(email, password);
       navigation.replace("DialogueDashboard");
-    } catch (error: any) {
-      const msg =
-        error.code === "auth/email-already-in-use"
-          ? "That email is already in use."
-          : error.code === "auth/invalid-email"
-            ? "That email address is invalid."
-            : error.code === "auth/weak-password"
-              ? "Password must be at least 6 characters."
-              : (error?.message ?? "Unknown error");
+    } catch (error: unknown) {
+      const { code, message } = getErrorDetails(error);
+      let msg = message;
+
+      if (code === "auth/email-already-in-use") {
+        msg = "That email is already in use.";
+      } else if (code === "auth/invalid-email") {
+        msg = "That email address is invalid.";
+      } else if (code === "auth/weak-password") {
+        msg = "Password must be at least 6 characters.";
+      }
+
       Alert.alert("Error", msg);
     } finally {
       setLoading(false);
@@ -138,20 +162,26 @@ export default function RegisterScreen({ navigation }: Props) {
               </HelperText>
 
               {/* Terms checkbox */}
-              <View style={styles.checkboxRow}>
-                <Checkbox
-                  status={agreed ? "checked" : "unchecked"}
-                  onPress={() => setAgreed((a) => !a)}
-                  color="#fff"
-                  uncheckedColor="rgba(255,255,255,0.6)"
-                />
+              <Pressable
+                style={styles.checkboxRow}
+                onPress={() => setAgreed((a) => !a)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: agreed }}
+              >
+                <View style={styles.checkboxControl}>
+                  <MaterialIcons
+                    name={agreed ? "check-box" : "check-box-outline-blank"}
+                    size={20}
+                    color={agreed ? "#ebe4cf" : "#FFFFFF"}
+                  />
+                </View>
                 <View style={styles.termsTextWrap}>
                   <Text style={styles.termsLabel}>I agree to the </Text>
                   <Text style={styles.termsLink}>Terms of Service</Text>
                   <Text style={styles.termsLabel}> and </Text>
                   <Text style={styles.termsLink}>Privacy Policy</Text>
                 </View>
-              </View>
+              </Pressable>
 
               <Divider style={styles.divider} />
 
@@ -165,6 +195,23 @@ export default function RegisterScreen({ navigation }: Props) {
                 onPress={handleSignUp}
               >
                 {loading ? <ActivityIndicator color="#fff" size="small" /> : "Create Account"}
+              </Button>
+
+              <Divider style={styles.divider} />
+              <View style={styles.fixToText}>
+                <Button
+                  mode="outlined"
+                  icon="google"
+                  style={[styles.outlined, styles.pill]}
+                  labelStyle={styles.outlinedLabel}
+                  disabled={loading || googleLoading}
+                  onPress={handleGoogleSignIn}
+                >
+                  Sign in with Google
+                </Button>
+              </View>
+              <Button onPress={() => navigation.navigate("Welcome")} labelStyle={styles.linkLabel}>
+                Back to welcome
               </Button>
 
               <Divider style={styles.divider} />
@@ -197,14 +244,39 @@ const styles = StyleSheet.create({
   cardSubtitle: { color: "rgba(255,255,255,0.85)" },
   input: { backgroundColor: "transparent", marginBottom: 4 },
   helper: { color: "#ffb4b4", marginTop: -8, marginBottom: 8 },
-  checkboxRow: { flexDirection: "row", alignItems: "center", marginVertical: 4 },
-  termsTextWrap: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
-  termsLabel: { color: "rgba(255,255,255,0.85)", fontSize: 12 },
-  termsLink: { color: "#fff", fontSize: 12, fontWeight: "600", textDecorationLine: "underline" },
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginVertical: 4,
+    paddingVertical: 2,
+  },
+  checkboxControl: {
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 6,
+    marginTop: 2,
+  },
+  termsTextWrap: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start" },
+  termsLabel: { color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18 },
+  termsLink: {
+    color: "#FFE082",
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
   primary: { marginBottom: 8, backgroundColor: "#6C5CE7" },
   primaryContent: { height: 48 },
   primaryLabel: { color: "#fff", fontWeight: "600" },
   pill: { borderRadius: 28 },
   divider: { marginVertical: 12, backgroundColor: "rgba(255,255,255,0.2)" },
   linkLabel: { color: "#fff" },
+  outlined: { borderColor: "rgba(255,255,255,0.7)", marginBottom: 8 },
+  outlinedLabel: { color: "#fff" },
+  fixToText: {
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+  },
 });

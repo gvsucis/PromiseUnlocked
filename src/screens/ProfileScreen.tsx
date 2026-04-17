@@ -1,95 +1,189 @@
 import React from "react";
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { ScrollView, View, StyleSheet, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import ProfileOverviewCard from "../components/ProfileOverviewCard";
+import { LinearGradient } from "expo-linear-gradient";
+import { Text } from "@/components/ui/text";
+import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { RootStackParamList } from "../types/navigation";
+
+type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
 
 export default function ProfileScreen() {
+  const navigation = useNavigation<ProfileNav>();
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.screenTitle}>My Universities</Text>
-        <Text style={styles.screenSubtitle}>
-          Explore your favorite universities and take actionable steps!
-        </Text>
+    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerSection}>
+          <MaterialIcons name="school" size={40} color="#fff" />
+          <Text style={styles.title}>My Universities</Text>
+          <Text style={styles.subtitle}>
+            Explore your favorite universities and take actionable steps!
+          </Text>
+        </View>
 
-        <ProfileOverviewCard
-          name="Sample Student"
-          school="Hometown High School"
-          title="Future Software Developer"
-          bio="I am on a journey to become a full-stack engineer with project-based milestones."
-        />
+        <View style={styles.profileCard}>
+          <View style={styles.profileHeader}>
+            <View style={styles.avatarCircle}>
+              <MaterialIcons name="person" size={32} color="#ffffff" />
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.studentName}>Sample Student</Text>
+              <Text style={styles.school}>Hometown High School</Text>
+              <Text style={styles.role}>Future Software Developer</Text>
+            </View>
+          </View>
 
-        <View style={styles.cardsRow}>
-          <TouchableOpacity style={styles.actionCard} onPress={() => {}}>
-            <MaterialIcons name="sports-basketball" size={38} color="#ffffff" />
-            <Text style={styles.actionTitle}>My Experiences</Text>
-            <Text style={styles.actionSub}>Track your journey</Text>
+          <Text style={styles.bio}>
+            I am on a journey to become a full-stack engineer with project-based milestones.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => navigation.navigate("EditProfile")}
+          >
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.actionCardsContainer}>
+          <TouchableOpacity style={styles.actionCard}>
+            <MaterialIcons name="public" size={36} color="#ffffff" />
+            <Text style={styles.actionCardTitle}>My Experiences</Text>
+            <Text style={styles.actionCardSubtitle}>Track your journey</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.actionCard, styles.passportCard]} onPress={() => {}}>
-            <MaterialIcons name="card-travel" size={38} color="#ffffff" />
-            <Text style={styles.actionTitle}>Passport</Text>
-            <Text style={styles.actionSub}>View your stamps</Text>
+          <TouchableOpacity style={styles.actionCard}>
+            <MaterialIcons name="card-travel" size={36} color="#ffffff" />
+            <Text style={styles.actionCardTitle}>Passport</Text>
+            <Text style={styles.actionCardSubtitle}>View your stamps</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#EBF2FF",
   },
-  content: {
-    padding: 16,
-    paddingTop: 12,
+  scrollContent: {
+    paddingBottom: 32,
   },
-  screenTitle: {
-    fontSize: 26,
-    color: "#1B3A72",
+  headerSection: {
+    marginBottom: 24,
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 20,
+  },
+  title: {
+    fontSize: 28,
     fontWeight: "bold",
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  screenSubtitle: {
-    fontSize: 14,
-    color: "#4A5A78",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  cardsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
+    color: "#fff",
     marginTop: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.9)",
+    marginTop: 5,
+    textAlign: "center",
+  },
+  profileCard: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  profileHeader: {
+    flexDirection: "row",
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#667eea",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  profileInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  studentName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1f2937",
+  },
+  school: {
+    fontSize: 13,
+    color: "#6b7280",
+    marginTop: 4,
+  },
+  role: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#667eea",
+    marginTop: 4,
+  },
+  bio: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  editButton: {
+    backgroundColor: "#667eea",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  editButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  actionCardsContainer: {
+    flexDirection: "row",
+    gap: 16,
+    paddingHorizontal: 16,
   },
   actionCard: {
     flex: 1,
-    backgroundColor: "#2E6EE6",
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: "#667eea",
+    borderRadius: 12,
+    padding: 20,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 150,
-    marginBottom: 16,
-    marginHorizontal: 2,
+    minHeight: 140,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  passportCard: {
-    backgroundColor: "#0D47A1",
-  },
-
-  actionTitle: {
-    marginTop: 10,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#fff",
+  actionCardTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#ffffff",
+    marginTop: 12,
     textAlign: "center",
   },
-  actionSub: {
+  actionCardSubtitle: {
     fontSize: 12,
-    color: "#DDDDFF",
+    color: "#dbeafe",
     marginTop: 4,
     textAlign: "center",
   },

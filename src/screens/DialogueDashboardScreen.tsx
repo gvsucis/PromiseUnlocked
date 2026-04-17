@@ -17,11 +17,13 @@ import ImageEditor from "../components/ImageEditor";
 import { LoadingModal } from "../components/dialogue/LoadingModal";
 import { CompletionModal } from "../components/dialogue/CompletionModal";
 import { WeakFitModal } from "../components/dialogue/WeakFitModal";
-import { InputMethodModal } from "../components/dialogue/InputMethodModal";
+import { useState } from "react";
+import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
 import { CategoryCard } from "../components/dialogue/CategoryCard";
 import { useDialogueState } from "../hooks/useDialogueState";
+import { useAuth } from "../context/AuthContext";
 
 const { width } = Dimensions.get("window");
 
@@ -34,6 +36,7 @@ interface Props {
 }
 
 export default function DialogueDashboardScreen({ navigation }: Props) {
+  const { session, logoutToGuest } = useAuth();
   const {
     mappedCategories,
     uiState,
@@ -43,8 +46,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     error,
     weakFitJustification,
     showConfetti,
-    showInputMethodModal,
     loading,
+    prefetchedQuestion,
+    showInputMethodModal,
     setUserAnswer,
     setUiState,
     setCurrentPrompt,
@@ -52,7 +56,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     resetData,
     mapAnswerToCategory,
     handleStartButtonPress,
-    handleTextInputPress,
     handleVoiceInputPress,
     prepareImageQuestion,
     handleSubmitAnswer,
@@ -60,6 +63,10 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     handleWeakFitNewQuestion,
     dismissAnswerModal,
   } = useDialogueState();
+
+  const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const suppressModalReopenRef = useRef(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = React.useState(false);
@@ -80,20 +87,58 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          onPress={handleReset}
-          style={{ marginRight: 15 }}
-          disabled={uiState !== "idle" && uiState !== "complete"}
-        >
-          <MaterialIcons
-            name="refresh"
-            size={24}
-            color={uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"}
-          />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={session.mode === "authenticated" ? handleLogout : handleAccountPress}
+            style={styles.headerActionButton}
+          >
+            <MaterialIcons
+              name={session.mode === "authenticated" ? "logout" : "person"}
+              size={24}
+              color="#fff"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleReset}
+            style={styles.headerActionButton}
+            disabled={uiState !== "idle" && uiState !== "complete"}
+          >
+            <MaterialIcons
+              name="refresh"
+              size={24}
+              color={uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"}
+            />
+          </TouchableOpacity>
+        </View>
       ),
     });
-  }, [navigation, uiState]);
+  }, [navigation, session.mode, uiState]);
+
+  const handleAccountPress = () => {
+    navigation.navigate("Login");
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Switch to Guest",
+      "You will keep this account's saved progress, and the app will continue in guest mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => {
+            void logoutToGuest()
+              .then(() => {
+                navigation.replace("Welcome");
+              })
+              .catch(() => {
+                Alert.alert("Error", "Failed to switch to guest mode.");
+              });
+          },
+        },
+      ]
+    );
+  };
 
   const handleReset = () => {
     Alert.alert("Reset Dashboard", "Are you sure you want to reset? All progress will be lost.", [
@@ -110,13 +155,24 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     ]);
   };
 
-  const handleInputMethodSelect = async (method: "text" | "voice" | "image") => {
-    setShowInputMethodModal(false);
-    await new Promise((resolve) => setTimeout(resolve, 150));
+  const handleSubmitTextFromModal = (text: string) => {
+    if (!text.trim()) return;
+    suppressModalReopenRef.current = true;
+    setShowQuestionInputModal(false);
+    const q = pendingQuestion || currentPrompt;
+    setPendingQuestion(null);
+    setCurrentPrompt("");
+    suppressModalReopenRef.current = false;
+    mapAnswerToCategory(q, text);
+  };
 
-    if (method === "text") {
-      handleTextInputPress();
-    } else if (method === "voice") {
+  const handleInputTypeSelect = async (method: "voice" | "image") => {
+    suppressModalReopenRef.current = true;
+    setShowQuestionInputModal(false);
+    setPendingQuestion(null);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    suppressModalReopenRef.current = false;
+    if (method === "voice") {
       handleVoiceInputPress();
     } else if (method === "image") {
       const ready = prepareImageQuestion();
@@ -335,20 +391,18 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       Alert.alert(categoryName, `Why you have this trait:\n\n"${mapped.justification}"`, [
         { text: "OK" },
       ]);
+    } else if (mappedCategories.length === 0) {
+      Alert.alert(
+        "Not Yet Mapped",
+        "This trait is not yet mapped to you. Click the 'Start' button to discover new traits!",
+        [{ text: "OK" }]
+      );
     } else {
-      {
-        mappedCategories.length === 0
-          ? Alert.alert(
-              "Not Yet Mapped",
-              "This trait is not yet mapped to you. Click the 'Start' button to discover new traits!",
-              [{ text: "OK" }]
-            )
-          : Alert.alert(
-              "Not Yet Mapped",
-              "This trait is not yet mapped to you. Click the 'Continue' button to discover new traits!",
-              [{ text: "OK" }]
-            );
-      }
+      Alert.alert(
+        "Not Yet Mapped",
+        "This trait is not yet mapped to you. Click the 'Continue' button to discover new traits!",
+        [{ text: "OK" }]
+      );
     }
   };
 
@@ -361,7 +415,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         category={{
           ...item,
           example: "",
-          icon: item.icon || "category",
+          icon: (item.icon as any) || ("category" as any),
         }}
         isMapped={mappedNames.has(item.category)}
         mappedData={mappedNames.get(item.category)}
@@ -371,6 +425,26 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   };
 
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
+
+  React.useEffect(() => {
+    if (
+      uiState === "idle" &&
+      currentPrompt &&
+      !showQuestionInputModal &&
+      !suppressModalReopenRef.current
+    ) {
+      setPendingQuestion(currentPrompt);
+      setShowQuestionInputModal(true);
+    }
+  }, [uiState, currentPrompt, showQuestionInputModal]);
+
+  React.useEffect(() => {
+    if (showInputMethodModal && prefetchedQuestion) {
+      setPendingQuestion(prefetchedQuestion);
+      setShowQuestionInputModal(true);
+      setShowInputMethodModal(false);
+    }
+  }, [showInputMethodModal, prefetchedQuestion]);
 
   if (loading) {
     return (
@@ -383,7 +457,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <MaterialIcons name="explore" size={40} color="#fff" />
           <Text style={styles.title}>My Skills Passport</Text>
@@ -520,10 +594,17 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         onCancel={handleVoiceCancel}
       />
 
-      <InputMethodModal
-        visible={showInputMethodModal}
-        onSelect={handleInputMethodSelect}
-        onClose={() => setShowInputMethodModal(false)}
+      {/* Combined Question + Input Type Modal */}
+      <QuestionInputModal
+        visible={showQuestionInputModal && !!pendingQuestion}
+        question={pendingQuestion || ""}
+        onSelectInputType={handleInputTypeSelect}
+        onSubmitText={handleSubmitTextFromModal}
+        onClose={() => {
+          setShowQuestionInputModal(false);
+          setPendingQuestion(null);
+          setCurrentPrompt("");
+        }}
       />
 
       {showImageEditor && tempImageUri && (
@@ -556,6 +637,62 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  questionInputModalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  questionInputModalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "85%",
+    alignItems: "center",
+  },
+  questionInputModalQuestion: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  questionInputModalSubtitle: {
+    fontSize: 15,
+    marginBottom: 18,
+    color: "#555",
+    textAlign: "center",
+  },
+  questionInputModalInputRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+  },
+  questionInputModalInputButton: {
+    alignItems: "center",
+    marginHorizontal: 12,
+  },
+  questionInputModalInputLabel: {
+    marginTop: 6,
+  },
+  questionInputModalCancelButton: {
+    marginTop: 24,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#eee",
+  },
+  questionInputModalCancelText: {
+    color: "#667eea",
+    fontWeight: "bold",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  headerActionButton: {
+    marginLeft: 12,
+  },
   container: {
     flex: 1,
   },

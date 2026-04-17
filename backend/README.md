@@ -1,63 +1,71 @@
-# Backend README
 
-## Overview
+# Promise Unlocked Backend
 
-This backend provides API endpoints and Firestore integration for the PromiseUnlocked mobile app. It manages user sessions, interactions, authentication, and category mapping, and is designed to run both in production (Firebase) and locally using the Firebase Emulator Suite.
+This is the backend for the Promise Unlocked project, built with Node.js, TypeScript, Express, and Firebase Cloud Functions.
+
+## Project Structure
+
+```
+backend/
+    src/                # All TypeScript source files
+        index.ts          # Firebase Functions entry point
+        app.ts            # Express app (imported by index.ts)
+        ...other files
+    package.json        # Backend dependencies and scripts
+    tsconfig.json       # TypeScript configuration
+    firebase.json       # Firebase configuration
+    .firebaserc         # Firebase project alias config
+```
+
+## Setup
+
+1. **Install dependencies:**
+     ```sh
+     cd backend
+     npm install
+     ```
+
+2. **Configure Firebase:**
+     - Make sure you are logged in: `firebase login`
+     - Link to your Firebase project:
+         ```sh
+         firebase use --add
+         # Select: promise-unlocked-sign-up-888a0
+         ```
+
+3. **Development:**
+     - Start the emulator:
+         ```sh
+         npm run serve
+         ```
+     - Run locally with hot reload:
+         ```sh
+         npm run dev
+         ```
+
+4. **Build:**
+     ```sh
+     npm run build
+     ```
+
+5. **Deploy to Firebase Functions:**
+     ```sh
+     npm run deploy
+     # or
+     firebase deploy --only functions
+     ```
+
+## Environment Variables
+- Store secrets in `.env` or use Firebase environment config for production.
+
+## Notes
+- All backend code should be in `src/`.
+- The Firebase Functions entry point is `src/index.ts`.
+- Make sure your `.firebaserc` points to the correct project ID: `promise-unlocked-sign-up-888a0`.
 
 ---
 
-## Key Features
-
--   **Firestore Integration:** Handles sessions, interactions, users, and category mappings.
--   **Authentication:** Uses Firebase Auth for secure endpoints.
--   **Session & Interaction Management:** Tracks user sessions and logs all interactions.
--   **Mirrored Writes:** AsyncStorage is the primary store on the client; Firestore receives mirrored writes.
--   **Emulator Support:** Can run locally with the Firebase Emulator Suite for development/testing.
--   **Logging:** Errors are logged to the console for debugging.
-
----
-
-## Directory Structure
-
--   `src/api/` — Express API endpoints (e.g., `interactions.ts`, `auth.ts`)
--   `src/services/` — Firestore, session, and storage logic
--   `src/types/` — TypeScript types for Firestore records and requests
--   `logs/` — (Optional) Directory for backend logs
-
----
-
-## Firestore Collections
-
--   `users` — User profiles
--   `sessions` — Session records (userId, topic, status, startedAt, endedAt, metadata)
--   `interactions` — Interaction records (sessionId, userId, type, payload, createdAt)
-
-### Indexes
-
--   Composite index on `interactions`: `sessionId` (asc), `createdAt` (asc)
--   See `firestore.indexes.json` in the project root
-
----
-
-## Running Locally with Emulator
-
-1.  Install Firebase CLI: `npm install -g firebase-tools`
-2.  Start emulators:
-    
-    ```sh
-    firebase emulators:start --only firestore,auth --project demo-backend
-    ```
-    
-3.  Access Emulator UI: [http://127.0.0.1:4001/](http://127.0.0.1:4001/)
-
-### Notes
-
--   Emulator data is separate from production. Import or seed data as needed.
--   Without `firebase.json` and Firestore rules, all reads/writes are allowed by default.
-
----
-
-## Deployment
+For more, see the Firebase documentation: https://firebase.google.com/docs/functions
 
 -   Deploy indexes: `firebase deploy --only firestore:indexes`
 -   Deploy functions/endpoints as needed (see Firebase documentation)

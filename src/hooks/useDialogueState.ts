@@ -307,37 +307,42 @@ export function useDialogueState(): DialogueState {
     if (uiState !== "idle") return;
     setError("");
 
-    if (mappedCategories.length > 0 && !prefetchedQuestion && !isPrefetching) {
-      setUiState("loading");
-      setLoadingMessage("Synthesizing a new question...");
+    if (mappedCategories.length === 0) {
+      setCurrentPrompt(INITIAL_PROMPT);
+      return;
+    }
 
-      try {
-        const newQuestion = await GeminiService.synthesizeNextQuestion(
-          interactions,
-          mappedCategories,
-          getTaxonomyString()
-        );
+    if (prefetchedQuestion) {
+      setCurrentPrompt(prefetchedQuestion);
+      setPrefetchedQuestion(null);
+      return;
+    }
 
-        setPrefetchedQuestion(newQuestion);
-        setUiState("idle");
-        setLoadingMessage("");
-
-        setTimeout(() => {
-          setShowInputMethodModal(true);
-        }, 100);
-      } catch (err) {
-        console.error("Error synthesizing question:", err);
-        setError("Failed to generate question. Please try again.");
-        setUiState("idle");
-        setLoadingMessage("");
-      }
-    } else {
-      setShowInputMethodModal(true);
+    setUiState("loading");
+    setLoadingMessage("Synthesizing a new question...");
+    try {
+      const newQuestion = await GeminiService.synthesizeNextQuestion(
+        interactions,
+        mappedCategories,
+        getTaxonomyString()
+      );
+      setCurrentPrompt(newQuestion);
+      setUiState("idle");
+      setLoadingMessage("");
+    } catch (err) {
+      console.error("Error synthesizing question:", err);
+      setError("Failed to generate question. Please try again.");
+      setUiState("idle");
+      setLoadingMessage("");
     }
   };
 
   const handleTextInputPress = () => {
     setError("");
+    if (currentPrompt) {
+      setTimeout(() => setUiState("answering"), 100);
+      return;
+    }
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
       setTimeout(() => setUiState("answering"), 100);
@@ -352,7 +357,10 @@ export function useDialogueState(): DialogueState {
 
   const handleVoiceInputPress = () => {
     setError("");
-
+    if (currentPrompt) {
+      setTimeout(() => setUiState("voice-recording"), 100);
+      return;
+    }
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
       setTimeout(() => setUiState("voice-recording"), 100);
@@ -367,7 +375,10 @@ export function useDialogueState(): DialogueState {
 
   const prepareImageQuestion = (): boolean => {
     setError("");
-
+    if (currentPrompt) {
+      setSavedQuestion(currentPrompt);
+      return true;
+    }
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
       setSavedQuestion(INITIAL_PROMPT);

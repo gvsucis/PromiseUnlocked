@@ -2,6 +2,7 @@
   "expo": {
     "name": "promiseUnlocked",
     "slug": "promiseunlocked",
+    "scheme": "promiseunlocked",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -51,18 +52,18 @@
           "cameraPermission": "The app accesses your camera to let you share photos with your friends."
         }
       ],
-
+      "expo-apple-authentication",
       "expo-web-browser",
       "expo-build-properties"
     ],
     "extra": {
       "eas": {
-        "projectId": "6ecf846e-45ab-42ed-b633-febe4811c82f"
+        "projectId": "dab9b9dc-bae0-4d27-8c15-47573a0a1d58"
       }
     },
     "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://u.expo.dev/6ecf846e-45ab-42ed-b633-febe4811c82f"
+      "url": "https://u.expo.dev/dab9b9dc-bae0-4d27-8c15-47573a0a1d58"
     }
   }
 }

@@ -8,6 +8,7 @@
 import { MappedCategory, ConversationInteraction } from "./categoryTaxonomyService";
 import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../util/asyncStorage";
 
+import { getScopedStorageKey } from "./auth/authSessionService";
 import { clearSessionState, endSession, getOrStartSession, getUserId } from "./sessionManager";
 import { saveInteraction, savePassportMapping } from "./firebase/firestoreService";
 import { enqueueFirestoreWrite } from "./firebase/firestoreWriteQueue";
@@ -23,8 +24,17 @@ async function getFirestoreWriteContext(): Promise<{ sessionId: string; userId: 
   return { sessionId, userId };
 }
 
+async function getMappedCategoriesStorageKey(): Promise<string> {
+  return getScopedStorageKey(MAPPED_CATEGORIES_KEY);
+}
+
+async function getInteractionsStorageKey(): Promise<string> {
+  return getScopedStorageKey(INTERACTIONS_KEY);
+}
+
 export async function getMappedCategories(): Promise<MappedCategory[]> {
-  return getJSONFromStorage(MAPPED_CATEGORIES_KEY, [] as MappedCategory[]);
+  const storageKey = await getMappedCategoriesStorageKey();
+  return getJSONFromStorage(storageKey, [] as MappedCategory[]);
 }
 
 /**
@@ -46,7 +56,8 @@ export async function saveMappedCategory(category: MappedCategory): Promise<void
   try {
     const current = await getMappedCategories();
     const updated = [...current, category];
-    await setJSONInStorage(MAPPED_CATEGORIES_KEY, updated);
+    const storageKey = await getMappedCategoriesStorageKey();
+    await setJSONInStorage(storageKey, updated);
   } catch (error) {
     logErrorToFile("Error saving mapped category:", error);
     throw error;
@@ -54,7 +65,8 @@ export async function saveMappedCategory(category: MappedCategory): Promise<void
 }
 
 export async function getConversationHistory(): Promise<ConversationInteraction[]> {
-  return getJSONFromStorage(INTERACTIONS_KEY, [] as ConversationInteraction[]);
+  const storageKey = await getInteractionsStorageKey();
+  return getJSONFromStorage(storageKey, [] as ConversationInteraction[]);
 }
 
 export async function addConversationInteraction(
@@ -65,7 +77,8 @@ export async function addConversationInteraction(
     const current = await getConversationHistory();
     const sequenceIndex = current.length;
     const updated = [...current, interaction];
-    await setJSONInStorage(INTERACTIONS_KEY, updated);
+    const storageKey = await getInteractionsStorageKey();
+    await setJSONInStorage(storageKey, updated);
 
     let mappingOutcome = interaction.mappingOutcome;
     if (!mappingOutcome) {
@@ -86,10 +99,11 @@ export async function addConversationInteraction(
       mappingOutcome === "mapped" || mappingOutcome === "already_mapped"
         ? interaction.mappedCategory
         : null;
+    const writeContext = await getFirestoreWriteContext();
 
     enqueueFirestoreWrite(
       async () => {
-        const { sessionId, userId } = await getFirestoreWriteContext();
+        const { sessionId, userId } = writeContext;
         await saveInteraction(userId, sessionId, {
           sequenceIndex,
           question: interaction.question,
@@ -121,11 +135,13 @@ export async function addConversationInteractionWithMapping(
     const current = await getConversationHistory();
     const sequenceIndex = current.length;
     const updated = [...current, interaction];
-    await setJSONInStorage(INTERACTIONS_KEY, updated);
+    const storageKey = await getInteractionsStorageKey();
+    await setJSONInStorage(storageKey, updated);
+    const writeContext = await getFirestoreWriteContext();
 
     await enqueueFirestoreWrite(
       async () => {
-        const { sessionId, userId } = await getFirestoreWriteContext();
+        const { sessionId, userId } = writeContext;
         const interactionId = await saveInteraction(userId, sessionId, {
           sequenceIndex,
           question: interaction.question,
@@ -169,7 +185,11 @@ export async function getMappedCategoryNames(): Promise<string[]> {
 export async function clearAllData(): Promise<void> {
   try {
     await endSession("abandoned");
-    await removeManyFromStorage([MAPPED_CATEGORIES_KEY, INTERACTIONS_KEY]);
+    const [mappedCategoriesKey, interactionsKey] = await Promise.all([
+      getMappedCategoriesStorageKey(),
+      getInteractionsStorageKey(),
+    ]);
+    await removeManyFromStorage([mappedCategoriesKey, interactionsKey]);
     await clearSessionState();
   } catch (error) {
     logErrorToFile("Error clearing data:", error);
@@ -213,7 +233,8 @@ export async function updateMappedCategoryCounter(
       c.category === updatedMappedCategory.category ? updatedMappedCategory : c
     );
 
-    await setJSONInStorage(MAPPED_CATEGORIES_KEY, newMappedCategories);
+    const storageKey = await getMappedCategoriesStorageKey();
+    await setJSONInStorage(storageKey, newMappedCategories);
     return updatedMappedCategory;
   } catch (error) {
     console.error("Error updating mapped categories:", error);

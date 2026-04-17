@@ -3,10 +3,11 @@ import type { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import gracefulShutdown from "http-graceful-shutdown";
-import usersRouter from "./api/users";
+import participantsRouter from "./api/participants";
 import sessionsRouter from "./api/sessions";
 import interactionsRouter from "./api/interactions";
 import authRouter from "./api/auth";
+import { authenticateToken } from "./middleware/auth";
 import { setupSwagger } from "./swagger";
 
 dotenv.config();
@@ -19,14 +20,20 @@ app.use(express.json());
 
 setupSwagger(app);
 
+// Public routes
 app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({ status: "Server is running" });
 });
-
 app.use("/api/auth", authRouter);
-app.use("/api/users", usersRouter);
-app.use("/api/sessions", sessionsRouter);
-app.use("/api/interactions", interactionsRouter);
+
+// Protected routes
+app.use("/api/participants", authenticateToken, participantsRouter);
+app.use("/api/participants/:participantId/sessions", authenticateToken, sessionsRouter);
+app.use(
+  "/api/participants/:participantId/sessions/:sessionId/interactions",
+  authenticateToken,
+  interactionsRouter
+);
 
 app.use((req, res) => {
   res.status(404).json({ error: `Route ${req.path} not found` });
@@ -44,8 +51,8 @@ const server = app.listen(PORT || 4000, () => {
 gracefulShutdown(server, {
   signals: "SIGINT SIGTERM",
   timeout: 20000,
-  development: false,
-  forceExit: true,
+  development: true,
+  forceExit: false,
   onShutdown: async () => {
     console.log("Performing graceful shutdown...");
   },
