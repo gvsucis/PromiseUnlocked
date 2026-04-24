@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Text, Card, Button, ActivityIndicator, Chip, ProgressBar } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -14,13 +14,10 @@ import {
 } from "../services/userSkillsService";
 import { SKILLS_TAXONOMY } from "../services/skillTaxonomyService";
 
-const { width } = Dimensions.get("window");
-
-type SkillsDashboardScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  "SkillsDashboard"
->;
-type SkillsDashboardScreenRouteProp = RouteProp<RootStackParamList, "SkillsDashboard">;
+type SkillsDashboardScreenNavigationProp = StackNavigationProp<RootStackParamList>;
+type SkillsDashboardScreenRouteProp =
+  | RouteProp<RootStackParamList, "SkillsDashboard">
+  | RouteProp<RootStackParamList, "Passport">;
 
 interface Props {
   navigation: SkillsDashboardScreenNavigationProp;
@@ -73,13 +70,16 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
   const getCategoryIcon = (category: string): string => {
     const icons: { [key: string]: string } = {
       "Human Skills": "people",
-      "Meta-Learning": "psychology",
+      "Meta-Learning & Self-Awareness": "psychology",
       "Maker & Builder": "construction",
-      "Civic Impact": "public",
+      "Civic & Community": "public",
       "Creative Expression": "palette",
       "Problem-Solving": "lightbulb",
       "Work Experience": "work",
-      "Future Self": "rocket-launch",
+      "Future Self & Direction": "rocket-launch",
+      "Technological Fluency": "computer",
+      "Wellbeing & Personal Resilience": "health-and-safety",
+      "Faith, Culture & Identity": "person",
     };
     return icons[category] || "star";
   };
@@ -87,22 +87,25 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
   const getCategoryColor = (category: string): string => {
     const colors: { [key: string]: string } = {
       "Human Skills": "#FF6B6B",
-      "Meta-Learning": "#4ECDC4",
+      "Meta-Learning & Self-Awareness": "#4ECDC4",
       "Maker & Builder": "#95E1D3",
-      "Civic Impact": "#F38181",
+      "Civic & Community": "#F38181",
       "Creative Expression": "#AA96DA",
       "Problem-Solving": "#FCBAD3",
       "Work Experience": "#A8D8EA",
-      "Future Self": "#FFCB77",
+      "Future Self & Direction": "#FFD6A5",
+      "Technological Fluency": "#9AD0EC",
+      "Wellbeing & Personal Resilience": "#C7CEEA",
+      "Faith, Culture & Identity": "#D4A5A5",
     };
     return colors[category] || "#667eea";
   };
 
   const getSourceIcon = (source: string): string => {
     const icons: { [key: string]: string } = {
-      image: "photo-camera",
-      voice: "mic",
-      text: "edit",
+      image: "file-image",
+      voice: "account-voice",
+      text: "format-text",
     };
     return icons[source] || "help";
   };
@@ -139,11 +142,6 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
     return date.toLocaleDateString();
   };
-
-  const filteredSkills =
-    selectedCategory === "All"
-      ? userSkills
-      : userSkills.filter((s) => s.category === selectedCategory);
 
   const categories = ["All", ...Object.keys(SKILLS_TAXONOMY)];
 
@@ -498,7 +496,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
 
             <Button
               mode="contained"
-              icon="mic"
+              icon="microphone"
               onPress={() => navigation.navigate("VoiceAnalysis")}
               style={[styles.actionButton, { backgroundColor: "#4ECDC4" }]}
               labelStyle={styles.actionButtonLabel}
@@ -508,7 +506,7 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
 
             <Button
               mode="contained"
-              icon="edit"
+              icon="card-text-outline"
               onPress={() => navigation.navigate("TextAnalysis")}
               style={[styles.actionButton, { backgroundColor: "#45B7D1" }]}
               labelStyle={styles.actionButtonLabel}

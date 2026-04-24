@@ -97,11 +97,11 @@ function AppNavigator() {
           component={DashboardScreen}
           options={{ title: "Achievement Dashboard" }}
         />
-        <Stack.Screen
+        {/* <Stack.Screen
           name="SkillsDashboard"
           component={SkillsDashboardScreen}
           options={{ title: "Skills Dashboard" }}
-        />
+        /> */}
         <Stack.Screen
           name="DialogueDashboard"
           component={DialogueDashboardScreen}
@@ -127,6 +127,11 @@ function AppNavigator() {
           name="EditProfile"
           component={EditProfileScreen}
           options={{ title: "Edit Profile", headerShown: true }}
+        />
+        <Stack.Screen
+          name="Passport"
+          component={SkillsDashboardScreen}
+          options={{ title: "Passport" }}
         />
       </Stack.Navigator>
     </NavigationContainer>
