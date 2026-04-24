@@ -53,7 +53,10 @@ export default function ProfileScreen() {
             <Text style={styles.actionCardSubtitle}>Track your journey</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => navigation.navigate("Passport")}
+          >
             <MaterialIcons name="card-travel" size={36} color="#ffffff" />
             <Text style={styles.actionCardTitle}>Passport</Text>
             <Text style={styles.actionCardSubtitle}>View your stamps</Text>
