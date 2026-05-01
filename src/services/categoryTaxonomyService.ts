@@ -1,7 +1,7 @@
 /**
  * Category Taxonomy Service
- * Manages the 8-category taxonomy for dialogue-based mapping
- * Matches the web app implementation
+ * Manages the taxonomy for dialogue-based mapping
+ * Aligned to the 11 top-level skill groups used across the app
  */
 
 export interface CategoryDefinition {
@@ -28,7 +28,7 @@ export interface ConversationInteraction {
   matchedToSequenceIndex?: number | null;
 }
 
-// Define the 8 categories matching the web app taxonomy
+// Define the 11 top-level categories matching the skills taxonomy
 export const CATEGORY_TAXONOMY: CategoryDefinition[] = [
   {
     category: "Human Skills (Durable)",
@@ -85,6 +85,25 @@ export const CATEGORY_TAXONOMY: CategoryDefinition[] = [
       "My Personal Mission Statement - Imagining My Future Life - When I Realized What I Want to Do - Values I Live By",
     icon: "explore",
   },
+  {
+    category: "Technological Fluency",
+    description: "Coding, digital creation, data, and emerging technology skills.",
+    stamps: "Coding and Programming - Data and Analytics - AI - Digital Safety and Ethics",
+    icon: "computer",
+  },
+  {
+    category: "Wellbeing & Personal Resilience",
+    description: "Mental, physical, and emotional resilience over time.",
+    stamps: "Mental Health - Physical Wellness - Recovery - Mindfulness",
+    icon: "health-and-safety",
+  },
+  {
+    category: "Faith, Culture & Identity",
+    description: "Heritage, language, faith, and identity-based experiences.",
+    stamps:
+      "Heritage and Culture - Language - Faith Community Involvement - First-Generation Experience",
+    icon: "person",
+  },
 ];
 
 // NO_OP category for weak fits
@@ -100,7 +119,7 @@ export const NO_OP_DEFINITION: CategoryDefinition = {
 // All categories including NO_OP for API prompts
 export const ALL_CATEGORIES: CategoryDefinition[] = [...CATEGORY_TAXONOMY, NO_OP_DEFINITION];
 
-export const TOTAL_CATEGORIES = CATEGORY_TAXONOMY.length; // 8
+export const TOTAL_CATEGORIES = CATEGORY_TAXONOMY.length; // 11
 
 export const INITIAL_PROMPT = "What are you doing when you lose track of time?";
 
