@@ -615,7 +615,6 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
     strict: boolean
   ): string {
     return `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that might help tease out which additional categories might map to me. The question must end with a "?".${strict ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)." : ""} You may (optionally) use what you've learned about me in previous answers as context in the question if it helps.
-
 HISTORY:
 ${history}
 
