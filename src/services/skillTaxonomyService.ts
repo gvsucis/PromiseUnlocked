@@ -5,66 +5,106 @@
 import { SKILLS_TAXONOMY, SKILL_SYNONYMS } from "../config/skillsTaxonomy";
 export { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
+const CATEGORY_ALIASES: Record<string, string> = {
+  // Map stampTaxonomy formal names to SKILLS_TAXONOMY category names
+  "Human Skills (Durable)": "Human Skills",
+  "Meta-Learning & Self-Awareness": "Meta-Learning & Self-Awareness",
+  "Maker & Builder Skills": "Maker & Builder",
+  "Civic & Community Impact": "Civic & Community",
+  "Creative Expression & Communication": "Creative Expression",
+  "Problem-Solving & Systems Thinking": "Problem-Solving",
+  "Work & Entrepreneurial Experience": "Work Experience",
+  "Future Self & Directionality": "Future Self & Direction",
+  "Digital & Tech Fluency": "Technological Fluency",
+  "Wellbeing & Personal Resilience": "Wellbeing & Personal Resilience",
+  "Faith, Culture & Identity": "Faith, Culture & Identity",
+};
+
+export function normalizeTaxonomyCategoryName(category: string): string {
+  const trimmed = category.trim();
+  return CATEGORY_ALIASES[trimmed] ?? trimmed;
+}
+
 type SkillMatch = {
   skill: string;
   category: string;
   confidence: number;
 };
 
+// Memoization cache for similarity calculations (LRU-style, max 500 entries)
+const similarityCache = new Map<string, number>();
+const MAX_CACHE_SIZE = 500;
+
 /**
- * Calculate similarity between two strings using Levenshtein distance
+ * Space-optimized Levenshtein distance using Wagner-Fischer algorithm
+ * O(min(n,m)) space instead of O(n*m)
  */
 function levenshteinDistance(str1: string, str2: string): number {
   const s1 = str1.toLowerCase();
   const s2 = str2.toLowerCase();
 
-  const matrix: number[][] = [];
-
-  for (let i = 0; i <= s2.length; i++) {
-    matrix[i] = [i];
+  // Use shorter string as reference for space optimization
+  let a = s1;
+  let b = s2;
+  if (a.length > b.length) {
+    [a, b] = [b, a];
   }
 
-  for (let j = 0; j <= s1.length; j++) {
-    matrix[0][j] = j;
-  }
+  // Only need two rows for DP
+  const prevRow = new Array(a.length + 1).fill(0).map((_, i) => i);
+  const currRow = new Array(a.length + 1).fill(0);
 
-  for (let i = 1; i <= s2.length; i++) {
-    for (let j = 1; j <= s1.length; j++) {
-      if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
+  for (let i = 1; i <= b.length; i++) {
+    currRow[0] = i;
+    for (let j = 1; j <= a.length; j++) {
+      const cost = a[j - 1] === b[i - 1] ? 0 : 1;
+      currRow[j] = Math.min(currRow[j - 1] + 1, prevRow[j] + 1, prevRow[j - 1] + cost);
     }
+    prevRow.splice(0, prevRow.length, ...currRow);
   }
 
-  return matrix[s2.length][s1.length];
+  return currRow[a.length];
 }
 
 /**
- * Calculate similarity score between two strings (0-1, higher is more similar)
+ * Calculate similarity score with memoization (0-1, higher is more similar)
  */
 function calculateSimilarity(str1: string, str2: string): number {
   const s1 = str1.toLowerCase().trim();
   const s2 = str2.toLowerCase().trim();
 
-  // Exact match
-  if (s1 === s2) return 1;
-
-  // Check if one contains the other
-  if (s1.includes(s2) || s2.includes(s1)) {
-    return 0.9;
+  // Create cache key (order-independent for efficiency)
+  const cacheKey = s1 < s2 ? `${s1}|${s2}` : `${s2}|${s1}`;
+  const cached = similarityCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
   }
 
-  // Use Levenshtein distance
-  const distance = levenshteinDistance(s1, s2);
-  const maxLength = Math.max(s1.length, s2.length);
+  let result = 0;
 
-  return 1 - distance / maxLength;
+  // Exact match
+  if (s1 === s2) {
+    result = 1;
+  } else if (s1.includes(s2) || s2.includes(s1)) {
+    // Check if one contains the other
+    result = 0.9;
+  } else {
+    // Use space-optimized Levenshtein distance
+    const distance = levenshteinDistance(s1, s2);
+    const maxLength = Math.max(s1.length, s2.length);
+    result = 1 - distance / maxLength;
+  }
+
+  // Simple cache eviction when size exceeds limit
+  if (similarityCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = similarityCache.keys().next().value;
+    if (firstKey !== undefined) {
+      similarityCache.delete(firstKey);
+    }
+  }
+
+  similarityCache.set(cacheKey, result);
+  return result;
 }
 
 function getSkillMaxSimilarity(normalizedInput: string, skill: string): number {
@@ -170,11 +210,14 @@ export function mapSkillsToTaxonomy(userSkills: string[]): {
   return Array.from(uniqueSkills.values());
 }
 
+// Precompute all skills at module load time for efficiency
+const allSkillsCache = Object.values(SKILLS_TAXONOMY).flat();
+
 /**
- * Get all skills from the taxonomy as a flat array
+ * Get all skills from the taxonomy as a flat array (cached)
  */
 export function getAllSkills(): string[] {
-  return Object.values(SKILLS_TAXONOMY).flat();
+  return allSkillsCache;
 }
 
 /**
