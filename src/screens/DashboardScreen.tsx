@@ -14,7 +14,7 @@ import TopTabBar from "../components/TopTabBar";
 import { getTaxonomySkillsWithStatus, getSkillsStats } from "../services/userSkillsService";
 import { getJSONFromStorage, setJSONInStorage } from "../util/asyncStorage";
 import { Stamp, UserProgress, TranscriptSummary, CourseAnalysis } from "../types/dashboard";
-import { AVAILABLE_STAMPS } from "../config/skillsTaxonomy";
+import { AVAILABLE_STAMPS, SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 const { width } = Dimensions.get("window");
 
 interface UnknownType {
@@ -470,106 +470,114 @@ export default function DashboardScreen({ route, navigation }: any) {
         </Card>
 
         {/* Skills Taxonomy Section */}
-        {skillsStats && skillsStats.totalSkills > 0 && (
-          <Card style={styles.skillsCard}>
-            <Card.Content>
-              <View style={styles.skillsHeader}>
-                <MaterialIcons name="emoji-events" size={24} color="#667eea" />
-                <Text style={styles.skillsTitle}>Your Identified Skills</Text>
-              </View>
+        <Card style={styles.skillsCard}>
+          <Card.Content>
+            <View style={styles.skillsHeader}>
+              <MaterialIcons name="emoji-events" size={24} color="#667eea" />
+              <Text style={styles.skillsTitle}>Your Identified Skills</Text>
+            </View>
 
-              {/* Skills Stats */}
-              <View style={styles.skillsStatsContainer}>
-                <View style={styles.skillStatItem}>
-                  <Text style={styles.skillStatNumber}>{skillsStats.totalSkills}</Text>
-                  <Text style={styles.skillStatLabel}>Skills Identified</Text>
-                </View>
-                <View style={styles.skillStatItem}>
-                  <Text style={styles.skillStatNumber}>
-                    {Object.keys(skillsStats.skillsByCategory).length}
-                  </Text>
-                  <Text style={styles.skillStatLabel}>Categories</Text>
-                </View>
+            {/* Skills Stats */}
+            <View style={styles.skillsStatsContainer}>
+              <View style={styles.skillStatItem}>
+                <Text style={styles.skillStatNumber}>{skillsStats?.totalSkills || 0}</Text>
+                <Text style={styles.skillStatLabel}>Skills Identified</Text>
               </View>
+              <View style={styles.skillStatItem}>
+                <Text style={styles.skillStatNumber}>{Object.keys(SKILLS_TAXONOMY).length}</Text>
+                <Text style={styles.skillStatLabel}>Categories</Text>
+              </View>
+            </View>
 
-              {/* Category Filter for Skills */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.skillCategoryScroll}
+            {/* Category Filter for Skills */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.skillCategoryScroll}
+            >
+              <Chip
+                mode={selectedSkillCategory === "All" ? "flat" : "outlined"}
+                selected={selectedSkillCategory === "All"}
+                onPress={() => setSelectedSkillCategory("All")}
+                style={styles.skillCategoryChip}
+                textStyle={styles.skillCategoryChipText}
               >
+                All
+              </Chip>
+              {Object.keys(SKILLS_TAXONOMY).map((category) => (
                 <Chip
-                  mode={selectedSkillCategory === "All" ? "flat" : "outlined"}
-                  selected={selectedSkillCategory === "All"}
-                  onPress={() => setSelectedSkillCategory("All")}
+                  key={category}
+                  mode={selectedSkillCategory === category ? "flat" : "outlined"}
+                  selected={selectedSkillCategory === category}
+                  onPress={() => setSelectedSkillCategory(category)}
                   style={styles.skillCategoryChip}
                   textStyle={styles.skillCategoryChipText}
                 >
-                  All
+                  {category}
                 </Chip>
-                {skillsData.map(({ category }) => (
-                  <Chip
-                    key={category}
-                    mode={selectedSkillCategory === category ? "flat" : "outlined"}
-                    selected={selectedSkillCategory === category}
-                    onPress={() => setSelectedSkillCategory(category)}
-                    style={styles.skillCategoryChip}
-                    textStyle={styles.skillCategoryChipText}
-                  >
-                    {category}
-                  </Chip>
-                ))}
-              </ScrollView>
+              ))}
+            </ScrollView>
 
-              {/* Skills Grid */}
-              {skillsData
+            {/* Skills Grid */}
+            {(() => {
+              const skillsByCategory = new Map<string, Set<string>>();
+              skillsData.forEach(({ category, skills }: any) => {
+                const identifiedSkills: Set<string> = new Set(
+                  skills.filter((s: any) => s.identified).map((s: any) => s.name)
+                );
+                skillsByCategory.set(category, identifiedSkills);
+              });
+
+              return Object.entries(SKILLS_TAXONOMY)
                 .filter(
-                  ({ category }) =>
+                  ([category]) =>
                     selectedSkillCategory === "All" || category === selectedSkillCategory
                 )
-                .map(({ category, skills }) => (
+                .map(([category, skills]) => (
                   <View key={category} style={styles.categorySkillsSection}>
                     <Text style={styles.categorySkillsTitle}>{category}</Text>
                     <View style={styles.skillsGrid}>
-                      {skills.map(
-                        (skill: { name: string; identified: boolean; dateIdentified?: string }) => (
+                      {skills.map((skillName: string) => {
+                        const isIdentified =
+                          skillsByCategory.get(category)?.has(skillName) || false;
+                        return (
                           <Chip
-                            key={skill.name}
+                            key={skillName}
                             mode="flat"
-                            selected={skill.identified}
+                            selected={isIdentified}
                             style={[
                               styles.skillChipItem,
-                              skill.identified
+                              isIdentified
                                 ? styles.skillChipIdentified
                                 : styles.skillChipUnidentified,
                             ]}
                             textStyle={[
                               styles.skillChipText,
-                              skill.identified
+                              isIdentified
                                 ? styles.skillChipTextIdentified
                                 : styles.skillChipTextUnidentified,
                             ]}
                             icon={() =>
-                              skill.identified ? (
+                              isIdentified ? (
                                 <MaterialIcons name="check-circle" size={16} color="#4CAF50" />
                               ) : null
                             }
                           >
-                            {skill.name}
+                            {skillName}
                           </Chip>
-                        )
-                      )}
+                        );
+                      })}
                     </View>
                   </View>
-                ))}
+                ));
+            })()}
 
-              <Text style={styles.skillsHint}>
-                💡 Identified skills are highlighted in color. Keep analyzing activities to discover
-                more!
-              </Text>
-            </Card.Content>
-          </Card>
-        )}
+            <Text style={styles.skillsHint}>
+              💡 Identified skills are highlighted in color. Keep analyzing activities to discover
+              more!
+            </Text>
+          </Card.Content>
+        </Card>
 
         {/* Category Filter */}
         <View style={styles.categoryFilter}>

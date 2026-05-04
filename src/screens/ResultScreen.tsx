@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { View, StyleSheet, ScrollView, Alert, Share } from "react-native";
 import { Card, Title, Paragraph, Button, DataTable, Chip } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
@@ -6,7 +6,19 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../types/navigation";
-import { AnalysisResult, TranscriptAnalysis, Course } from "../types";
+import { TranscriptAnalysis, Course } from "../types";
+import { mapSkillsToTaxonomy, normalizeTaxonomyCategoryName } from "../services/skillTaxonomyService";
+import { saveIdentifiedSkills } from "../services/userSkillsService";
+
+interface ActionAnalysisResult {
+  activity_description: string;
+  primary_skills?: string[];
+  taxonomy_categories?: string[];
+  skill_development_insights?: string;
+  flow_state_potential?: string;
+  growth_opportunities?: string;
+  confidence_level?: string;
+}
 
 type ResultScreenNavigationProp = StackNavigationProp<RootStackParamList, "Result">;
 type ResultScreenRouteProp = RouteProp<RootStackParamList, "Result">;
@@ -16,13 +28,44 @@ interface Props {
   route: ResultScreenRouteProp;
 }
 
-export default function ResultScreen({ navigation, route }: Props) {
+export default function ResultScreen({ navigation, route }: Readonly<Props>) {
   const { result } = route.params;
-  const data = result.data;
+  const data = result.data as TranscriptAnalysis | ActionAnalysisResult;
+  const savedActionSkillsRef = useRef(false);
 
   // Detect if this is action analysis or transcript analysis
   const isActionAnalysis = data && "activity_description" in data;
-  const isTranscriptAnalysis = data && "courses" in data;
+
+  const hasCategory = (categories: string[], targetCategory: string): boolean =>
+    categories.map(normalizeTaxonomyCategoryName).includes(targetCategory);
+
+  useEffect(() => {
+    if (!isActionAnalysis || !data || savedActionSkillsRef.current) {
+      return;
+    }
+
+    const primarySkills = "primary_skills" in data ? (data.primary_skills ?? []) : [];
+    const matchedSkills = mapSkillsToTaxonomy(primarySkills).filter(
+      (skill) => skill.confidence >= 0.5
+    );
+
+    if (matchedSkills.length === 0) {
+      savedActionSkillsRef.current = true;
+      return;
+    }
+
+    savedActionSkillsRef.current = true;
+
+    void saveIdentifiedSkills(
+      matchedSkills.map((skill) => skill.skill),
+      matchedSkills.map((skill) => skill.category),
+      "text",
+      matchedSkills.map((skill) => skill.confidence)
+    ).catch((error) => {
+      console.error("Error saving action analysis skills:", error);
+      savedActionSkillsRef.current = false;
+    });
+  }, [data, isActionAnalysis]);
 
   const handleShare = async () => {
     if (!data) return;
@@ -35,38 +78,39 @@ export default function ResultScreen({ navigation, route }: Props) {
         title,
       });
     } catch (error) {
+      console.error("Failed to share results:", error);
       Alert.alert("Error", "Failed to share results");
     }
   };
 
-  const generateFollowUpQuestion = (actionData: any): string => {
-    const activity = actionData?.activity_description?.toLowerCase?.() || "";
-    const categories: string[] = actionData?.taxonomy_categories || [];
-    const skills: string[] = actionData?.primary_skills || [];
+  const generateFollowUpQuestion = (actionData: ActionAnalysisResult): string => {
+    const activity = actionData.activity_description.toLowerCase();
+    const categories = actionData.taxonomy_categories ?? [];
+    const skills = actionData.primary_skills ?? [];
 
     // Priority: ask about depth/next step tailored to category
-    if (categories.includes("Creative Expression")) {
+    if (hasCategory(categories, "Creative Expression")) {
       return "Would you like to create a small project this week (e.g., a 60-second reel, a sketch, or a short story) to explore this interest further?";
     }
-    if (categories.includes("Maker & Builder")) {
+    if (hasCategory(categories, "Maker & Builder")) {
       return "What’s a simple prototype or build you could complete in the next 2–3 hours to test an idea from this activity?";
     }
-    if (categories.includes("Meta-Learning")) {
+    if (hasCategory(categories, "Meta-Learning & Self-Awareness")) {
       return "What is one question you’re curious about from this activity, and how would you go about researching it?";
     }
-    if (categories.includes("Human Skills")) {
+    if (hasCategory(categories, "Human Skills")) {
       return "Who could you share or collaborate with on this activity this week to amplify your impact or feedback?";
     }
-    if (categories.includes("Problem-Solving")) {
+    if (hasCategory(categories, "Problem-Solving")) {
       return "What challenge did you encounter during this activity, and how might you approach solving it differently next time?";
     }
-    if (categories.includes("Civic Impact")) {
+    if (hasCategory(categories, "Civic & Community")) {
       return "Is there a community or cause that could benefit from this activity—what’s one small action you could take?";
     }
-    if (categories.includes("Work Experience")) {
+    if (hasCategory(categories, "Work Experience")) {
       return "Is there a real-world context (internship, freelance, volunteer) where you could apply this activity in the next month?";
     }
-    if (categories.includes("Future Self")) {
+    if (hasCategory(categories, "Future Self & Direction")) {
       return "If this became part of your routine, what would “leveling up” look like in 30 days?";
     }
 
@@ -81,22 +125,24 @@ export default function ResultScreen({ navigation, route }: Props) {
     return "What is one small next step you could take to explore this interest further?";
   };
 
-  const generateActionShareText = (actionData: any): string => {
+  const generateActionShareText = (actionData: ActionAnalysisResult): string => {
     let text = "🎯 Activity Analysis Results\n\n";
 
     text += `📝 Activity: ${actionData.activity_description}\n\n`;
 
-    if (actionData.primary_skills?.length > 0) {
+    const primarySkills = actionData.primary_skills ?? [];
+    if (primarySkills.length > 0) {
       text += "🛠️ Primary Skills:\n";
-      actionData.primary_skills.forEach((skill: string) => {
+      primarySkills.forEach((skill: string) => {
         text += `• ${skill}\n`;
       });
       text += "\n";
     }
 
-    if (actionData.taxonomy_categories?.length > 0) {
+    const taxonomyCategories = actionData.taxonomy_categories ?? [];
+    if (taxonomyCategories.length > 0) {
       text += "📚 Categories:\n";
-      actionData.taxonomy_categories.forEach((category: string) => {
+      taxonomyCategories.forEach((category: string) => {
         text += `• ${category}\n`;
       });
       text += "\n";
@@ -162,7 +208,7 @@ export default function ResultScreen({ navigation, route }: Props) {
     return "#757575";
   };
 
-  const renderActionAnalysis = (actionData: any) => (
+  const renderActionAnalysis = (actionData: ActionAnalysisResult) => (
     <ScrollView style={styles.scrollView}>
       {/* Activity Description Card */}
       <Card style={styles.card}>
@@ -182,7 +228,7 @@ export default function ResultScreen({ navigation, route }: Props) {
         <Card.Content>
           <Title style={styles.cardTitle}>🛠️ Primary Skills Demonstrated</Title>
           <View style={styles.skillsContainer}>
-            {actionData.primary_skills?.map((skill: string, index: number) => (
+            {(actionData.primary_skills ?? []).map((skill: string, index: number) => (
               <Chip
                 key={index}
                 style={[styles.skillChip, { backgroundColor: "#e3f2fd" }]}
@@ -200,7 +246,7 @@ export default function ResultScreen({ navigation, route }: Props) {
         <Card.Content>
           <Title style={styles.cardTitle}>📚 Skills Categories</Title>
           <View style={styles.categoriesContainer}>
-            {actionData.taxonomy_categories?.map((category: string, index: number) => (
+            {(actionData.taxonomy_categories ?? []).map((category: string, index: number) => (
               <Chip
                 key={index}
                 style={[styles.categoryChip, { backgroundColor: "#f3e5f5" }]}
