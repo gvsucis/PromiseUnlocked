@@ -175,7 +175,11 @@ export default function SkillsDashboardScreen({ navigation, route: _route }: Rea
 
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <MaterialIcons name="emoji-events" size={40} color="#fff" />
