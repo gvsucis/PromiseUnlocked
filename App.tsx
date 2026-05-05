@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { ActivityIndicator, AppState, AppStateStatus, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { Provider as PaperProvider } from "react-native-paper";
@@ -21,6 +22,7 @@ import { RootStackParamList } from "./src/types/navigation";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
+import OnboardingScreen from "./src/screens/OnboardingScreen";
 
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 
@@ -28,6 +30,7 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 function AppNavigator() {
   const { isReady, session } = useAuth();
+  const [hasSeenOnboarding, setHasSeenOnboarding] = React.useState<boolean | null>(null);
 
   useEffect(() => {
     void flushPendingFirestoreWrites();
@@ -38,24 +41,32 @@ function AppNavigator() {
       }
     });
 
+    AsyncStorage.getItem("hasSeenOnboarding")
+      .then((val: string | null) => setHasSeenOnboarding(val === "true"))
+      .catch(() => setHasSeenOnboarding(true));
+
     return () => {
       subscription.remove();
     };
   }, []);
 
-  if (!isReady) {
+  if (!isReady || hasSeenOnboarding === null) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator size="large" />
       </View>
     );
   }
-
+  const getInitialRoute = () => {
+    if (session.mode === "authenticated") return "DialogueDashboard" as const;
+    if (!hasSeenOnboarding) return "Onboarding" as const;
+    return "Welcome" as const;
+  };
   return (
     <NavigationContainer>
       <StatusBar style="auto" />
       <Stack.Navigator
-        initialRouteName={session.mode === "authenticated" ? "DialogueDashboard" : "Welcome"}
+        initialRouteName={getInitialRoute()}
         screenOptions={{
           headerStyle: {
             backgroundColor: "#2196F3",
@@ -66,6 +77,16 @@ function AppNavigator() {
           },
         }}
       >
+        <Stack.Screen
+          name="Onboarding"
+          component={OnboardingScreen}
+          options={{ headerShown: false }}
+          listeners={{
+            beforeRemove: () => {
+              void AsyncStorage.setItem("hasSeenOnboarding", "false");
+            },
+          }}
+        />
         <Stack.Screen
           name="Welcome"
           component={WelcomeScreen}
@@ -97,11 +118,11 @@ function AppNavigator() {
           component={DashboardScreen}
           options={{ title: "Achievement Dashboard" }}
         />
-        {/* <Stack.Screen
+        <Stack.Screen
           name="SkillsDashboard"
           component={SkillsDashboardScreen}
           options={{ title: "Skills Dashboard" }}
-        /> */}
+        />
         <Stack.Screen
           name="DialogueDashboard"
           component={DialogueDashboardScreen}
