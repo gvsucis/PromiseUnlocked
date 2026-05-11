@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ScrollView, View, StyleSheet, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,8 +8,22 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
+import { fetchProfile, UserProfile } from "../services/profileService";
 
 export default function ProfileScreen() {
+  //Profile
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProfile()
+      .then(setProfile)
+      .catch((error) => {
+        console.error("Failed to fetch profile:", error);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   const navigation = useNavigation<ProfileNav>();
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
