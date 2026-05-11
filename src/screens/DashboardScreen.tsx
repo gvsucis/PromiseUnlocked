@@ -12,7 +12,7 @@ import { Button, Card, ActivityIndicator, Chip } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import TopTabBar from "../components/TopTabBar";
 import { getTaxonomySkillsWithStatus, getSkillsStats } from "../services/userSkillsService";
-import { getJSONFromStorage, setJSONInStorage } from "../util/asyncStorage";
+import { getJSONFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 import { Stamp, UserProgress, TranscriptSummary, CourseAnalysis } from "../types/dashboard";
 import { AVAILABLE_STAMPS, SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 const { width } = Dimensions.get("window");

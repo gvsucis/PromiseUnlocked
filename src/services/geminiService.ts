@@ -2,7 +2,7 @@ import axios from "axios";
 import * as FileSystem from "expo-file-system/legacy";
 import { AnalysisResult, TranscriptAnalysis } from "../types";
 import { CONFIG, getGeminiApiKey } from "../config/env";
-import extractJson from "../util/JsonExtract";
+import extractJson from "../utils/JsonExtract";
 
 type GeminiErrorCode = "RATE_LIMIT" | "AUTH" | "NETWORK" | "API" | "UNKNOWN";
 

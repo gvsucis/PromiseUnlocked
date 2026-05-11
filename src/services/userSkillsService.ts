@@ -8,7 +8,7 @@ import {
   mapSkillToTaxonomy,
   normalizeTaxonomyCategoryName,
 } from "./skillTaxonomyService";
-import { getJSONFromStorage, removeFromStorage, setJSONInStorage } from "../util/asyncStorage";
+import { getJSONFromStorage, removeFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 import { getActiveSessionId, getUserId } from "./sessionManager";
 import {
   saveIdentifiedSkillToFirestore,
@@ -100,13 +100,13 @@ export async function saveIdentifiedSkills(
 ): Promise<void> {
   try {
     const existingData = await getUserSkills();
-    
+
     // Convert existing skills to Set for O(1) lookup instead of O(N) Array.some()
     const existingSkillNames = new Set(existingData.skills.map((s) => s.skill));
-    
+
     // Pre-compute all taxonomy mappings once (instead of 3x per skill)
     const taxonomyMappings = skills.map((skill) => mapSkillToTaxonomy(skill));
-    
+
     const skillsToAdd: IdentifiedSkill[] = [];
 
     for (let i = 0; i < skills.length; i++) {
@@ -147,7 +147,7 @@ export async function saveIdentifiedSkills(
 
     enqueueFirestoreWrite(async () => {
       const [userId, sessionId] = await Promise.all([getUserId(), getActiveSessionId()]);
-      
+
       // Use pre-computed mappings instead of recalculating
       const normalizedSkills = skillsToAdd.map((skill) => skill.skill);
       const normalizedCategories = skillsToAdd.map((skill) => skill.category);

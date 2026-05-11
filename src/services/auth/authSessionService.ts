@@ -11,7 +11,7 @@ import {
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "../../config/firebase";
-import { removeManyFromStorage, setJSONInStorage } from "../../util/asyncStorage";
+import { removeManyFromStorage, setJSONInStorage } from "../../utils/asyncStorage";
 import type { AppAuthSession } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
 
