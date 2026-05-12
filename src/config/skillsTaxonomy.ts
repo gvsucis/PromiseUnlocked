@@ -1,19 +1,23 @@
-// Centralized Skills Taxonomy config
-// Exported for use across services and screens
+/**
+ * Skills Taxonomy Configuration
+ * - SKILLS_TAXONOMY: master category-to-skills mapping
+ * - SKILL_SYNONYMS: common variations for better user input matching
+ * - AVAILABLE_STAMPS: computed from STAMP_TAXONOMY (one entry per detailed variant)
+ */
 
 import { Stamp } from "../types/dashboard";
+import { STAMP_TAXONOMY } from "./stampTaxonomy";
+import { DEFAULT_TIER_IMAGES, slugify } from "./stampConstants";
 
 export type SkillsTaxonomy = Record<string, string[]>;
 
 export const SKILLS_TAXONOMY: SkillsTaxonomy = {
   "Human Skills": [
-    "Communication",
     "Collaboration",
     "Leadership",
     "Empathy",
     "Active Listening",
     "Conflict Resolution",
-    "Networking",
     "Public Speaking",
     "Team Management",
     "Research",
@@ -137,18 +141,13 @@ export const SKILLS_TAXONOMY: SkillsTaxonomy = {
     "Personal Mission Statement",
   ],
   "Technological Fluency": [
-    "Coding and Programming",
-    "Game Design",
-    "Social Media and Content Creation",
-    "Data and Analytics",
-    "Digital Safety and Ethics",
-    "Artificial Intelligence",
-    "Emerging Technology",
     "Coding & Programming",
+    "Game Design",
     "Social Media & Content Creation",
     "Data & Analytics",
     "Digital Safety & Ethics",
-    "AI / Emerging Tech",
+    "Artificial Intelligence",
+    "Emerging Technology",
   ],
   "Wellbeing & Personal Resilience": [
     "Mental Health",
@@ -173,12 +172,14 @@ export const SKILLS_TAXONOMY: SkillsTaxonomy = {
     "Indigenous Knowledge and Practice",
     "Heritage & Cultural Practice",
     "Language & Multilingualism",
-    "Immigration & Transition Story",
     "Indigenous Knowledge & Practice",
   ],
 };
 
-//Common Skills variations for better matching
+/**
+ * Common skill variations for flexible user input matching
+ * Maps canonical skill names to common synonyms/aliases
+ */
 export const SKILL_SYNONYMS: Record<string, string[]> = {
   Communication: [
     "communicating",
@@ -219,712 +220,51 @@ export const SKILL_SYNONYMS: Record<string, string[]> = {
   "Goal Setting": ["setting goals", "planning goals", "objective setting", "target setting"],
 };
 
-export const AVAILABLE_STAMPS: Stamp[] = [
-  // Human Skills (Durable)
-  {
-    id: "research",
-    name: "Research",
-    icon: "",
-    category: "Human Skills (Durable)",
-    description: "Independent Research Project",
-    unlocked: false,
-  },
-  {
-    id: "athletics",
-    name: "Athletics",
-    icon: "",
-    category: "Human Skills (Durable)",
-    description: "Team Sport",
-    unlocked: false,
-  },
-  {
-    id: "collaboration",
-    name: "Collaboration",
-    icon: "",
-    category: "Human Skills (Durable)",
-    description: "Three interlocking puzzle pieces",
-    unlocked: false,
-  },
-  {
-    id: "conflict-resolution",
-    name: "Conflict Resolution",
-    icon: "",
-    category: "Human Skills (Durable)",
-    description: "Two hands meeting in the middle",
-    unlocked: false,
-  },
-  {
-    id: "mentorship-received",
-    name: "Mentorship Received",
-    icon: "",
-    category: "Human Skills (Durable)",
-    description: "Older hand guiding younger hand",
-    unlocked: false,
-  },
-  {
-    id: "cross-cultural-communication",
-    name: "Cross-Cultural Communication",
-    icon: "",
-    category: "Human Skills (Durable)",
-    description: "Globe with speech bubbles",
-    unlocked: false,
-  },
+/**
+ * Generate AVAILABLE_STAMPS from STAMP_TAXONOMY
+ * Creates one Stamp entry per detailed variant, with default tier images
+ */
+function computeAvailableStamps(): Stamp[] {
+  const stampMap = new Map<string, Stamp>();
 
-  // Meta-Learning & Self-Awareness
-  {
-    id: "leadership",
-    name: "Leadership",
-    icon: "",
-    category: "Meta-Learning & Self-Awareness",
-    description: "Club / Org Officer",
-    unlocked: false,
-  },
-  {
-    id: "goal-setting",
-    name: "Goal Setting",
-    icon: "",
-    category: "Meta-Learning & Self-Awareness",
-    description: "Target with arrow in bullseye",
-    unlocked: false,
-  },
-  {
-    id: "self-advocacy",
-    name: "Self-Advocacy",
-    icon: "",
-    category: "Meta-Learning & Self-Awareness",
-    description: "Raised hand with speech lines",
-    unlocked: false,
-  },
-  {
-    id: "overcoming-failure",
-    name: "Overcoming Failure",
-    icon: "",
-    category: "Meta-Learning & Self-Awareness",
-    description: "Cracked and repaired vase (kintsugi)",
-    unlocked: false,
-  },
-  {
-    id: "journaling-reflection",
-    name: "Journaling & Reflection",
-    icon: "",
-    category: "Meta-Learning & Self-Awareness",
-    description: "Open journal with ink quill",
-    unlocked: false,
-  },
-  {
-    id: "navigating-hardship",
-    name: "Navigating Hardship",
-    icon: "",
-    category: "Meta-Learning & Self-Awareness",
-    description: "Compass in a storm",
-    unlocked: false,
-  },
-  {
-    id: "learning-a-new-skill-independently",
-    name: "Learning a New Skill Independently",
-    icon: "",
-    category: "Meta-Learning & Self-Awareness",
-    description: "Lightbulb with gear inside",
-    unlocked: false,
-  },
+  Object.entries(STAMP_TAXONOMY).forEach(([category, families]) => {
+    families.forEach((family) => {
+      const familyName = family.stampCategory;
+      const baseDescription = family.description || family.iconConcept || familyName;
 
-  // Maker & Builder Skills
-  {
-    id: "event-planning",
-    name: "Event Planning",
-    icon: "",
-    category: "Maker & Builder Skills",
-    description: "School Event",
-    unlocked: false,
-  },
-  {
-    id: "diy-fabrication",
-    name: "DIY & Fabrication",
-    icon: "",
-    category: "Maker & Builder Skills",
-    description: "Hammer and wrench crossed",
-    unlocked: false,
-  },
-  {
-    id: "culinary-arts",
-    name: "Culinary Arts",
-    icon: "",
-    category: "Maker & Builder Skills",
-    description: "Chef's hat with wooden spoon",
-    unlocked: false,
-  },
-  {
-    id: "fashion-textile",
-    name: "Fashion & Textile",
-    icon: "",
-    category: "Maker & Builder Skills",
-    description: "Needle threading through fabric",
-    unlocked: false,
-  },
-  {
-    id: "home-facilities",
-    name: "Home & Facilities",
-    icon: "",
-    category: "Maker & Builder Skills",
-    description: "House with tool belt",
-    unlocked: false,
-  },
-  {
-    id: "vehicle-mechanical-work",
-    name: "Vehicle / Mechanical Work",
-    icon: "",
-    category: "Maker & Builder Skills",
-    description: "Wrench over engine block",
-    unlocked: false,
-  },
-  {
-    id: "garden-land-stewardship",
-    name: "Garden & Land Stewardship",
-    icon: "",
-    category: "Maker & Builder Skills",
-    description: "Seedling in soil with sun",
-    unlocked: false,
-  },
-  {
-    id: "prototype-invention",
-    name: "Prototype / Invention",
-    icon: "",
-    category: "Maker & Builder Skills",
-    description: "Blueprint with lightbulb",
-    unlocked: false,
-  },
+      // Create one stamp per detailed variant, or fallback to family level
+      const stamps = family.detailedStamps?.length
+        ? family.detailedStamps.map((variant) => ({
+            id: slugify(category, familyName, variant.name),
+            name: variant.name,
+            description: variant.iconConcept || baseDescription,
+          }))
+        : [
+            {
+              id: slugify(category, familyName),
+              name: familyName,
+              description: baseDescription,
+            },
+          ];
 
-  // Civic & Community Impact
-  {
-    id: "family-responsibilities",
-    name: "Family Responsibilities",
-    icon: "",
-    category: "Civic & Community Impact",
-    description: "Primary Caregiver",
-    unlocked: false,
-  },
-  {
-    id: "student-government",
-    name: "Student Government",
-    icon: "",
-    category: "Civic & Community Impact",
-    description: "Gavel on a school crest",
-    unlocked: false,
-  },
-  {
-    id: "tutoring",
-    name: "Tutoring",
-    icon: "",
-    category: "Civic & Community Impact",
-    description: "Peer Tutoring",
-    unlocked: false,
-  },
-  {
-    id: "volunteering",
-    name: "Volunteering",
-    icon: "",
-    category: "Civic & Community Impact",
-    description: "Hands cupped around a heart",
-    unlocked: false,
-  },
-  {
-    id: "environmental-action",
-    name: "Environmental Action",
-    icon: "",
-    category: "Civic & Community Impact",
-    description: "Leaf with recycling arrows",
-    unlocked: false,
-  },
-  {
-    id: "advocacy-activism",
-    name: "Advocacy & Activism",
-    icon: "",
-    category: "Civic & Community Impact",
-    description: "Megaphone with raised fist",
-    unlocked: false,
-  },
-  {
-    id: "religious-faith-service",
-    name: "Religious / Faith Service",
-    icon: "",
-    category: "Civic & Community Impact",
-    description: "Two hands in service gesture",
-    unlocked: false,
-  },
-  {
-    id: "neighborhood-stewardship",
-    name: "Neighborhood Stewardship",
-    icon: "",
-    category: "Civic & Community Impact",
-    description: "Block of houses with broom",
-    unlocked: false,
-  },
+      // Add stamps to map (first occurrence wins for duplicates)
+      stamps.forEach(({ id, name, description }) => {
+        if (!stampMap.has(id)) {
+          stampMap.set(id, {
+            id,
+            name,
+            icon: "",
+            category,
+            description,
+            unlocked: false,
+            tierImages: { ...DEFAULT_TIER_IMAGES },
+          });
+        }
+      });
+    });
+  });
 
-  // Creative Expression & Communication
-  {
-    id: "music",
-    name: "Music",
-    icon: "",
-    category: "Creative Expression & Communication",
-    description: "Vocalist",
-    unlocked: false,
-  },
-  {
-    id: "performance",
-    name: "Performance",
-    icon: "",
-    category: "Creative Expression & Communication",
-    description: "Dance",
-    unlocked: false,
-  },
-  {
-    id: "public-speaking",
-    name: "Public Speaking",
-    icon: "",
-    category: "Creative Expression & Communication",
-    description: "Debate",
-    unlocked: false,
-  },
-  {
-    id: "theater",
-    name: "Theater",
-    icon: "",
-    category: "Creative Expression & Communication",
-    description: "Acting",
-    unlocked: false,
-  },
-  {
-    id: "visual-art",
-    name: "Visual Art",
-    icon: "",
-    category: "Creative Expression & Communication",
-    description: "Palette with paintbrush",
-    unlocked: false,
-  },
-  {
-    id: "photography-film",
-    name: "Photography & Film",
-    icon: "",
-    category: "Creative Expression & Communication",
-    description: "Camera lens with aperture",
-    unlocked: false,
-  },
-  {
-    id: "writing-storytelling",
-    name: "Writing & Storytelling",
-    icon: "",
-    category: "Creative Expression & Communication",
-    description: "Quill in inkwell with scroll",
-    unlocked: false,
-  },
-  {
-    id: "podcasting-broadcasting",
-    name: "Podcasting / Broadcasting",
-    icon: "",
-    category: "Creative Expression & Communication",
-    description: "Radio tower with sound waves",
-    unlocked: false,
-  },
+  return Array.from(stampMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
 
-  // Problem-Solving & Systems Thinking
-  {
-    id: "academic-competition",
-    name: "Academic Competition",
-    icon: "",
-    category: "Problem-Solving & Systems Thinking",
-    description: "Math / Science Olympiad",
-    unlocked: false,
-  },
-  {
-    id: "strategic-games",
-    name: "Strategic Games",
-    icon: "",
-    category: "Problem-Solving & Systems Thinking",
-    description: "Chess piece over circuit board",
-    unlocked: false,
-  },
-  {
-    id: "engineering-challenge",
-    name: "Engineering Challenge",
-    icon: "",
-    category: "Problem-Solving & Systems Thinking",
-    description: "Gear with drafting triangle",
-    unlocked: false,
-  },
-  {
-    id: "logic-puzzle-mastery",
-    name: "Logic & Puzzle Mastery",
-    icon: "",
-    category: "Problem-Solving & Systems Thinking",
-    description: "Brain with jigsaw cutout",
-    unlocked: false,
-  },
-  {
-    id: "systems-design",
-    name: "Systems Design",
-    icon: "",
-    category: "Problem-Solving & Systems Thinking",
-    description: "Flowchart with nodes",
-    unlocked: false,
-  },
-
-  // Work & Entrepreneurial Experience
-  {
-    id: "internship",
-    name: "Internship",
-    icon: "",
-    category: "Work & Entrepreneurial Experience",
-    description: "STEM / Technical",
-    unlocked: false,
-  },
-  {
-    id: "early-job",
-    name: "Early Job",
-    icon: "",
-    category: "Work & Entrepreneurial Experience",
-    description: "Retail / Food Service",
-    unlocked: false,
-  },
-  {
-    id: "freelance-work",
-    name: "Freelance Work",
-    icon: "",
-    category: "Work & Entrepreneurial Experience",
-    description: "Laptop with dollar-sign swoosh",
-    unlocked: false,
-  },
-  {
-    id: "gig-economy",
-    name: "Gig Economy",
-    icon: "",
-    category: "Work & Entrepreneurial Experience",
-    description: "Phone with delivery icon",
-    unlocked: false,
-  },
-
-  // Future Self & Directionality
-  {
-    id: "entrepreneurship",
-    name: "Entrepreneurship",
-    icon: "",
-    category: "Future Self & Directionality",
-    description: "Business Started",
-    unlocked: false,
-  },
-  {
-    id: "niche-interest-expertise",
-    name: "Niche Interest & Expertise",
-    icon: "",
-    category: "Future Self & Directionality",
-    description: "Collector / Curator",
-    unlocked: false,
-  },
-  {
-    id: "college-exploration",
-    name: "College Exploration",
-    icon: "",
-    category: "Future Self & Directionality",
-    description: "Campus gate with compass",
-    unlocked: false,
-  },
-  {
-    id: "career-shadowing",
-    name: "Career Shadowing",
-    icon: "",
-    category: "Future Self & Directionality",
-    description: "Binoculars over city skyline",
-    unlocked: false,
-  },
-  {
-    id: "personal-mission-statement",
-    name: "Personal Mission Statement",
-    icon: "",
-    category: "Future Self & Directionality",
-    description: "Scroll with north star",
-    unlocked: false,
-  },
-
-  // Digital & Tech Fluency
-  {
-    id: "coding-programming",
-    name: "Coding & Programming",
-    icon: "",
-    category: "Digital & Tech Fluency",
-    description: "Code brackets with gear",
-    unlocked: false,
-  },
-  {
-    id: "game-design",
-    name: "Game Design",
-    icon: "",
-    category: "Digital & Tech Fluency",
-    description: "Game controller with pencil",
-    unlocked: false,
-  },
-  {
-    id: "social-media-content-creation",
-    name: "Social Media & Content Creation",
-    icon: "",
-    category: "Digital & Tech Fluency",
-    description: "Phone screen with play button",
-    unlocked: false,
-  },
-  {
-    id: "data-analytics",
-    name: "Data & Analytics",
-    icon: "",
-    category: "Digital & Tech Fluency",
-    description: "Bar chart with magnifying glass",
-    unlocked: false,
-  },
-  {
-    id: "digital-safety-ethics",
-    name: "Digital Safety & Ethics",
-    icon: "",
-    category: "Digital & Tech Fluency",
-    description: "Shield with checkmark",
-    unlocked: false,
-  },
-  {
-    id: "ai-emerging-tech",
-    name: "AI / Emerging Tech",
-    icon: "",
-    category: "Digital & Tech Fluency",
-    description: "Circuit brain with spark",
-    unlocked: false,
-  },
-
-  // Wellbeing & Personal Resilience
-  {
-    id: "mental-health-advocacy",
-    name: "Mental Health Advocacy",
-    icon: "",
-    category: "Wellbeing & Personal Resilience",
-    description: "Ribbon with heartbeat line",
-    unlocked: false,
-  },
-  {
-    id: "physical-wellness-practice",
-    name: "Physical Wellness Practice",
-    icon: "",
-    category: "Wellbeing & Personal Resilience",
-    description: "Lotus with sun rays",
-    unlocked: false,
-  },
-  {
-    id: "recovery-perseverance",
-    name: "Recovery & Perseverance",
-    icon: "",
-    category: "Wellbeing & Personal Resilience",
-    description: "Phoenix rising from embers",
-    unlocked: false,
-  },
-  {
-    id: "mindfulness-meditation",
-    name: "Mindfulness & Meditation",
-    icon: "",
-    category: "Wellbeing & Personal Resilience",
-    description: "Calm water with single ripple",
-    unlocked: false,
-  },
-  {
-    id: "navigating-loss-or-grief",
-    name: "Navigating Loss or Grief",
-    icon: "",
-    category: "Wellbeing & Personal Resilience",
-    description: "Candle with gentle glow",
-    unlocked: false,
-  },
-
-  // Faith, Culture & Identity
-  {
-    id: "heritage-cultural-practice",
-    name: "Heritage & Cultural Practice",
-    icon: "",
-    category: "Faith, Culture & Identity",
-    description: "Woven pattern with family crest",
-    unlocked: false,
-  },
-  {
-    id: "language-multilingualism",
-    name: "Language & Multilingualism",
-    icon: "",
-    category: "Faith, Culture & Identity",
-    description: "Speech bubble with two flags",
-    unlocked: false,
-  },
-  {
-    id: "faith-community-involvement",
-    name: "Faith Community Involvement",
-    icon: "",
-    category: "Faith, Culture & Identity",
-    description: "Two hands in prayer / service",
-    unlocked: false,
-  },
-  {
-    id: "first-generation-experience",
-    name: "First-Generation Experience",
-    icon: "",
-    category: "Faith, Culture & Identity",
-    description: "Door opening to horizon",
-    unlocked: false,
-  },
-  {
-    id: "immigration-transition-story",
-    name: "Immigration & Transition Story",
-    icon: "",
-    category: "Faith, Culture & Identity",
-    description: "Suitcase with map inside",
-    unlocked: false,
-  },
-  {
-    id: "indigenous-knowledge-practice",
-    name: "Indigenous Knowledge & Practice",
-    icon: "",
-    category: "Faith, Culture & Identity",
-    description: "Circle with nature elements",
-    unlocked: false,
-  },
-];
-
-//   {
-//     id: "research",
-//     name: "Research",
-//     icon: "",
-//     category: "Human Skills",
-//     description: "Independent Research Project",
-//     unlocked: false,
-//   }
-//   //Academic Stamps
-//   {
-//     id: "math",
-//     name: "Mathematics",
-//     icon: "🧮",
-//     category: "Academic",
-//     description: "Completed mathematics course",
-//     unlocked: false,
-//   },
-//   {
-//     id: "science",
-//     name: "Science Scholar",
-//     icon: "🔬",
-//     category: "Academic",
-//     description: "Excelled in science subjects",
-//     unlocked: false,
-//   },
-//   {
-//     id: "literature",
-//     name: "Literature Lover",
-//     icon: "📚",
-//     category: "Academic",
-//     description: "Studied literature and languages",
-//     unlocked: false,
-//   },
-//   {
-//     id: "history",
-//     name: "History Buff",
-//     icon: "🏛️",
-//     category: "Academic",
-//     description: "Passionate about history",
-//     unlocked: false,
-//   },
-//   {
-//     id: "arts",
-//     name: "Creative Artist",
-//     icon: "🎨",
-//     category: "Academic",
-//     description: "Pursued arts and creativity",
-//     unlocked: false,
-//   },
-//   {
-//     id: "music",
-//     name: "Music Maestro",
-//     icon: "🎵",
-//     category: "Academic",
-//     description: "Talented in music c",
-//     unlocked: false,
-//   },
-//   //Achievement Stamps
-
-//   {
-//     id: "deans_list",
-//     name: "Dean's List",
-//     icon: "⭐",
-//     category: "Achievement",
-//     description: "Made it to the Dean's List",
-//     unlocked: false,
-//   },
-//   {
-//     id: "honor_roll",
-//     name: "Honor Roll",
-//     icon: "🏆",
-//     category: "Achievement",
-//     description: "Achieved Honor Roll status",
-//     unlocked: false,
-//   },
-//   {
-//     id: "graduate",
-//     name: "Graduate",
-//     icon: "🎓",
-//     category: "Achievement",
-//     description: "Successfully graduated",
-//     unlocked: false,
-//   },
-//   {
-//     id: "scholarship",
-//     name: "Scholar",
-//     icon: "💎",
-//     category: "Achievement",
-//     description: "Received scholarships",
-//     unlocked: false,
-//   },
-//   //Interest Stamps
-//   {
-//     id: "technology",
-//     name: "Tech Enthusiast",
-//     icon: "💻",
-//     category: "Interest",
-//     description: "Passionate about technology",
-//     unlocked: false,
-//   },
-//   {
-//     id: "sports",
-//     name: "Athletic Spirit",
-//     icon: "⚽",
-//     category: "Interest",
-//     description: "Active in sports",
-//     unlocked: false,
-//   },
-//   {
-//     id: "leadership",
-//     name: "Natural Leader",
-//     icon: "👑",
-//     category: "Interest",
-//     description: "Demonstrated leadership skills",
-//     unlocked: false,
-//   },
-//   {
-//     id: "community",
-//     name: "Community Helper",
-//     icon: "🤝",
-//     category: "Interest",
-//     description: "Engaged in community service",
-//     unlocked: false,
-//   },
-//   {
-//     id: "research",
-//     name: "Research Pioneer",
-//     icon: "🔍",
-//     category: "Interest",
-//     description: "Involved in research projects",
-//     unlocked: false,
-//   },
-//   {
-//     id: "international",
-//     name: "Global Citizen",
-//     icon: "🌍",
-//     category: "Interest",
-//     description: "International experience",
-//     unlocked: false,
-//   },
-// ];
+export const AVAILABLE_STAMPS: Stamp[] = computeAvailableStamps();
