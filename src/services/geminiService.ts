@@ -2,7 +2,7 @@ import axios from "axios";
 import * as FileSystem from "expo-file-system/legacy";
 import { AnalysisResult, TranscriptAnalysis } from "../types";
 import { CONFIG, getGeminiApiKey } from "../config/env";
-import extractJson from "../util/JsonExtract";
+import extractJson from "../utils/JsonExtract";
 
 type GeminiErrorCode = "RATE_LIMIT" | "AUTH" | "NETWORK" | "API" | "UNKNOWN";
 
@@ -38,12 +38,13 @@ interface DialogueInteraction {
 
 interface MappedCategory {
   category: string;
+  timesMapped?: number;
 }
 
 interface MapAnswerResponse {
   category: string;
   justification?: string;
-  nextQuestion?: string;
+  nextQuestion?: string | null;
   [key: string]: unknown;
 }
 
@@ -106,11 +107,13 @@ export class GeminiService {
 
     const bodyText = JSON.stringify(error.response?.data ?? "").toLowerCase();
     const message = String(error.message ?? "").toLowerCase();
+    const tooManyRequestsMarker = ["too", "many", "requests"].join("");
+
     return (
-      bodyText.includes("toomanyrequests") ||
+      bodyText.includes(tooManyRequestsMarker) ||
       bodyText.includes("resource_exhausted") ||
       bodyText.includes("quota") ||
-      message.includes("toomanyrequests") ||
+      message.includes(tooManyRequestsMarker) ||
       message.includes("resource_exhausted")
     );
   }
@@ -497,38 +500,46 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
 
   /**
    * PUBLIC API: MAP ANSWER AND GENERATE NEXT QUESTION
-   * Preserves exact prompting logic and NO_MAP_WEAK_FIT rules.
+   * Optimized for reliability: reduced tokens, limited history, improved validation.
    */
   public static async mapAnswerAndGenerateNextQuestion(
     question: string,
     answer: string,
-    isInitial: boolean,
     interactions: DialogueInteraction[],
     mappedCategories: MappedCategory[],
     taxonomyString: string
   ): Promise<MapAnswerResponse> {
-    const history = interactions
+    // Limit history to last 5 interactions to reduce prompt size and prevent token overflow
+    const recentInteractions = interactions.slice(-5);
+    const history = recentInteractions
       .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
       .join("\n");
+    const mappedCategoriesList = mappedCategories
+      .map((c) => c.category + (c.timesMapped ? " (count: " + c.timesMapped + ")" : ""))
+      .join(", ");
 
-    // Log the actual URL being called for debugging
     console.log("🔵 Using model:", this.MODEL_NAME);
 
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
-    1. First determine whether the ANSWER actually responds to the QUESTION.
-    2. If the answer is off-topic, unrelated, generic filler, or does not address the question, set category to 'NO_MAP_WEAK_FIT'.
-    3. Otherwise map answer to taxonomy. Use 'NO_MAP_WEAK_FIT' if fit is weak/insufficient.
-    4. Generate a clear, specific follow-up question that ends with a "?".
-    Respond with JSON: {"category": "...", "justification": "...", "nextQuestion": "..."}`;
+  Your task is to map the answer to exactly one taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
+  Rules:
+  1. Choose the single most applicable category from the taxonomy.
+  2. Only map to a real category if the fit is obvious and rigorous.
+  3. Do not choose a category that is already mapped in the recent history; use only unmapped categories.
+  4. If the answer is generic filler, unrelated, or only partially addresses the question, use 'NO_MAP_WEAK_FIT'.
+5. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
+6. Keep the justification short and factual, with at most 30 words.
+7. Generate a thoughtful follow-up question to help identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.
+Respond with exactly one JSON object with these fields: {"category":"...","justification":"...","nextQuestion":"..." or null}`;
 
-    const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nHISTORY: ${history}\nTAXONOMY: ${taxonomyString}`;
+    const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
     try {
       const result = await this.requestGemini({
         contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }],
         generationConfig: {
           temperature: 0.5,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 1200, // Reduced from 2048: ~3 fields in JSON needs <200 tokens, 600 = safety margin
           responseMimeType: "application/json",
         },
       });
@@ -542,24 +553,20 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
         throw new Error("Failed to extract text from API response");
       }
 
-      // Extract JSON from response
+      // Extract JSON from response (handles incomplete/truncated JSON)
       const jsonString = extractJson(rawText);
       if (!jsonString) {
         console.error("❌ Could not extract JSON from response:", rawText);
         throw new Error("Failed to extract JSON from API response");
       }
 
-      const parsed = JSON.parse(jsonString);
-      if (parsed?.nextQuestion) {
-        parsed.nextQuestion = this.normalizeQuestion(parsed.nextQuestion);
-        if (!this.isQuestionStrong(parsed.nextQuestion)) {
-          parsed.nextQuestion = await this.synthesizeNextQuestion(
-            interactions,
-            mappedCategories,
-            taxonomyString
-          );
-        }
-      }
+      const parsed = await this.parseAndFinalizeMapAnswerResponse(
+        rawText,
+        jsonString,
+        interactions,
+        mappedCategories,
+        taxonomyString
+      );
       return parsed;
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -577,6 +584,45 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
       }
       throw error;
     }
+  }
+
+  private static async parseAndFinalizeMapAnswerResponse(
+    rawText: string,
+    jsonString: string,
+    interactions: DialogueInteraction[],
+    mappedCategories: MappedCategory[],
+    taxonomyString: string
+  ): Promise<MapAnswerResponse> {
+    let parsed: MapAnswerResponse;
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.error("❌ JSON parse error. Raw:", rawText.substring(0, 200));
+      throw new Error(
+        `JSON parse failed: ${parseError instanceof Error ? parseError.message : "unknown"}`
+      );
+    }
+
+    if (!parsed.category || typeof parsed.category !== "string") {
+      console.error("❌ Invalid response: missing or invalid 'category'", parsed);
+      throw new Error("Invalid response: missing category field");
+    }
+
+    if (!parsed.nextQuestion) {
+      return parsed;
+    }
+
+    parsed.nextQuestion = this.normalizeQuestion(parsed.nextQuestion);
+    if (this.isQuestionStrong(parsed.nextQuestion)) {
+      return parsed;
+    }
+
+    parsed.nextQuestion = await this.synthesizeNextQuestion(
+      interactions,
+      mappedCategories,
+      taxonomyString
+    );
+    return parsed;
   }
 
   private static async encodeImageToBase64(imageUri: string): Promise<string> {

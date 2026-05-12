@@ -5,7 +5,7 @@
  * when the user completes all  categories or resets.
  */
 
-import { getJSONFromStorage, setJSONInStorage, removeFromStorage } from "../util/asyncStorage";
+import { getJSONFromStorage, setJSONInStorage, removeFromStorage } from "../utils/asyncStorage";
 import { getScopedStorageKey, waitForAuthReady } from "./auth/authSessionService";
 import { createSession, closeSession, getOrCreateUserId } from "./firebase/firestoreService";
 

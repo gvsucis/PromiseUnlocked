@@ -6,6 +6,7 @@ export interface Stamp {
   description: string;
   unlocked: boolean;
   dateUnlocked?: string;
+  tierImages?: { t1?: string; t2?: string; t3?: string; t4?: string };
 }
 
 export interface TranscriptSummary {

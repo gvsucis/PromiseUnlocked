@@ -1,7 +1,9 @@
 /**
  * Skills Taxonomy Service
- * Provides utilities for skill mapping, normalization, and matching
+ * Maps user-provided skills to canonical taxonomy categories
+ * Provides utilities for skill normalization and lookup
  */
+
 import { SKILLS_TAXONOMY, SKILL_SYNONYMS } from "../config/skillsTaxonomy";
 export { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
@@ -21,8 +23,7 @@ const CATEGORY_ALIASES: Record<string, string> = {
 };
 
 export function normalizeTaxonomyCategoryName(category: string): string {
-  const trimmed = category.trim();
-  return CATEGORY_ALIASES[trimmed] ?? trimmed;
+  return CATEGORY_ALIASES[category.trim()] ?? category.trim();
 }
 
 type SkillMatch = {
@@ -31,201 +32,126 @@ type SkillMatch = {
   confidence: number;
 };
 
-// Memoization cache for similarity calculations (LRU-style, max 500 entries)
-const similarityCache = new Map<string, number>();
-const MAX_CACHE_SIZE = 500;
-
 /**
- * Space-optimized Levenshtein distance using Wagner-Fischer algorithm
- * O(min(n,m)) space instead of O(n*m)
- */
-function levenshteinDistance(str1: string, str2: string): number {
-  const s1 = str1.toLowerCase();
-  const s2 = str2.toLowerCase();
-
-  // Use shorter string as reference for space optimization
-  let a = s1;
-  let b = s2;
-  if (a.length > b.length) {
-    [a, b] = [b, a];
-  }
-
-  // Only need two rows for DP
-  const prevRow = new Array(a.length + 1).fill(0).map((_, i) => i);
-  const currRow = new Array(a.length + 1).fill(0);
-
-  for (let i = 1; i <= b.length; i++) {
-    currRow[0] = i;
-    for (let j = 1; j <= a.length; j++) {
-      const cost = a[j - 1] === b[i - 1] ? 0 : 1;
-      currRow[j] = Math.min(currRow[j - 1] + 1, prevRow[j] + 1, prevRow[j - 1] + cost);
-    }
-    prevRow.splice(0, prevRow.length, ...currRow);
-  }
-
-  return currRow[a.length];
-}
-
-/**
- * Calculate similarity score with memoization (0-1, higher is more similar)
+ * Simple string similarity calculation (0-1, higher = more similar)
+ * Uses substring matching and word overlap for O(n) efficiency
  */
 function calculateSimilarity(str1: string, str2: string): number {
   const s1 = str1.toLowerCase().trim();
   const s2 = str2.toLowerCase().trim();
 
-  // Create cache key (order-independent for efficiency)
-  const cacheKey = s1 < s2 ? `${s1}|${s2}` : `${s2}|${s1}`;
-  const cached = similarityCache.get(cacheKey);
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  let result = 0;
-
   // Exact match
-  if (s1 === s2) {
-    result = 1;
-  } else if (s1.includes(s2) || s2.includes(s1)) {
-    // Check if one contains the other
-    result = 0.9;
-  } else {
-    // Use space-optimized Levenshtein distance
-    const distance = levenshteinDistance(s1, s2);
-    const maxLength = Math.max(s1.length, s2.length);
-    result = 1 - distance / maxLength;
-  }
+  if (s1 === s2) return 1;
 
-  // Simple cache eviction when size exceeds limit
-  if (similarityCache.size >= MAX_CACHE_SIZE) {
-    const firstKey = similarityCache.keys().next().value;
-    if (firstKey !== undefined) {
-      similarityCache.delete(firstKey);
-    }
-  }
+  // One string contains the other (substring match)
+  if (s1.includes(s2) || s2.includes(s1)) return 0.9;
 
-  similarityCache.set(cacheKey, result);
-  return result;
+  // Count common words
+  const words1 = new Set(s1.split(/\s+/));
+  const words2 = new Set(s2.split(/\s+/));
+  let commonWords = 0;
+
+  words1.forEach((word) => {
+    if (words2.has(word)) commonWords++;
+  });
+
+  const totalWords = Math.max(words1.size, words2.size);
+  return totalWords > 0 ? commonWords / totalWords : 0;
 }
 
-function getSkillMaxSimilarity(normalizedInput: string, skill: string): number {
-  let maxSimilarity = calculateSimilarity(normalizedInput, skill);
-  const synonyms = SKILL_SYNONYMS[skill] ?? [];
-
-  for (const synonym of synonyms) {
-    const synonymSimilarity = calculateSimilarity(normalizedInput, synonym);
-    maxSimilarity = Math.max(maxSimilarity, synonymSimilarity);
-  }
-
-  return maxSimilarity;
-}
-
-function getBestDirectMatch(normalizedInput: string): SkillMatch {
-  let bestMatch: SkillMatch = {
-    skill: "",
-    category: "",
-    confidence: 0,
-  };
+/**
+ * Find best skill match in SKILLS_TAXONOMY
+ * Considers skill name and SKILL_SYNONYMS
+ */
+function getBestSkillMatch(input: string): SkillMatch {
+  let best: SkillMatch = { skill: "", category: "", confidence: 0 };
 
   for (const [category, skills] of Object.entries(SKILLS_TAXONOMY)) {
     for (const skill of skills) {
-      const maxSimilarity = getSkillMaxSimilarity(normalizedInput, skill);
-      if (maxSimilarity > bestMatch.confidence) {
-        bestMatch = {
-          skill,
-          category,
-          confidence: maxSimilarity,
-        };
+      let confidence = calculateSimilarity(input, skill);
+
+      // Also check synonyms
+      const synonyms = SKILL_SYNONYMS[skill] ?? [];
+      for (const synonym of synonyms) {
+        confidence = Math.max(confidence, calculateSimilarity(input, synonym));
+      }
+
+      if (confidence > best.confidence) {
+        best = { skill, category, confidence };
       }
     }
   }
 
-  return bestMatch;
+  return best;
 }
 
-function getBestPartialWordMatch(normalizedInput: string, currentBest: SkillMatch): SkillMatch {
-  const words = normalizedInput.split(/\s+/).filter((word) => word.length >= 3);
-  let bestMatch = currentBest;
+/**
+ * Find partial matches using word boundaries
+ */
+function getBestPartialMatch(input: string, currentBest: SkillMatch): SkillMatch {
+  const words = input.split(/\s+/).filter((w) => w.length >= 3);
+  let best = currentBest;
 
   for (const word of words) {
     for (const [category, skills] of Object.entries(SKILLS_TAXONOMY)) {
       for (const skill of skills) {
-        const normalizedSkill = skill.toLowerCase();
-        if (normalizedSkill.includes(word) || word.includes(normalizedSkill)) {
-          const partialSimilarity = 0.6;
-          if (partialSimilarity > bestMatch.confidence) {
-            bestMatch = {
-              skill,
-              category,
-              confidence: partialSimilarity,
-            };
+        if (skill.toLowerCase().includes(word) || word.includes(skill.toLowerCase())) {
+          const confidence = 0.6;
+          if (confidence > best.confidence) {
+            best = { skill, category, confidence };
           }
         }
       }
     }
   }
 
-  return bestMatch;
+  return best;
 }
 
 /**
- * Map a user-provided skill to the most accurate skill in the taxonomy
- * Returns the best matching skill from the taxonomy
+ * Map a user-provided skill to the best match in the taxonomy
  */
-export function mapSkillToTaxonomy(userSkill: string): {
-  skill: string;
-  category: string;
-  confidence: number;
-} {
-  const normalizedInput = userSkill.toLowerCase().trim();
-  const bestDirectMatch = getBestDirectMatch(normalizedInput);
+export function mapSkillToTaxonomy(userSkill: string): SkillMatch {
+  const input = userSkill.toLowerCase().trim();
+  const directMatch = getBestSkillMatch(input);
 
-  if (bestDirectMatch.confidence < 0.5) {
-    return getBestPartialWordMatch(normalizedInput, bestDirectMatch);
-  }
-
-  return bestDirectMatch;
+  // If direct match confidence is low, try partial matching
+  return directMatch.confidence < 0.5 ? getBestPartialMatch(input, directMatch) : directMatch;
 }
 
 /**
- * Map multiple user skills to their best matches in the taxonomy
- * Returns only unique skills (removes duplicates)
+ * Map multiple user skills, removing duplicates (keeps highest confidence)
  */
-export function mapSkillsToTaxonomy(userSkills: string[]): {
-  skill: string;
-  category: string;
-  confidence: number;
-}[] {
-  const mappedSkills = userSkills.map((skill) => mapSkillToTaxonomy(skill));
+export function mapSkillsToTaxonomy(userSkills: string[]): SkillMatch[] {
+  const mapped = userSkills.map((skill) => mapSkillToTaxonomy(skill));
 
-  // Remove duplicates - keep the one with highest confidence
-  const uniqueSkills = new Map<string, (typeof mappedSkills)[0]>();
-
-  for (const mapped of mappedSkills) {
-    const existing = uniqueSkills.get(mapped.skill);
-    if (!existing || mapped.confidence > existing.confidence) {
-      uniqueSkills.set(mapped.skill, mapped);
+  // Deduplicate by skill name, keeping highest confidence
+  const uniqueMap = new Map<string, SkillMatch>();
+  for (const match of mapped) {
+    const existing = uniqueMap.get(match.skill);
+    if (!existing || match.confidence > existing.confidence) {
+      uniqueMap.set(match.skill, match);
     }
   }
 
-  return Array.from(uniqueSkills.values());
+  return Array.from(uniqueMap.values());
 }
 
-// Precompute all skills at module load time for efficiency
+// Cache all skills at module load time
 const allSkillsCache = Object.values(SKILLS_TAXONOMY).flat();
 
 /**
- * Get all skills from the taxonomy as a flat array (cached)
+ * Get all skills from taxonomy as a flat array
  */
 export function getAllSkills(): string[] {
   return allSkillsCache;
 }
 
 /**
- * Get all skills for a specific category
+ * Get skills for a specific category
  */
 export function getSkillsByCategory(category: string): string[] {
-  const skills = SKILLS_TAXONOMY[category];
-  return skills ?? [];
+  return SKILLS_TAXONOMY[category] ?? [];
 }
 
 /**
@@ -241,12 +167,10 @@ export function findSkillCategory(skill: string): string | null {
 }
 
 /**
- * Normalize a list of skills by mapping them to taxonomy and removing duplicates
- * Returns only the skill names (not the full mapping objects)
+ * Normalize user skills by mapping to taxonomy and filtering low confidence
  */
 export function normalizeSkills(userSkills: string[]): string[] {
-  const mapped = mapSkillsToTaxonomy(userSkills);
-  return mapped
-    .filter((m) => m.confidence >= 0.5) // Only keep reasonable matches
+  return mapSkillsToTaxonomy(userSkills)
+    .filter((m) => m.confidence >= 0.5)
     .map((m) => m.skill);
 }
