@@ -11,7 +11,7 @@ import {
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "../../config/firebase";
-import { removeManyFromStorage, setJSONInStorage } from "../../util/asyncStorage";
+import { removeManyFromStorage, setJSONInStorage } from "../../utils/asyncStorage";
 import type { AppAuthSession } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
 
@@ -238,7 +238,21 @@ export async function signUpWithEmail(email: string, password: string) {
 
   if (currentUser?.isAnonymous) {
     const credential = EmailAuthProvider.credential(normalizedEmail, password);
-    return linkWithCredential(currentUser, credential);
+    try {
+      return await linkWithCredential(currentUser, credential);
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : undefined;
+
+      // If the email is already in use, attempt to sign into that account.
+      if (code === "auth/email-already-in-use") {
+        return signInWithEmailAndPassword(auth, normalizedEmail, password);
+      }
+
+      throw error;
+    }
   }
 
   return createUserWithEmailAndPassword(auth, normalizedEmail, password);

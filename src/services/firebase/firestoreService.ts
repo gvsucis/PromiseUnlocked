@@ -17,7 +17,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebase";
-import { setJSONInStorage } from "../../util/asyncStorage";
+import { setJSONInStorage } from "../../utils/asyncStorage";
 import { waitForAuthReady } from "../auth/authSessionService";
 import type {
   SessionDocument,

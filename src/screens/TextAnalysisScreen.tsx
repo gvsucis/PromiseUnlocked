@@ -6,7 +6,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { GeminiService } from "../services/geminiService";
-import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { SKILLS_TAXONOMY, normalizeTaxonomyCategoryName } from "../services/skillTaxonomyService";
 
 type TextAnalysisScreenNavigationProp = StackNavigationProp<RootStackParamList, "TextAnalysis">;
 
@@ -29,6 +29,9 @@ export default function TextAnalysisScreen({ navigation }: Props) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const hasCategory = (categories: string[], targetCategory: string): boolean =>
+    categories.map(normalizeTaxonomyCategoryName).includes(targetCategory);
 
   const analyzeText = async () => {
     if (!inputText.trim()) {
@@ -108,28 +111,28 @@ Analyze the text carefully and provide thoughtful insights about the skills bein
   const generateFollowUpQuestion = (data: AnalysisResult): string => {
     const categories = data.taxonomy_categories || [];
     const skills = data.primary_skills || [];
-    if (categories.includes("Creative Expression")) {
+    if (hasCategory(categories, "Creative Expression")) {
       return "Would you create a small piece this week (e.g., a 60-second reel, a sketch, or a short story) to explore this interest?";
     }
-    if (categories.includes("Maker & Builder")) {
+    if (hasCategory(categories, "Maker & Builder")) {
       return "What quick prototype could you build in the next 2–3 hours to test an idea from this activity?";
     }
-    if (categories.includes("Meta-Learning")) {
+    if (hasCategory(categories, "Meta-Learning & Self-Awareness")) {
       return "What is one question you’re curious about here, and how would you research it?";
     }
-    if (categories.includes("Human Skills")) {
+    if (hasCategory(categories, "Human Skills")) {
       return "Who could you share or collaborate with this week to amplify your impact or get feedback?";
     }
-    if (categories.includes("Problem-Solving")) {
+    if (hasCategory(categories, "Problem-Solving")) {
       return "What challenge did you hit during this activity, and how might you approach it differently next time?";
     }
-    if (categories.includes("Civic Impact")) {
+    if (hasCategory(categories, "Civic & Community")) {
       return "Is there a community or cause that could benefit from this—what’s one small action you could take?";
     }
-    if (categories.includes("Work Experience")) {
+    if (hasCategory(categories, "Work Experience")) {
       return "Is there a real-world context (internship, freelance, volunteer) where you could apply this in the next month?";
     }
-    if (categories.includes("Future Self")) {
+    if (hasCategory(categories, "Future Self & Direction")) {
       return "If this became part of your routine, what would “leveling up” look like in 30 days?";
     }
     if (skills.length > 0) {

@@ -6,7 +6,7 @@
  */
 
 import { MappedCategory, ConversationInteraction } from "./categoryTaxonomyService";
-import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../util/asyncStorage";
+import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 
 import { getScopedStorageKey } from "./auth/authSessionService";
 import { clearSessionState, endSession, getOrStartSession, getUserId } from "./sessionManager";
@@ -14,7 +14,7 @@ import { saveInteraction, savePassportMapping } from "./firebase/firestoreServic
 import { enqueueFirestoreWrite } from "./firebase/firestoreWriteQueue";
 
 // Log errors to a file instead of console.error
-import { logErrorToFile } from "../util/logToFile";
+import { logErrorToFile } from "../utils/logToFile";
 
 const MAPPED_CATEGORIES_KEY = "@mappedCategories";
 const INTERACTIONS_KEY = "@userInteractions";

@@ -2,10 +2,10 @@
  * Session Manager
  * Tracks the active Firestore session ID in memory and AsyncStorage.
  * A session starts on the first interaction of a dialogue run and ends
- * when the user completes all 8 categories or resets.
+ * when the user completes all  categories or resets.
  */
 
-import { getJSONFromStorage, setJSONInStorage, removeFromStorage } from "../util/asyncStorage";
+import { getJSONFromStorage, setJSONInStorage, removeFromStorage } from "../utils/asyncStorage";
 import { getScopedStorageKey, waitForAuthReady } from "./auth/authSessionService";
 import { createSession, closeSession, getOrCreateUserId } from "./firebase/firestoreService";
 

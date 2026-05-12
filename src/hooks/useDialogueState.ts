@@ -142,13 +142,11 @@ export function useDialogueState(): DialogueState {
     setIsPrefetching(false);
 
     try {
-      const isInitial = mappedCategories.length === 0;
       const taxonomyString = getTaxonomyString();
 
       const result = await GeminiService.mapAnswerAndGenerateNextQuestion(
         question,
         answer,
-        isInitial,
         interactions,
         mappedCategories,
         taxonomyString

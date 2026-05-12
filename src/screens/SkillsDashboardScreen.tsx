@@ -12,7 +12,8 @@ import {
   getTaxonomySkillsWithStatus,
   IdentifiedSkill,
 } from "../services/userSkillsService";
-import { SKILLS_TAXONOMY } from "../services/skillTaxonomyService";
+import { SKILLS_TAXONOMY, mapSkillToTaxonomy } from "../services/skillTaxonomyService";
+import { formatDate } from "../utils/dateUtils";
 
 type SkillsDashboardScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 type SkillsDashboardScreenRouteProp =
@@ -24,11 +25,27 @@ interface Props {
   route: SkillsDashboardScreenRouteProp;
 }
 
-export default function SkillsDashboardScreen({ navigation, route }: Props) {
+interface TaxonomySkillStatus {
+  name: string;
+  identified: boolean;
+  dateIdentified?: string;
+  confidence?: number;
+}
+
+interface SkillsStats {
+  totalSkills: number;
+  skillsByCategory: Record<string, number>;
+  skillsBySource: Record<string, number>;
+  recentSkills: IdentifiedSkill[];
+}
+
+export default function SkillsDashboardScreen({ navigation, route: _route }: Readonly<Props>) {
   const [loading, setLoading] = useState(true);
   const [userSkills, setUserSkills] = useState<IdentifiedSkill[]>([]);
-  const [skillsStats, setSkillsStats] = useState<any>(null);
-  const [taxonomySkills, setTaxonomySkills] = useState<any[]>([]);
+  const [skillsStats, setSkillsStats] = useState<SkillsStats | null>(null);
+  const [taxonomySkills, setTaxonomySkills] = useState<
+    { category: string; skills: TaxonomySkillStatus[] }[]
+  >([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedView, setSelectedView] = useState<"overview" | "taxonomy" | "timeline">(
     "overview"
@@ -123,24 +140,14 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
   const getCategoryProgress = (
     category: string
   ): { identified: number; total: number; percentage: number } => {
-    const categorySkills = SKILLS_TAXONOMY[category as keyof typeof SKILLS_TAXONOMY] || [];
+    const categorySkills = SKILLS_TAXONOMY[category] || [];
     const total = categorySkills.length;
-    const identified = userSkills.filter((s) => s.category === category).length;
+    const identified = userSkills.filter((s) => {
+      const matchedSkill = mapSkillToTaxonomy(s.skill);
+      return s.category === category || matchedSkill.category === category;
+    }).length;
     const percentage = total > 0 ? Math.round((identified / total) * 100) : 0;
     return { identified, total, percentage };
-  };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-    return date.toLocaleDateString();
   };
 
   const categories = ["All", ...Object.keys(SKILLS_TAXONOMY)];
@@ -331,6 +338,11 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                         <View style={styles.recentSkillInfo}>
                           <Text style={styles.recentSkillName}>{skill.skill}</Text>
                           <Text style={styles.recentSkillCategory}>{skill.category}</Text>
+                          {typeof skill.confidence === "number" && (
+                            <Text style={styles.recentSkillConfidence}>
+                              {Math.round(skill.confidence * 100)}% match
+                            </Text>
+                          )}
                         </View>
                       </View>
                       <Text style={styles.recentSkillDate}>{formatDate(skill.dateIdentified)}</Text>
@@ -388,34 +400,34 @@ export default function SkillsDashboardScreen({ navigation, route }: Props) {
                     </View>
 
                     <View style={styles.taxonomySkillsGrid}>
-                      {skills.map(
-                        (skill: { name: string; identified: boolean; dateIdentified?: string }) => (
-                          <Chip
-                            key={skill.name}
-                            mode="flat"
-                            selected={skill.identified}
-                            style={[
-                              styles.taxonomySkillChip,
-                              skill.identified
-                                ? { backgroundColor: getCategoryColor(category) }
-                                : styles.taxonomySkillChipUnidentified,
-                            ]}
-                            textStyle={[
-                              styles.taxonomySkillChipText,
-                              skill.identified
-                                ? styles.taxonomySkillChipTextIdentified
-                                : styles.taxonomySkillChipTextUnidentified,
-                            ]}
-                            icon={() =>
-                              skill.identified ? (
-                                <MaterialIcons name="check-circle" size={16} color="#fff" />
-                              ) : null
-                            }
-                          >
-                            {skill.name}
-                          </Chip>
-                        )
-                      )}
+                      {skills.map((skill: TaxonomySkillStatus) => (
+                        <Chip
+                          key={skill.name}
+                          mode="flat"
+                          selected={skill.identified}
+                          style={[
+                            styles.taxonomySkillChip,
+                            skill.identified
+                              ? { backgroundColor: getCategoryColor(category) }
+                              : styles.taxonomySkillChipUnidentified,
+                          ]}
+                          textStyle={[
+                            styles.taxonomySkillChipText,
+                            skill.identified
+                              ? styles.taxonomySkillChipTextIdentified
+                              : styles.taxonomySkillChipTextUnidentified,
+                          ]}
+                          icon={() =>
+                            skill.identified ? (
+                              <MaterialIcons name="check-circle" size={16} color="#fff" />
+                            ) : null
+                          }
+                        >
+                          {skill.identified && typeof skill.confidence === "number"
+                            ? `${skill.name} · ${Math.round(skill.confidence * 100)}%`
+                            : skill.name}
+                        </Chip>
+                      ))}
                     </View>
                   </Card.Content>
                 </Card>
@@ -733,6 +745,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     marginTop: 2,
+  },
+  recentSkillConfidence: {
+    fontSize: 11,
+    color: "#667eea",
+    marginTop: 2,
+    fontWeight: "600",
   },
   recentSkillDate: {
     fontSize: 12,

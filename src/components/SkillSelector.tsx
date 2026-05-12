@@ -61,6 +61,12 @@ export default function SkillSelector({
     return allSkills.filter((skill) => skill.toLowerCase().includes(query)).slice(0, 10); // Limit to 10 results
   }, [searchQuery, allSkills]);
 
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence > 0.8) return "#4CAF50";
+    if (confidence > 0.6) return "#FF9800";
+    return "#FFC107";
+  };
+
   return (
     <View style={styles.container}>
       <Searchbar
@@ -81,12 +87,7 @@ export default function SkillSelector({
                 style={[
                   styles.confidenceChip,
                   {
-                    backgroundColor:
-                      suggestion.confidence > 0.8
-                        ? "#4CAF50"
-                        : suggestion.confidence > 0.6
-                          ? "#FF9800"
-                          : "#FFC107",
+                    backgroundColor: getConfidenceColor(suggestion.confidence),
                   },
                 ]}
                 textStyle={styles.confidenceText}
