@@ -86,10 +86,10 @@ export default function OnboardingScreen({ navigation }: Readonly<Props>) {
     const forward = nextIndex > currentIndexRef.current;
 
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
       Animated.timing(slideAnim, {
         toValue: forward ? -20 : 20,
-        duration: 180,
+        duration: 200,
         useNativeDriver: true,
       }),
     ]).start(() => {
@@ -169,7 +169,7 @@ export default function OnboardingScreen({ navigation }: Readonly<Props>) {
         </Animated.View>
 
         <View style={styles.swipeHint}>
-          <MaterialIcons name="swipe" size={16} color="rgba(255,255,255,0.45)" />
+          <MaterialIcons name="swipe" size={16} color="rgba(255,255,255,0.50)" />
           <Text style={styles.swipeHintText}>swipe to explore</Text>
         </View>
 
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 40,
+    paddingHorizontal: 30,
   },
   iconBadge: {
     width: 88,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     marginBottom: 36,
   },
   title: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: "bold",
     color: "#fff",
     textAlign: "center",
@@ -265,20 +265,23 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 18,
     lineHeight: 24,
     fontWeight: "500",
     letterSpacing: 0.15,
     color: "rgba(255,255,255,0.82)",
     textAlign: "center",
     maxWidth: width * 0.78,
+    fontFamily: "Avenir Next",
+    marginBottom: 10,
   },
   swipeHint: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 5,
-    marginBottom: 20,
+    marginTop: 0,
+    marginBottom: 12,
   },
   swipeHintText: {
     fontSize: 12,

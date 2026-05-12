@@ -9,8 +9,8 @@ import {
 } from "react-native";
 
 interface CompletionModalProps {
-  visible: boolean;
-  onDismiss: () => void;
+  readonly visible: boolean;
+  readonly onDismiss: () => void;
 }
 
 export function CompletionModal({ visible, onDismiss }: CompletionModalProps) {
