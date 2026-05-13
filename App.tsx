@@ -18,6 +18,7 @@ import SkillsDashboardScreen from "./src/screens/SkillsDashboardScreen";
 import DialogueDashboardScreen from "./src/screens/DialogueDashboardScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import EditProfileScreen from "./src/screens/EditProfileScreen";
+import PassportScreen from "./src/screens/PassportScreen";
 import { RootStackParamList } from "./src/types/navigation";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
@@ -57,11 +58,13 @@ function AppNavigator() {
       </View>
     );
   }
+
   const getInitialRoute = () => {
     if (session.mode === "authenticated") return "DialogueDashboard" as const;
     if (!hasSeenOnboarding) return "Onboarding" as const;
     return "Welcome" as const;
   };
+
   return (
     <NavigationContainer>
       <StatusBar style="auto" />
@@ -151,8 +154,8 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="Passport"
-          component={SkillsDashboardScreen}
-          options={{ title: "Passport" }}
+          component={PassportScreen}
+          options={{ title: "Skills Passport" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

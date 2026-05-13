@@ -12,6 +12,8 @@ export type RootStackParamList = {
   Profile: undefined;
   EditProfile: undefined;
   Passport: undefined;
+  Stamps: { region: string };
+  StampDetails: undefined;
   SkillsDashboard: undefined;
   DialogueDashboard: undefined;
   VoiceAnalysis: { question?: string; context?: any } | undefined;
