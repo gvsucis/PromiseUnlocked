@@ -7,47 +7,131 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from "react-native";
+
 import { MaterialIcons } from "@expo/vector-icons";
+
+import {
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
+
+import type { RouteProp } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { RootStackParamList } from "../types/navigation";
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
-export default function StampScreen({ route }){
-    const { region } = route.params;
-    const stamps = SKILLS_TAXONOMY[region];
-    return(
-        <SafeAreaView style={styles.container}>
-            <ScrollView contentContainerStyle={styles.content}>
-                <Text style={styles.title}>
-                    {region}
-                </Text>
-                <View>
-                    {stamps.map((stamp) => (
-                        <TouchableOpacity
-                            key={stamp}
-                            style={styles.card}
-                        >
-                            <View style={styles.iconCircle}>
-                            <MaterialIcons
-                                name="school"
-                                size={28}
-                                color="#2E6EE6"
-                            />
-                            </View>
+type StampRouteProp = RouteProp<
+  RootStackParamList,
+  "Stamps"
+>;
 
-                            <Text style={styles.cardTitle}>
-                            {stamp}
-                            </Text>
+type StampNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "Stamps"
+>;
 
-                            <Text style={styles.cardDescription}>
-                            Skill Stamp
-                            </Text>
-                        </TouchableOpacity>
-                        ))}
-                </View>
-            </ScrollView>
-        </SafeAreaView>
-    )
+export default function StampScreen() {
+  const navigation =
+    useNavigation<StampNavigationProp>();
+
+  const route = useRoute<StampRouteProp>();
+  const { region } = route.params;
+  const regions = Object.keys(SKILLS_TAXONOMY);
+  const currentIndex = regions.indexOf(region);
+
+  const previousRegion =
+    currentIndex > 0
+      ? regions[currentIndex - 1]
+      : null;
+
+  const nextRegion =
+    currentIndex < regions.length - 1
+      ? regions[currentIndex + 1]
+      : null;
+
+  const stamps = SKILLS_TAXONOMY[region];
+
+  function goToPreviousRegion() {
+    if (!previousRegion) return;
+    navigation.replace("Stamps", {
+      region: previousRegion,
+    });
+  }
+  function goToNextRegion() {
+    if (!nextRegion) return;
+    navigation.replace("Stamps", {
+      region: nextRegion,
+    });
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.headerRow}>
+          <View style={styles.arrowContainer}>
+            {previousRegion && (
+              <TouchableOpacity
+                onPress={goToPreviousRegion}
+              >
+                <MaterialIcons
+                  name="chevron-left"
+                  size={36}
+                  color="#1B3A72"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text style={styles.title}>
+            {region}
+          </Text>
+
+          <View style={styles.arrowContainer}>
+            {nextRegion && (
+              <TouchableOpacity
+                onPress={goToNextRegion}
+              >
+                <MaterialIcons
+                  name="chevron-right"
+                  size={36}
+                  color="#1B3A72"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.grid}>
+          {stamps.map((stamp) => (
+            <TouchableOpacity
+              key={stamp}
+              style={styles.stampItem}
+              onPress={() =>
+                navigation.navigate("StampDetail", {
+                  stamp,
+                  region,
+                })
+              }
+            >
+              <View style={styles.stampCircle}>
+                <MaterialIcons
+                  name="school"
+                  size={34}
+                  color="#2E6EE6"
+                />
+              </View>
+
+              <Text style={styles.stampText}>
+                {stamp}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -60,45 +144,56 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+
+  arrowContainer: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   title: {
+    flex: 1,
+    textAlign: "center",
     fontSize: 28,
     fontWeight: "bold",
     color: "#1B3A72",
-    marginBottom: 20,
   },
 
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 16,
-
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
   },
 
-  iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  stampItem: {
+    width: "33.33%",
+    alignItems: "center",
+    marginBottom: 26,
+  },
+
+  stampCircle: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
     backgroundColor: "#EEF4FF",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: "#D6E4FF",
   },
 
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+  stampText: {
+    fontSize: 12,
+    fontWeight: "600",
     color: "#1B3A72",
-    marginBottom: 4,
+    textAlign: "center",
+    paddingHorizontal: 4,
   },
-
-  cardDescription: {
-    fontSize: 14,
-    color: "#6B7A99",
-  },
-
-})
+});

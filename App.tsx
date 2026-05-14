@@ -17,8 +17,10 @@ import FollowUpQuestionScreen from "./src/screens/FollowUpQuestionScreen";
 import SkillsDashboardScreen from "./src/screens/SkillsDashboardScreen";
 import DialogueDashboardScreen from "./src/screens/DialogueDashboardScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
-import EditProfileScreen from "./src/screens/EditProfileScreen";
 import PassportScreen from "./src/screens/PassportScreen";
+import StampScreen from "./src/screens/StampScreen";
+import DetailStampScreen from "./src/screens/DetailStampScreen";
+import EditProfileScreen from "./src/screens/EditProfileScreen";
 import { RootStackParamList } from "./src/types/navigation";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
@@ -156,6 +158,21 @@ function AppNavigator() {
           name="Passport"
           component={PassportScreen}
           options={{ title: "Skills Passport" }}
+        />
+        <Stack.Screen
+          name="Stamps"
+          component={StampScreen}
+          options={{ title: "Stamps" }}
+        />
+        <Stack.Screen
+          name="StampDetails"
+          component={DetailStampScreen}
+          options={{ title: "Detailed Stamp" }}
+        />
+        <Stack.Screen
+          name="SkillsDashboard"
+          component={SkillsDashboardScreen}
+          options={{ title: "Skills Dashboard" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

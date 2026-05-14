@@ -1,4 +1,5 @@
 import React from "react";
+
 import {
   SafeAreaView,
   ScrollView,
@@ -9,49 +10,61 @@ import {
 } from "react-native";
 
 import { MaterialIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { RootStackParamList } from "../types/navigation";
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
-export default function PassportScreen({ navigation }) {
+type PassportNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "Passport"
+>;
+
+export default function PassportScreen() {
+  const navigation =
+    useNavigation<PassportNavigationProp>();
+
   const regions = Object.keys(SKILLS_TAXONOMY);
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
 
-        {/* Title */}
-        <Text style={styles.title}>My Passport</Text>
+        <Text style={styles.title}>
+          My Passport
+        </Text>
 
-        {/* Radar Placeholder Card */}
         <View style={styles.radarCard}>
-          <Text style={styles.radarTitle}>Growth Radar</Text>
+          <Text style={styles.radarTitle}>
+            Growth Radar
+          </Text>
           <Text style={styles.radarPlaceholder}>
             Radar chart will go here
           </Text>
         </View>
 
-        {/* Regions Card */}
         <View style={styles.regionsCard}>
-          <Text style={styles.sectionTitle}>Explore Regions</Text>
-
+          <Text style={styles.sectionTitle}>
+            Explore Regions
+          </Text>
           <View style={styles.grid}>
             {regions.map((region) => (
               <TouchableOpacity
                 key={region}
                 style={styles.regionItem}
                 onPress={() =>
-                    navigation.navigate("Stamps", {
-                        region: region,
-                    })
+                  navigation.navigate("Stamps", {
+                    region,
+                  })
                 }
               >
-                <View style={styles.iconCircle}>
+                <View style={styles.iconContainer}>
                   <MaterialIcons
                     name="explore"
-                    size={26}
+                    size={32}
                     color="#2E6EE6"
                   />
                 </View>
-
                 <Text style={styles.regionText}>
                   {region}
                 </Text>
@@ -59,7 +72,6 @@ export default function PassportScreen({ navigation }) {
             ))}
           </View>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -84,16 +96,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  /* --- Radar Card --- */
   radarCard: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 18,
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 20,
     height: 180,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-
+    marginBottom: 18,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -108,16 +118,14 @@ const styles = StyleSheet.create({
   },
 
   radarPlaceholder: {
-    color: "#6B7A99",
     fontSize: 13,
+    color: "#6B7A99",
   },
 
-  /* --- Regions Card --- */
   regionsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
     padding: 16,
-
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -128,38 +136,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#1B3A72",
-    marginBottom: 12,
+    marginBottom: 14,
   },
 
-  /* Grid */
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
   },
 
   regionItem: {
-    width: "33.33%", // 3 per row
+    width: "48%",
+    backgroundColor: "#F7FAFF",
+    borderRadius: 20,
+    paddingVertical: 22,
+    paddingHorizontal: 12,
     alignItems: "center",
-    marginBottom: 16,
-  },
-
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#EEF4FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: "#D6E4FF",
   },
 
+  iconContainer: {
+    width: 68,
+    height: 68,
+    borderRadius: 18,
+    backgroundColor: "#EEF4FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
   regionText: {
-    fontSize: 11,
-    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "600",
     color: "#1B3A72",
-    fontWeight: "500",
+    textAlign: "center",
   },
 });
