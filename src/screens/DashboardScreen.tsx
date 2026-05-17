@@ -15,6 +15,7 @@ import { getTaxonomySkillsWithStatus, getSkillsStats } from "../services/userSki
 import { getJSONFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 import { Stamp, UserProgress, TranscriptSummary, CourseAnalysis } from "../types/dashboard";
 import { AVAILABLE_STAMPS, SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { getTierImagesForCategory } from "../services/stampDisplayService";
 const { width } = Dimensions.get("window");
 
 interface UnknownType {
@@ -388,6 +389,15 @@ export default function DashboardScreen({ route, navigation }: any) {
   };
 
   const categories = ["All", "Academic", "Achievement", "Interest"];
+
+  /**
+   * Get tier images for a mapped category
+   * Client-side lookup: O(n) where n = AVAILABLE_STAMPS count (<100)
+   * Zero API/DB cost
+   */
+  const getTierImagesForMappedCategory = (categoryName: string) => {
+    return getTierImagesForCategory(categoryName);
+  };
 
   const filteredStamps =
     selectedCategory === "All"
