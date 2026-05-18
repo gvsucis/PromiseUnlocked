@@ -162,12 +162,18 @@ function AppNavigator() {
         <Stack.Screen
           name="Stamps"
           component={StampScreen}
-          options={{ title: "Stamps" }}
+          options={{
+            title: "Stamps",
+            animation: "none",
+          }}
         />
         <Stack.Screen
           name="StampDetails"
           component={DetailStampScreen}
-          options={{ title: "Detailed Stamp" }}
+          options={{
+            title: "Detailed Stamp",
+            animation: "none",
+          }}
         />
         <Stack.Screen
           name="SkillsDashboard"

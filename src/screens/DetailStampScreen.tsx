@@ -6,25 +6,99 @@ import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
 } from "react-native";
 
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRoute } from "@react-navigation/native";
+
+import {
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
+
 import type { RouteProp } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
+import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
 type StampDetailRouteProp = RouteProp<
   RootStackParamList,
   "StampDetail"
 >;
 
+type StampDetailNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "StampDetail"
+>;
+
 export default function StampDetailScreen() {
+  const navigation =
+    useNavigation<StampDetailNavigationProp>();
   const route = useRoute<StampDetailRouteProp>();
   const { stamp, region } = route.params;
+  const stamps = SKILLS_TAXONOMY[region];
+  const currentIndex = stamps.indexOf(stamp);
+  const previousStamp =
+    currentIndex > 0
+      ? stamps[currentIndex - 1]
+      : null;
+  const nextStamp =
+    currentIndex < stamps.length - 1
+      ? stamps[currentIndex + 1]
+      : null;
+
+  function goToPreviousStamp() {
+    if (!previousStamp) return;
+    navigation.replace("StampDetail", {
+      stamp: previousStamp,
+      region,
+    });
+  }
+
+  function goToNextStamp() {
+    if (!nextStamp) return;
+    navigation.replace("StampDetail", {
+      stamp: nextStamp,
+      region,
+    });
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.headerRow}>
+          <View style={styles.arrowContainer}>
+            {previousStamp && (
+              <TouchableOpacity
+                onPress={goToPreviousStamp}
+              >
+                <MaterialIcons
+                  name="chevron-left"
+                  size={36}
+                  color="#1B3A72"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text style={styles.headerTitle}>
+            Stamp Detail
+          </Text>
+
+          <View style={styles.arrowContainer}>
+            {nextStamp && (
+              <TouchableOpacity
+                onPress={goToNextStamp}
+              >
+                <MaterialIcons
+                  name="chevron-right"
+                  size={36}
+                  color="#1B3A72"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
 
         <View style={styles.badgeContainer}>
           <View style={styles.badgeCircle}>
@@ -53,28 +127,28 @@ export default function StampDetailScreen() {
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
             <Text style={styles.bulletText}>
-              Completed introductory module
+              Demonstrated skill in chat
             </Text>
           </View>
 
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
             <Text style={styles.bulletText}>
-              Submitted project or assignment
+              Provided evidence for skill
             </Text>
           </View>
 
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
             <Text style={styles.bulletText}>
-              Demonstrated applied understanding
+              Shared an experience pertaining to skill
             </Text>
           </View>
 
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
             <Text style={styles.bulletText}>
-              Verified by instructor / system check
+              Skill verified by instructor
             </Text>
           </View>
 
@@ -94,6 +168,28 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
+  },
+
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+
+  arrowContainer: {
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1B3A72",
   },
 
   badgeContainer: {
