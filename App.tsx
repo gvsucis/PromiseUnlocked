@@ -17,6 +17,9 @@ import FollowUpQuestionScreen from "./src/screens/FollowUpQuestionScreen";
 import SkillsDashboardScreen from "./src/screens/SkillsDashboardScreen";
 import DialogueDashboardScreen from "./src/screens/DialogueDashboardScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import PassportScreen from "./src/screens/PassportScreen";
+import StampScreen from "./src/screens/StampScreen";
+import DetailStampScreen from "./src/screens/DetailStampScreen";
 import EditProfileScreen from "./src/screens/EditProfileScreen";
 import { RootStackParamList } from "./src/types/navigation";
 import LoginScreen from "./src/screens/LoginScreen";
@@ -57,11 +60,13 @@ function AppNavigator() {
       </View>
     );
   }
+
   const getInitialRoute = () => {
     if (session.mode === "authenticated") return "DialogueDashboard" as const;
     if (!hasSeenOnboarding) return "Onboarding" as const;
     return "Welcome" as const;
   };
+
   return (
     <NavigationContainer>
       <StatusBar style="auto" />
@@ -151,8 +156,24 @@ function AppNavigator() {
         />
         <Stack.Screen
           name="Passport"
-          component={SkillsDashboardScreen}
-          options={{ title: "Passport" }}
+          component={PassportScreen}
+          options={{ title: "Skills Passport" }}
+        />
+        <Stack.Screen
+          name="Stamps"
+          component={StampScreen}
+          options={{
+            title: "Stamps",
+            animation: "none",
+          }}
+        />
+        <Stack.Screen
+          name="StampDetails"
+          component={DetailStampScreen}
+          options={{
+            title: "Detailed Stamp",
+            animation: "none",
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>
