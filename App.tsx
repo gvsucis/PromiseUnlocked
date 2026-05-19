@@ -175,11 +175,6 @@ function AppNavigator() {
             animation: "none",
           }}
         />
-        <Stack.Screen
-          name="SkillsDashboard"
-          component={SkillsDashboardScreen}
-          options={{ title: "Skills Dashboard" }}
-        />
       </Stack.Navigator>
     </NavigationContainer>
   );

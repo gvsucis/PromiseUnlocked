@@ -107,7 +107,7 @@ export default function StampScreen() {
               key={stamp}
               style={styles.stampItem}
               onPress={() =>
-                navigation.navigate("StampDetail", {
+                navigation.navigate("StampDetails", {
                   stamp,
                   region,
                 })
