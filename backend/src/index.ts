@@ -6,7 +6,9 @@ import gracefulShutdown from "http-graceful-shutdown";
 import participantsRouter from "./api/participants";
 import sessionsRouter from "./api/sessions";
 import interactionsRouter from "./api/interactions";
+import chatRoutes from "./api/chatRoutes";
 import authRouter from "./api/auth";
+import profileEmbeddingsRouter from "./api/profileEmbeddings";
 import { authenticateToken } from "./middleware/auth";
 import { setupSwagger } from "./swagger";
 
@@ -25,6 +27,8 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ status: "Server is running" });
 });
 app.use("/api/auth", authRouter);
+app.use("/api/chat", chatRoutes);
+app.use("/api/profile-embeddings", profileEmbeddingsRouter);
 
 // Protected routes
 app.use("/api/participants", authenticateToken, participantsRouter);
