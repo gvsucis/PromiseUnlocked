@@ -23,12 +23,12 @@ import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
 type StampDetailRouteProp = RouteProp<
   RootStackParamList,
-  "StampDetail"
+  "StampDetails"
 >;
 
 type StampDetailNavigationProp = StackNavigationProp<
   RootStackParamList,
-  "StampDetail"
+  "StampDetails"
 >;
 
 export default function StampDetailScreen() {
@@ -49,7 +49,7 @@ export default function StampDetailScreen() {
 
   function goToPreviousStamp() {
     if (!previousStamp) return;
-    navigation.replace("StampDetail", {
+    navigation.replace("StampDetails", {
       stamp: previousStamp,
       region,
     });
@@ -57,7 +57,7 @@ export default function StampDetailScreen() {
 
   function goToNextStamp() {
     if (!nextStamp) return;
-    navigation.replace("StampDetail", {
+    navigation.replace("StampDetails", {
       stamp: nextStamp,
       region,
     });
