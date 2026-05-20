@@ -8,23 +8,34 @@ const typedServiceAccount = serviceAccount as ServiceAccount;
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(typedServiceAccount),
+    // No storageBucket configured — Firebase Storage not used in this simplified setup.
   });
 }
 const db = admin.firestore();
 
+function getIdFromDoc(d: unknown): string | undefined {
+  if (!d || typeof d !== "object") return undefined;
+  const candidate = d as { id?: unknown };
+  if (typeof candidate.id === "string") return candidate.id;
+  return undefined;
+}
+
 export function normalizeTimestamps(
-  obj: Record<string, any>,
+  obj: Record<string, unknown> | FirebaseFirestore.DocumentData,
   fields: string[]
-): Record<string, any> {
-  const toIso = (ts: any) => {
+): Record<string, unknown> {
+  const toIso = (ts: unknown) => {
     if (!ts) return null;
     if (typeof ts === "string") return ts;
     if (typeof ts === "number") return new Date(ts).toISOString();
-    if (typeof ts.toDate === "function") return ts.toDate().toISOString();
-    if (typeof ts._seconds === "number") return new Date(ts._seconds * 1000).toISOString();
+    if (ts && typeof ts === "object") {
+      const t = ts as { toDate?: unknown; _seconds?: unknown };
+      if (typeof t.toDate === "function") return (t.toDate as () => Date)().toISOString();
+      if (typeof t._seconds === "number") return new Date(t._seconds * 1000).toISOString();
+    }
     return null;
   };
-  const result: Record<string, any> = {};
+  const result: Record<string, unknown> = {};
   for (const field of fields) {
     result[field] = toIso(obj?.[field]);
   }
@@ -34,9 +45,8 @@ export function normalizeTimestamps(
 export function normalizeSession(
   doc: FirebaseFirestore.DocumentSnapshot | (SessionRecord & { id?: string })
 ): unknown {
-  const data = "data" in doc ? doc.data() : doc;
-
-  const id = "id" in doc && typeof doc.id === "string" ? doc.id : (doc as any).id;
+  const data = "data" in doc ? doc.data() : (doc as unknown as Record<string, unknown>);
+  const id = getIdFromDoc(doc) ?? undefined;
   return {
     id: id ?? null,
     alreadyMappedCount: data?.alreadyMappedCount ?? 0,
@@ -53,8 +63,8 @@ export function normalizeSession(
 export function normalizeUser(
   doc: FirebaseFirestore.DocumentSnapshot | (UserProfile & { id?: string })
 ): unknown {
-  const data = "data" in doc ? doc.data() : doc;
-  const id = "id" in doc && typeof doc.id === "string" ? doc.id : (doc as any).id;
+  const data = "data" in doc ? doc.data() : (doc as unknown as Record<string, unknown>);
+  const id = getIdFromDoc(doc) ?? undefined;
 
   return {
     uid: data?.uid ?? id ?? null,
@@ -69,8 +79,8 @@ export function normalizeUser(
 export function normalizeInteraction(
   doc: FirebaseFirestore.DocumentSnapshot | (InteractionRecord & { id?: string })
 ): unknown {
-  const data = "data" in doc ? doc.data() : doc;
-  const id = "id" in doc && typeof doc.id === "string" ? doc.id : (doc as any).id;
+  const data = "data" in doc ? doc.data() : (doc as unknown as Record<string, unknown>);
+  const id = getIdFromDoc(doc) ?? undefined;
 
   return {
     id: id ?? null,
