@@ -54,7 +54,8 @@
       ],
       "expo-apple-authentication",
       "expo-web-browser",
-      "expo-build-properties"
+      "expo-build-properties",
+      "expo-audio"
     ],
     "extra": {
       "eas": {

@@ -1,51 +1,29 @@
 import React from "react";
 
-import {
-  SafeAreaView,
-  ScrollView,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from "react-native";
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MaterialIcons } from "@expo/vector-icons";
 
-import {
-  useNavigation,
-  useRoute,
-} from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
-type StampDetailRouteProp = RouteProp<
-  RootStackParamList,
-  "StampDetails"
->;
+type StampDetailRouteProp = RouteProp<RootStackParamList, "StampDetails">;
 
-type StampDetailNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  "StampDetails"
->;
+type StampDetailNavigationProp = StackNavigationProp<RootStackParamList, "StampDetails">;
 
 export default function StampDetailScreen() {
-  const navigation =
-    useNavigation<StampDetailNavigationProp>();
+  const navigation = useNavigation<StampDetailNavigationProp>();
   const route = useRoute<StampDetailRouteProp>();
   const { stamp, region } = route.params;
   const stamps = SKILLS_TAXONOMY[region];
   const currentIndex = stamps.indexOf(stamp);
-  const previousStamp =
-    currentIndex > 0
-      ? stamps[currentIndex - 1]
-      : null;
-  const nextStamp =
-    currentIndex < stamps.length - 1
-      ? stamps[currentIndex + 1]
-      : null;
+  const previousStamp = currentIndex > 0 ? stamps[currentIndex - 1] : null;
+  const nextStamp = currentIndex < stamps.length - 1 ? stamps[currentIndex + 1] : null;
 
   function goToPreviousStamp() {
     if (!previousStamp) return;
@@ -69,32 +47,18 @@ export default function StampDetailScreen() {
         <View style={styles.headerRow}>
           <View style={styles.arrowContainer}>
             {previousStamp && (
-              <TouchableOpacity
-                onPress={goToPreviousStamp}
-              >
-                <MaterialIcons
-                  name="chevron-left"
-                  size={36}
-                  color="#1B3A72"
-                />
+              <TouchableOpacity onPress={goToPreviousStamp}>
+                <MaterialIcons name="chevron-left" size={36} color="#1B3A72" />
               </TouchableOpacity>
             )}
           </View>
 
-          <Text style={styles.headerTitle}>
-            Stamp Detail
-          </Text>
+          <Text style={styles.headerTitle}>Stamp Detail</Text>
 
           <View style={styles.arrowContainer}>
             {nextStamp && (
-              <TouchableOpacity
-                onPress={goToNextStamp}
-              >
-                <MaterialIcons
-                  name="chevron-right"
-                  size={36}
-                  color="#1B3A72"
-                />
+              <TouchableOpacity onPress={goToNextStamp}>
+                <MaterialIcons name="chevron-right" size={36} color="#1B3A72" />
               </TouchableOpacity>
             )}
           </View>
@@ -102,58 +66,37 @@ export default function StampDetailScreen() {
 
         <View style={styles.badgeContainer}>
           <View style={styles.badgeCircle}>
-            <MaterialIcons
-              name="school"
-              size={42}
-              color="#2E6EE6"
-            />
+            <MaterialIcons name="school" size={42} color="#2E6EE6" />
           </View>
 
-          <Text style={styles.title}>
-            {stamp}
-          </Text>
+          <Text style={styles.title}>{stamp}</Text>
 
-          <Text style={styles.subtitle}>
-            {region}
-          </Text>
+          <Text style={styles.subtitle}>{region}</Text>
         </View>
 
         <View style={styles.card}>
-
-          <Text style={styles.sectionTitle}>
-            Evidence
-          </Text>
+          <Text style={styles.sectionTitle}>Evidence</Text>
 
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>
-              Demonstrated skill in chat
-            </Text>
+            <Text style={styles.bulletText}>Demonstrated skill in chat</Text>
           </View>
 
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>
-              Provided evidence for skill
-            </Text>
+            <Text style={styles.bulletText}>Provided evidence for skill</Text>
           </View>
 
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>
-              Shared an experience pertaining to skill
-            </Text>
+            <Text style={styles.bulletText}>Shared an experience pertaining to skill</Text>
           </View>
 
           <View style={styles.bulletItem}>
             <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>
-              Skill verified by instructor
-            </Text>
+            <Text style={styles.bulletText}>Skill verified by instructor</Text>
           </View>
-
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
