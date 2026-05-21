@@ -60,7 +60,13 @@ const radarLabels: string[] = regions.map(
             labels={radarLabels}
             maxValue={100}
             chartSize={280}
-            labelsPositionOffset={20}
+            labelsPositionOffset={30}
+            chartContainerProps={{
+              height: 380,
+              width: 380,
+              shiftX: 50,
+              shiftY: 50,
+            }}
             polygonConfig={{
               stroke: "#2E6EE6",
               strokeWidth: 2,
@@ -137,10 +143,9 @@ const styles = StyleSheet.create({
   },
 
   radarTitle: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: "700",
     color: "#1B3A72",
-    marginBottom: 12,
   },
 
   regionsCard: {
