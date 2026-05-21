@@ -9,29 +9,39 @@ import {
   Dimensions,
 } from "react-native";
 import { Button, ActivityIndicator, Snackbar } from "react-native-paper";
-import { Audio } from "expo-av";
+import {
+  getRecordingPermissionsAsync,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from "expo-audio";
 import * as FileSystem from "expo-file-system/legacy";
 import { GeminiService } from "../services/geminiService";
 
 const { width } = Dimensions.get("window");
 
 export default function BlueScreen() {
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [transcriptHistory, setTranscriptHistory] = useState<string[]>([]);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
-  const [permissionResponse, requestPermission] = Audio.usePermissions();
+  const [permissionGranted, setPermissionGranted] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   useEffect(() => {
+    void getRecordingPermissionsAsync()
+      .then(({ status }) => setPermissionGranted(status === "granted"))
+      .catch(() => setPermissionGranted(false));
+
     return () => {
-      if (recording) {
-        recording.stopAndUnloadAsync();
+      if (recorder.isRecording) {
+        void recorder.stop();
       }
     };
-  }, [recording]);
+  }, []);
 
   const showSnackbar = (message: string) => {
     setSnackbarMessage(message);
@@ -40,22 +50,25 @@ export default function BlueScreen() {
 
   const startRecording = async () => {
     try {
-      if (permissionResponse?.status !== "granted") {
+      if (!permissionGranted) {
         console.log("Requesting permission..");
-        await requestPermission();
-        return;
+        const { status } = await requestRecordingPermissionsAsync();
+        const granted = status === "granted";
+        setPermissionGranted(granted);
+        if (!granted) {
+          showSnackbar("Microphone permission denied");
+          return;
+        }
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
       console.log("Starting recording..");
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(recording);
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
       showSnackbar("Recording started...");
       console.log("Recording started");
@@ -66,19 +79,19 @@ export default function BlueScreen() {
   };
 
   const stopRecording = async () => {
-    if (!recording) return;
+    if (!recorder.isRecording) return;
 
     console.log("Stopping recording..");
     setIsRecording(false);
     setIsTranscribing(true);
 
     try {
-      await recording.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
+      await recorder.stop();
+      await setAudioModeAsync({
+        allowsRecording: false,
       });
 
-      const uri = recording.getURI();
+      const uri = recorder.uri;
       console.log("Recording stopped and stored at", uri);
 
       if (uri) {
@@ -106,7 +119,6 @@ export default function BlueScreen() {
       console.error("Error stopping recording:", error);
       showSnackbar("Error processing recording");
     } finally {
-      setRecording(null);
       setIsTranscribing(false);
     }
   };
@@ -178,12 +190,16 @@ export default function BlueScreen() {
         </Button>
 
         {/* Permission Status */}
-        {permissionResponse?.status !== "granted" && (
+        {!permissionGranted && (
           <View style={styles.permissionContainer}>
             <Text style={styles.permissionText}>🎤 Microphone permission required</Text>
             <Button
               mode="outlined"
-              onPress={requestPermission}
+              onPress={() =>
+                void requestRecordingPermissionsAsync()
+                  .then(({ status }) => setPermissionGranted(status === "granted"))
+                  .catch(() => setPermissionGranted(false))
+              }
               style={styles.permissionButton}
               labelStyle={styles.permissionButtonText}
             >
