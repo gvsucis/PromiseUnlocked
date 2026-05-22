@@ -39,7 +39,7 @@ export default function ProfileScreen() {
     fetchProfile()
       .then(setProfile)
       .catch((error) => {
-        console.error("Failed to fetch profile:", error);
+        console.log("Failed to fetch profile:", error);
       })
       .finally(() => setLoading(false));
   }, []);
