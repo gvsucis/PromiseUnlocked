@@ -1,14 +1,7 @@
 import React from "react";
 
-import {
-  SafeAreaView,
-  ScrollView,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from "react-native";
-
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -16,10 +9,7 @@ import type { RootStackParamList } from "../types/navigation";
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 import { RadarChart } from "react-native-gifted-charts";
 
-type PassportNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  "Passport"
->;
+type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
@@ -27,22 +17,20 @@ export default function PassportScreen() {
   const regions = Object.keys(SKILLS_TAXONOMY);
 
   const radarLabelMap: Record<string, string> = {
-  "Human Skills (Durable)": "Human Skills",
-  "Creative Expression & Communication": "Creative",
-  "Problem-Solving & Systems Thinking": "Problem-Solving",
-  "Work & Entrepreneurial Experience": "Work & Entrepreneurship",
-  "Future Self & Directionality": "Future Self",
-  "Meta-Learning & Self-Awareness": "Meta-Learning",
-  "Maker & Builder Skills": "Maker & Builder",
-  "Civic & Community Impact": "Civic & Community",
-  "Digital & Tech Fluency": "Tech Fluency",
-  "Wellbeing & Personal Resilience": "Wellbeing",
-  "Faith, Culture & Identity": "Faith & Culture",
-};
+    "Human Skills (Durable)": "Human Skills",
+    "Creative Expression & Communication": "Creative",
+    "Problem-Solving & Systems Thinking": "Problem-Solving",
+    "Work & Entrepreneurial Experience": "Work & Entrepreneurship",
+    "Future Self & Directionality": "Future Self",
+    "Meta-Learning & Self-Awareness": "Meta-Learning",
+    "Maker & Builder Skills": "Maker & Builder",
+    "Civic & Community Impact": "Civic & Community",
+    "Digital & Tech Fluency": "Tech Fluency",
+    "Wellbeing & Personal Resilience": "Wellbeing",
+    "Faith, Culture & Identity": "Faith & Culture",
+  };
 
-const radarLabels: string[] = regions.map(
-  (region) => radarLabelMap[region] ?? region
-);
+  const radarLabels: string[] = regions.map((region) => radarLabelMap[region] ?? region);
 
   // data must be number[] — swap 0s for real scores (0–100) when ready
   const radarData: number[] = regions.map(() => 0);
@@ -50,7 +38,6 @@ const radarLabels: string[] = regions.map(
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-
         <Text style={styles.title}>My Passport</Text>
 
         <View style={styles.radarCard}>
@@ -105,7 +92,6 @@ const radarLabels: string[] = regions.map(
             ))}
           </View>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );

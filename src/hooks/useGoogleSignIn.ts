@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform, Alert } from "react-native";
+import { Platform } from "react-native";
+import { Alert } from "react-native";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { CONFIG } from "../config/env";

@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { Text, Card, ActivityIndicator } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,13 +11,17 @@ import { RootStackParamList } from "../types/navigation";
 import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
 import { GeminiService } from "../services/geminiService";
 import { ImagePickerService } from "../services/imagePickerService";
-import { Audio } from "expo-av";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from "expo-audio";
 import ZoomableImageView from "../components/ZoomableImageView";
 import ImageEditor from "../components/ImageEditor";
 import { LoadingModal } from "../components/dialogue/LoadingModal";
 import { CompletionModal } from "../components/dialogue/CompletionModal";
 import { WeakFitModal } from "../components/dialogue/WeakFitModal";
-import { useState } from "react";
 import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
@@ -48,11 +52,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     showConfetti,
     loading,
     prefetchedQuestion,
-    showInputMethodModal,
     setUserAnswer,
     setUiState,
     setCurrentPrompt,
-    setShowInputMethodModal,
     resetData,
     mapAnswerToCategory,
     handleStartButtonPress,
@@ -66,14 +68,16 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const [questionModalText, setQuestionModalText] = useState("");
   const suppressModalReopenRef = useRef(false);
+  const modalDismissedByBackdropRef = useRef(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = React.useState(false);
   const [recordingDuration, setRecordingDuration] = React.useState(0);
   const [recordingUri, setRecordingUri] = React.useState<string | null>(null);
   const [isProcessingAudio, setIsProcessingAudio] = React.useState(false);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Image state
@@ -162,6 +166,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     const q = pendingQuestion || currentPrompt;
     setPendingQuestion(null);
     setCurrentPrompt("");
+    setQuestionModalText("");
     suppressModalReopenRef.current = false;
     mapAnswerToCategory(q, text);
   };
@@ -170,6 +175,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     suppressModalReopenRef.current = true;
     setShowQuestionInputModal(false);
     setPendingQuestion(null);
+    setQuestionModalText("");
     await new Promise((resolve) => setTimeout(resolve, 150));
     suppressModalReopenRef.current = false;
     if (method === "voice") {
@@ -184,16 +190,19 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   const startRecording = async () => {
     try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      const { status } = await requestRecordingPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please grant microphone permission to continue.");
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
       setRecordingDuration(0);
 
@@ -207,7 +216,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   };
 
   const stopRecording = async () => {
-    if (!recordingRef.current) return;
+    if (!recorder.isRecording) return;
 
     try {
       setIsRecording(false);
@@ -216,11 +225,10 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         timerRef.current = null;
       }
 
-      await recordingRef.current.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
 
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
+      const uri = recorder.uri;
 
       if (uri) setRecordingUri(uri);
     } catch (err) {
@@ -281,10 +289,10 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   };
 
   const handleVoiceCancel = async () => {
-    if (isRecording && recordingRef.current) {
+    if (isRecording && recorder.isRecording) {
       try {
-        await recordingRef.current.stopAndUnloadAsync();
-        recordingRef.current = null;
+        await recorder.stop();
+        await setAudioModeAsync({ allowsRecording: false });
       } catch (err) {
         console.error("Error stopping recording on cancel:", err);
       }
@@ -431,7 +439,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       uiState === "idle" &&
       currentPrompt &&
       !showQuestionInputModal &&
-      !suppressModalReopenRef.current
+      !suppressModalReopenRef.current &&
+      !modalDismissedByBackdropRef.current
     ) {
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
@@ -439,12 +448,11 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   }, [uiState, currentPrompt, showQuestionInputModal]);
 
   React.useEffect(() => {
-    if (showInputMethodModal && prefetchedQuestion) {
+    if (prefetchedQuestion && uiState === "idle") {
       setPendingQuestion(prefetchedQuestion);
       setShowQuestionInputModal(true);
-      setShowInputMethodModal(false);
     }
-  }, [showInputMethodModal, prefetchedQuestion]);
+  }, [prefetchedQuestion, uiState]);
 
   if (loading) {
     return (
@@ -457,7 +465,11 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <MaterialIcons name="explore" size={40} color="#fff" />
           <Text style={styles.title}>My Skills Passport</Text>
@@ -493,7 +505,18 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
             {mappedCategories.length < TOTAL_CATEGORIES && (
               <TouchableOpacity
                 style={styles.startButton}
-                onPress={handleStartButtonPress}
+                onPress={() => {
+                  if (
+                    currentPrompt &&
+                    !showQuestionInputModal &&
+                    modalDismissedByBackdropRef.current
+                  ) {
+                    modalDismissedByBackdropRef.current = false;
+                    setShowQuestionInputModal(true);
+                  } else {
+                    handleStartButtonPress();
+                  }
+                }}
                 disabled={uiState !== "idle"}
                 activeOpacity={0.8}
               >
@@ -598,12 +621,19 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       <QuestionInputModal
         visible={showQuestionInputModal && !!pendingQuestion}
         question={pendingQuestion || ""}
+        textValue={questionModalText}
+        onTextChange={setQuestionModalText}
         onSelectInputType={handleInputTypeSelect}
         onSubmitText={handleSubmitTextFromModal}
         onClose={() => {
           setShowQuestionInputModal(false);
           setPendingQuestion(null);
           setCurrentPrompt("");
+          setQuestionModalText("");
+        }}
+        onBackdropDismiss={() => {
+          modalDismissedByBackdropRef.current = true;
+          setShowQuestionInputModal(false);
         }}
       />
 

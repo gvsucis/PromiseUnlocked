@@ -47,13 +47,11 @@ export interface DialogueState {
   savedQuestion: string;
   savedAnswer: string;
   showConfetti: boolean;
-  showInputMethodModal: boolean;
 
   // Setters needed by screen for controlled inputs and UI transitions
   setUserAnswer: React.Dispatch<React.SetStateAction<string>>;
   setUiState: React.Dispatch<React.SetStateAction<UIState>>;
   setCurrentPrompt: React.Dispatch<React.SetStateAction<string>>;
-  setShowInputMethodModal: React.Dispatch<React.SetStateAction<boolean>>;
   setError: React.Dispatch<React.SetStateAction<string>>;
 
   // Business logic
@@ -85,7 +83,6 @@ export function useDialogueState(): DialogueState {
   const [savedQuestion, setSavedQuestion] = useState("");
   const [savedAnswer, setSavedAnswer] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showInputMethodModal, setShowInputMethodModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -276,10 +273,6 @@ export function useDialogueState(): DialogueState {
 
           await new Promise((resolve) => setTimeout(resolve, 100));
           setUiState("idle");
-
-          setTimeout(() => {
-            setShowInputMethodModal(true);
-          }, 100);
           return;
         } catch (err) {
           console.error("Error generating next question:", err);
@@ -304,6 +297,10 @@ export function useDialogueState(): DialogueState {
   const handleStartButtonPress = async () => {
     if (uiState !== "idle") return;
     setError("");
+
+    if (currentPrompt) {
+      return;
+    }
 
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
@@ -451,9 +448,7 @@ export function useDialogueState(): DialogueState {
       await new Promise((resolve) => setTimeout(resolve, 100));
       setUiState("idle");
 
-      setTimeout(() => {
-        setShowInputMethodModal(true);
-      }, 100);
+      setTimeout(() => {}, 100);
     } catch (err) {
       console.error("Error synthesizing question after weak-fit:", err);
       setError("Failed to generate question. Please try again.");
@@ -484,11 +479,9 @@ export function useDialogueState(): DialogueState {
     savedQuestion,
     savedAnswer,
     showConfetti,
-    showInputMethodModal,
     setUserAnswer,
     setUiState,
     setCurrentPrompt,
-    setShowInputMethodModal,
     setError,
     loadData,
     resetData,

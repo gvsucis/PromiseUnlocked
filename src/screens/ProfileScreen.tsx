@@ -1,11 +1,5 @@
-import React, { useState } from "react";
-import {
-  ScrollView,
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-} from "react-native";
+import React, { useState, useEffect } from "react";
+import { ScrollView, View, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
 import { useNavigation } from "@react-navigation/native";
@@ -13,7 +7,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
-
+import { fetchProfile, UserProfile } from "../services/profileService";
 
 function ChecklistItem({ label, complete }: { label: string; complete: boolean }) {
   return (
@@ -23,9 +17,7 @@ function ChecklistItem({ label, complete }: { label: string; complete: boolean }
         size={18}
         color={complete ? "#6d5efc" : "#9ca3af"}
       />
-      <Text style={complete ? styles.itemComplete : styles.itemIncomplete}>
-        {label}
-      </Text>
+      <Text style={complete ? styles.itemComplete : styles.itemIncomplete}>{label}</Text>
     </View>
   );
 }
@@ -38,8 +30,20 @@ function GalleryPlaceholder() {
   );
 }
 
-
 export default function ProfileScreen() {
+  //Profile
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProfile()
+      .then(setProfile)
+      .catch((error) => {
+        console.log("Failed to fetch profile:", error);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   const navigation = useNavigation<ProfileNav>();
   const [bio, setBio] = useState(
     "I am on a journey to become a full-stack engineer with project-based milestones."
@@ -60,12 +64,9 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-
         <View style={styles.headerSection}>
           <Text style={styles.title}>My Profile</Text>
-          <Text style={styles.subtitle}>
-            Track your journey and manage your progress.
-          </Text>
+          <Text style={styles.subtitle}>Track your journey and manage your progress.</Text>
         </View>
 
         <View style={styles.card}>
@@ -82,10 +83,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Personal info CTA */}
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => navigation.navigate("EditProfile")}
-        >
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("EditProfile")}>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>Add Your Personal Information</Text>
@@ -148,12 +146,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
           {editingBio ? (
-            <TextInput
-              value={bio}
-              onChangeText={setBio}
-              style={styles.bioInput}
-              multiline
-            />
+            <TextInput value={bio} onChangeText={setBio} style={styles.bioInput} multiline />
           ) : (
             <Text style={styles.bio}>{bio}</Text>
           )}
@@ -174,7 +167,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
       </ScrollView>
     </View>
   );
@@ -252,7 +244,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   passportTitle: { fontSize: 13, fontWeight: "700", marginTop: 8, color: "#ffffff" },
-  passportSubtitle: { fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 2, textAlign: "center" },
+  passportSubtitle: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 2,
+    textAlign: "center",
+  },
   disabledCard: {
     flex: 1,
     backgroundColor: "#f9fafb",

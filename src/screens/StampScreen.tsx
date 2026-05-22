@@ -1,53 +1,27 @@
 import React from "react";
-import {
-  SafeAreaView,
-  ScrollView,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from "react-native";
-
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-
-import {
-  useNavigation,
-  useRoute,
-} from "@react-navigation/native";
-
+import { useNavigation, useRoute } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-type StampRouteProp = RouteProp<
-  RootStackParamList,
-  "Stamps"
->;
-
-type StampNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  "Stamps"
->;
+type StampRouteProp = RouteProp<RootStackParamList, "Stamps">;
+type StampNavigationProp = StackNavigationProp<RootStackParamList, "Stamps">;
 
 export default function StampScreen() {
-  const navigation =
-    useNavigation<StampNavigationProp>();
+  const navigation = useNavigation<StampNavigationProp>();
 
   const route = useRoute<StampRouteProp>();
   const { region } = route.params;
   const regions = Object.keys(SKILLS_TAXONOMY);
   const currentIndex = regions.indexOf(region);
 
-  const previousRegion =
-    currentIndex > 0
-      ? regions[currentIndex - 1]
-      : null;
+  const previousRegion = currentIndex > 0 ? regions[currentIndex - 1] : null;
 
-  const nextRegion =
-    currentIndex < regions.length - 1
-      ? regions[currentIndex + 1]
-      : null;
+  const nextRegion = currentIndex < regions.length - 1 ? regions[currentIndex + 1] : null;
 
   const stamps = SKILLS_TAXONOMY[region];
 
@@ -70,32 +44,18 @@ export default function StampScreen() {
         <View style={styles.headerRow}>
           <View style={styles.arrowContainer}>
             {previousRegion && (
-              <TouchableOpacity
-                onPress={goToPreviousRegion}
-              >
-                <MaterialIcons
-                  name="chevron-left"
-                  size={36}
-                  color="#1B3A72"
-                />
+              <TouchableOpacity onPress={goToPreviousRegion}>
+                <MaterialIcons name="chevron-left" size={36} color="#1B3A72" />
               </TouchableOpacity>
             )}
           </View>
 
-          <Text style={styles.title}>
-            {region}
-          </Text>
+          <Text style={styles.title}>{region}</Text>
 
           <View style={styles.arrowContainer}>
             {nextRegion && (
-              <TouchableOpacity
-                onPress={goToNextRegion}
-              >
-                <MaterialIcons
-                  name="chevron-right"
-                  size={36}
-                  color="#1B3A72"
-                />
+              <TouchableOpacity onPress={goToNextRegion}>
+                <MaterialIcons name="chevron-right" size={36} color="#1B3A72" />
               </TouchableOpacity>
             )}
           </View>
@@ -114,20 +74,13 @@ export default function StampScreen() {
               }
             >
               <View style={styles.stampCircle}>
-                <MaterialIcons
-                  name="school"
-                  size={34}
-                  color="#2E6EE6"
-                />
+                <MaterialIcons name="school" size={34} color="#2E6EE6" />
               </View>
 
-              <Text style={styles.stampText}>
-                {stamp}
-              </Text>
+              <Text style={styles.stampText}>{stamp}</Text>
             </TouchableOpacity>
           ))}
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
