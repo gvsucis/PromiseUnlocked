@@ -29,7 +29,7 @@ export async function firebaseLogin(email: string, password: string) {
       success: false,
       status: 400,
       message: "Validation failed",
-      details: parseResult.error.issues,
+      details: parseResult.error.errors,
     };
   }
   try {
@@ -78,7 +78,7 @@ export async function firebaseRegister(
       success: false,
       status: 400,
       message: "Validation failed",
-      details: parseResult.error.issues,
+      details: parseResult.error.errors,
     };
   }
   try {

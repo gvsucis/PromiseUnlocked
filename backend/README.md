@@ -36,7 +36,7 @@ backend/
 3. **Development:**
      - Start the emulator:
          ```sh
-         npm run dev:functions
+         npm run serve
          ```
      - Run locally with hot reload:
          ```sh
@@ -57,8 +57,6 @@ backend/
 
 ## Environment Variables
 - Store secrets in `.env` or use Firebase environment config for production.
-- `npm run dev` starts the standalone local Express server.
-- `npm run dev:functions` starts the Firebase emulator for Functions, Firestore, and Auth.
 
 ## Notes
 - All backend code should be in `src/`.
