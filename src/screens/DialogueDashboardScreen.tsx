@@ -52,11 +52,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     showConfetti,
     loading,
     prefetchedQuestion,
-    showInputMethodModal,
     setUserAnswer,
     setUiState,
     setCurrentPrompt,
-    setShowInputMethodModal,
     resetData,
     mapAnswerToCategory,
     handleStartButtonPress,
@@ -70,7 +68,9 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 
   const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const [questionModalText, setQuestionModalText] = useState("");
   const suppressModalReopenRef = useRef(false);
+  const modalDismissedByBackdropRef = useRef(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = React.useState(false);
@@ -166,6 +166,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     const q = pendingQuestion || currentPrompt;
     setPendingQuestion(null);
     setCurrentPrompt("");
+    setQuestionModalText("");
     suppressModalReopenRef.current = false;
     mapAnswerToCategory(q, text);
   };
@@ -174,6 +175,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
     suppressModalReopenRef.current = true;
     setShowQuestionInputModal(false);
     setPendingQuestion(null);
+    setQuestionModalText("");
     await new Promise((resolve) => setTimeout(resolve, 150));
     suppressModalReopenRef.current = false;
     if (method === "voice") {
@@ -437,7 +439,8 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       uiState === "idle" &&
       currentPrompt &&
       !showQuestionInputModal &&
-      !suppressModalReopenRef.current
+      !suppressModalReopenRef.current &&
+      !modalDismissedByBackdropRef.current
     ) {
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
@@ -445,12 +448,11 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
   }, [uiState, currentPrompt, showQuestionInputModal]);
 
   React.useEffect(() => {
-    if (showInputMethodModal && prefetchedQuestion) {
+    if (prefetchedQuestion && uiState === "idle") {
       setPendingQuestion(prefetchedQuestion);
       setShowQuestionInputModal(true);
-      setShowInputMethodModal(false);
     }
-  }, [showInputMethodModal, prefetchedQuestion]);
+  }, [prefetchedQuestion, uiState]);
 
   if (loading) {
     return (
@@ -503,7 +505,18 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
             {mappedCategories.length < TOTAL_CATEGORIES && (
               <TouchableOpacity
                 style={styles.startButton}
-                onPress={handleStartButtonPress}
+                onPress={() => {
+                  if (
+                    currentPrompt &&
+                    !showQuestionInputModal &&
+                    modalDismissedByBackdropRef.current
+                  ) {
+                    modalDismissedByBackdropRef.current = false;
+                    setShowQuestionInputModal(true);
+                  } else {
+                    handleStartButtonPress();
+                  }
+                }}
                 disabled={uiState !== "idle"}
                 activeOpacity={0.8}
               >
@@ -608,12 +621,19 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       <QuestionInputModal
         visible={showQuestionInputModal && !!pendingQuestion}
         question={pendingQuestion || ""}
+        textValue={questionModalText}
+        onTextChange={setQuestionModalText}
         onSelectInputType={handleInputTypeSelect}
         onSubmitText={handleSubmitTextFromModal}
         onClose={() => {
           setShowQuestionInputModal(false);
           setPendingQuestion(null);
           setCurrentPrompt("");
+          setQuestionModalText("");
+        }}
+        onBackdropDismiss={() => {
+          modalDismissedByBackdropRef.current = true;
+          setShowQuestionInputModal(false);
         }}
       />
 

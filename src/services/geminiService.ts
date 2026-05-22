@@ -521,26 +521,35 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
     console.log("🔵 Using model:", this.MODEL_NAME);
 
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
-  Your task is to map the answer to exactly one taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
-  Rules:
-  1. Choose the single most applicable category from the taxonomy.
-  2. Only map to a real category if the fit is obvious and rigorous.
-  3. Do not choose a category that is already mapped in the recent history; use only unmapped categories.
-  4. If the answer is generic filler, unrelated, or only partially addresses the question, use 'NO_MAP_WEAK_FIT'.
+Your task is to map the answer to exactly one taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
+Rules:
+1. Choose the single most applicable category from the taxonomy.
+2. Only map to a real category if the fit is obvious and rigorous.
+3. Do not choose a category that is already mapped in the recent history; use only unmapped categories.
+4. If the answer is generic filler, unrelated, or only partially addresses the question, use 'NO_MAP_WEAK_FIT'.
 5. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
 6. Keep the justification short and factual, with at most 30 words.
-7. Generate a thoughtful follow-up question to help identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.
-Respond with exactly one JSON object with these fields: {"category":"...","justification":"...","nextQuestion":"..." or null}`;
+7. Generate a thoughtful follow-up question to help identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
     try {
       const result = await this.requestGemini({
-        contents: [{ parts: [{ text: systemInstruction + "\n\n" + userPrompt }] }],
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ parts: [{ text: userPrompt }] }],
         generationConfig: {
           temperature: 0.5,
-          maxOutputTokens: 1200, // Reduced from 2048: ~3 fields in JSON needs <200 tokens, 600 = safety margin
+          maxOutputTokens: 1200,
           responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              category: { type: "string" },
+              justification: { type: "string" },
+              nextQuestion: { type: "string" },
+            },
+            required: ["category", "justification"],
+          },
         },
       });
 
@@ -551,6 +560,11 @@ Respond with exactly one JSON object with these fields: {"category":"...","justi
       const rawText = this.extractGeneratedText(result.data);
       if (!rawText) {
         throw new Error("Failed to extract text from API response");
+      }
+
+      const finishReason = result.data?.candidates?.[0]?.finishReason;
+      if (finishReason === "MAX_TOKENS") {
+        console.warn("⚠️ Gemini response finished with MAX_TOKENS – JSON may be truncated.");
       }
 
       // Extract JSON from response (handles incomplete/truncated JSON)
@@ -800,7 +814,6 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
 
       return question;
     } catch (error) {
-      console.error("Error synthesizing question:", error);
       this.throwSynthesisError(error);
     }
   }

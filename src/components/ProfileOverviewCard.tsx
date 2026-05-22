@@ -2,12 +2,12 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
-type ProfileOverviewCardProps = {
+type ProfileOverviewCardProps = Readonly<{
   name: string;
   school: string;
   title: string;
   bio?: string;
-};
+}>;
 
 export default function ProfileOverviewCard({
   name,

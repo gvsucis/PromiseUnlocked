@@ -27,25 +27,37 @@ const ALT_INPUT_OPTIONS: AltInputOption[] = [
 interface Props {
   visible: boolean;
   question: string;
+  textValue?: string;
+  onTextChange?: (text: string) => void;
   onSelectInputType: (method: Exclude<InputMethod, "text">) => void;
   onSubmitText: (text: string) => void;
   onClose: () => void;
+  onBackdropDismiss?: () => void;
 }
 
 export function QuestionInputModal({
   visible,
   question,
+  textValue: controlledText,
+  onTextChange,
   onSelectInputType,
   onSubmitText,
   onClose,
+  onBackdropDismiss,
 }: Readonly<Props>) {
-  const [textValue, setTextValue] = useState("");
+  const [internalText, setInternalText] = useState("");
+  const textValue = controlledText ?? internalText;
+  const setTextValue = onTextChange ?? setInternalText;
 
   const resetText = () => setTextValue("");
 
   const handleClose = () => {
     resetText();
     onClose();
+  };
+
+  const handleBackdropDismiss = () => {
+    onBackdropDismiss?.();
   };
 
   const handleAltInput = (method: Exclude<InputMethod, "text">) => {
@@ -60,8 +72,13 @@ export function QuestionInputModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <TouchableWithoutFeedback onPress={handleClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={handleBackdropDismiss}
+    >
+      <TouchableWithoutFeedback onPress={handleBackdropDismiss}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.container}>
@@ -133,17 +150,20 @@ const styles = StyleSheet.create({
   heading: {
     fontSize: 12,
     fontWeight: "700",
-    letterSpacing: 1.2,
+    letterSpacing: 1.8,
     textTransform: "uppercase",
     color: "#667eea",
     marginBottom: 10,
+    fontFamily: "Avenir Next",
   },
   question: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 16,
+    fontSize: 16,
+    fontWeight: "500",
+    lineHeight: 22,
+    marginBottom: 14,
     textAlign: "center",
-    color: "#222",
+    color: "#1a1a2e",
+    fontFamily: "Avenir Next",
   },
   textInput: {
     width: "100%",

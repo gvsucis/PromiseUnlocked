@@ -2,14 +2,14 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 type TabItem = {
-  key: string;
-  title: string;
-  onPress: () => void;
+  readonly key: string;
+  readonly title: string;
+  readonly onPress: () => void;
 };
 
 type TopTabBarProps = {
-  tabs: TabItem[];
-  containerStyle?: object;
+  readonly tabs: readonly TabItem[];
+  readonly containerStyle?: object;
 };
 
 export default function TopTabBar({ tabs, containerStyle }: TopTabBarProps) {
