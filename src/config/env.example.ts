@@ -13,6 +13,9 @@ export const CONFIG = {
 
   // API Configuration
   REQUEST_TIMEOUT: 30000,
+
+  //BACKEND API
+  API_BASE_URL: "https://your-backend-api.com/api",
 };
 
 export const validateConfig = (): boolean => {
