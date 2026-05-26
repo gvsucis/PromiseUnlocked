@@ -2,15 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
 import fs from "node:fs/promises";
 import { admin, db } from "../services/firestore";
-
-interface EmbeddingJob {
-  jobId: string;
-  attempts?: number;
-  storagePath: string;
-  fileName: string;
-  text?: string | null;
-  owner: string;
-}
+import type { EmbeddingJob } from "@/types/firestore";
 
 const geminiApiKey = process.env.GEMINI_API_KEY;
 if (!geminiApiKey) {

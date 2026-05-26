@@ -39,6 +39,19 @@
               "body": "{ \"status\": \"Server is running\" }"
             }
           ]
+        },
+        {
+          "name": "API Docs (Swagger)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api-docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api-docs"]
+            }
+          },
+          "response": []
         }
       ]
     },
