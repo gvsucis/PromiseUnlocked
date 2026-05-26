@@ -7,7 +7,7 @@ const router = express.Router();
 router.post("/login", async (req, res) => {
   const parseResult = authSchema.safeParse(req.body ?? {});
   if (!parseResult.success) {
-    return res.status(400).json({ error: "Validation failed", details: parseResult.error.errors });
+    return res.status(400).json({ error: "Validation failed", details: parseResult.error.issues });
   }
   req.body = parseResult.data;
   return AuthController.login(req, res);
@@ -16,7 +16,7 @@ router.post("/login", async (req, res) => {
 router.post("/register", async (req, res) => {
   const parseResult = authSchema.safeParse(req.body ?? {});
   if (!parseResult.success) {
-    return res.status(400).json({ error: "Validation failed", details: parseResult.error.errors });
+    return res.status(400).json({ error: "Validation failed", details: parseResult.error.issues });
   }
   req.body = parseResult.data;
   return AuthController.register(req, res);
