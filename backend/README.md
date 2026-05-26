@@ -52,56 +52,56 @@ All authenticated routes require a Firebase ID token in the `Authorization: Bear
 
 ### Auth
 
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| POST | `/api/auth/register` | No | Register with email, password, firstName, lastName |
-| POST | `/api/auth/login` | No | Login, returns `idToken` |
+| Method | Route                | Auth | Description                                        |
+| ------ | -------------------- | ---- | -------------------------------------------------- |
+| POST   | `/api/auth/register` | No   | Register with email, password, firstName, lastName |
+| POST   | `/api/auth/login`    | No   | Login, returns `idToken`                           |
 
 ### Participants
 
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| POST | `/api/participants` | No | Create a new participant |
-| GET | `/api/participants` | Yes | List participants (admin = all, user = self) |
-| GET | `/api/participants/me` | Yes | Get authenticated user's profile |
-| GET | `/api/participants/me/sessions` | Yes | List my sessions |
-| GET | `/api/participants/me/sessions/:sessionId` | Yes | Get a specific session of mine |
-| GET | `/api/participants/:uid` | Yes | Get participant by UID |
-| DELETE | `/api/participants/:uid` | Yes | Delete participant (self or admin) |
+| Method | Route                                      | Auth | Description                                  |
+| ------ | ------------------------------------------ | ---- | -------------------------------------------- |
+| POST   | `/api/participants`                        | No   | Create a new participant                     |
+| GET    | `/api/participants`                        | Yes  | List participants (admin = all, user = self) |
+| GET    | `/api/participants/me`                     | Yes  | Get authenticated user's profile             |
+| GET    | `/api/participants/me/sessions`            | Yes  | List my sessions                             |
+| GET    | `/api/participants/me/sessions/:sessionId` | Yes  | Get a specific session of mine               |
+| GET    | `/api/participants/:uid`                   | Yes  | Get participant by UID                       |
+| DELETE | `/api/participants/:uid`                   | Yes  | Delete participant (self or admin)           |
 
 ### Sessions
 
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| GET | `/api/participants/:pid/sessions` | Yes | List sessions for participant |
-| GET | `/api/participants/:pid/sessions/:sid` | Yes | Get session by ID |
+| Method | Route                                  | Auth | Description                   |
+| ------ | -------------------------------------- | ---- | ----------------------------- |
+| GET    | `/api/participants/:pid/sessions`      | Yes  | List sessions for participant |
+| GET    | `/api/participants/:pid/sessions/:sid` | Yes  | Get session by ID             |
 
 Query params for list: `status` (active|completed|cancelled), `limit` (max 100, default 20).
 
 ### Interactions
 
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| GET | `/api/participants/:pid/sessions/:sid/interactions` | Yes | List interactions |
-| GET | `/api/participants/:pid/sessions/:sid/interactions/:id` | Yes | Get interaction |
-| GET | `/api/participants/me/sessions/:sid/interactions/me/:id` | Yes | Get my interaction (uses auth UID) |
+| Method | Route                                                    | Auth | Description                        |
+| ------ | -------------------------------------------------------- | ---- | ---------------------------------- |
+| GET    | `/api/participants/:pid/sessions/:sid/interactions`      | Yes  | List interactions                  |
+| GET    | `/api/participants/:pid/sessions/:sid/interactions/:id`  | Yes  | Get interaction                    |
+| GET    | `/api/participants/me/sessions/:sid/interactions/me/:id` | Yes  | Get my interaction (uses auth UID) |
 
 Query param for list: `limit` (max 200, default 50).
 
 ### Chat
 
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| POST | `/api/chat/respond` | Yes | Save response, generate embedding, return similar responses |
+| Method | Route               | Auth | Description                                                 |
+| ------ | ------------------- | ---- | ----------------------------------------------------------- |
+| POST   | `/api/chat/respond` | Yes  | Save response, generate embedding, return similar responses |
 
 Body: `userId`, `skillId`, `responseText`, `question`.
 
 ### Profile Embeddings
 
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| POST | `/api/profile-embeddings/upload` | Yes* | Upload PDF for embedding processing |
-| GET | `/api/profile-embeddings/jobs/:jobId` | Yes* | Check job status |
+| Method | Route                                 | Auth | Description                         |
+| ------ | ------------------------------------- | ---- | ----------------------------------- |
+| POST   | `/api/profile-embeddings/upload`      | Yes* | Upload PDF for embedding processing |
+| GET    | `/api/profile-embeddings/jobs/:jobId` | Yes* | Check job status                    |
 
 \* Auth optional if `EMBEDDING_AUTH_OPTIONAL=true`.
 
@@ -109,10 +109,10 @@ Upload is `multipart/form-data` with `file` (PDF), optional `userId`/`email`, op
 
 ### System
 
-| Method | Route | Auth | Description |
-|--------|-------|------|-------------|
-| GET | `/health` | No | Health check |
-| GET | `/api-docs` | No | Swagger UI |
+| Method | Route       | Auth | Description  |
+| ------ | ----------- | ---- | ------------ |
+| GET    | `/health`   | No   | Health check |
+| GET    | `/api-docs` | No   | Swagger UI   |
 
 ## Postman
 
@@ -133,10 +133,49 @@ backend/
   postman/         # Postman collection
 ```
 
-## Environment Variables
+## Setup
 
-| Variable | Description |
-|----------|-------------|
-| `PORT` | Server port (default: 4000) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to Firebase service account JSON |
-| `EMBEDDING_AUTH_OPTIONAL` | Set `true` to skip auth on embedding routes |
+1. **Install dependencies:**
+     ```sh
+     cd backend
+     npm install
+     ```
+
+2. **Configure Firebase:**
+     - Make sure you are logged in: `firebase login`
+     - Link to your Firebase project:
+         ```sh
+         firebase use --add
+         # Select: promise-unlocked-sign-up-888a0
+         ```
+
+3. **Development:**
+     - Start the emulator:
+         ```sh
+         npm run serve
+         ```
+     - Run locally with hot reload:
+         ```sh
+         npm run dev
+         ```
+
+4. **Build:**
+     ```sh
+     npm run build
+     ```
+
+5. **Deploy to Firebase Functions:**
+     ```sh
+     npm run deploy
+     # or
+     firebase deploy --only functions
+     ```
+
+## Environment Variables
+- Store secrets in `.env` or use Firebase environment config for production.
+
+| Variable                         | Description                                 |
+| -------------------------------- | ------------------------------------------- |
+| `PORT`                           | Server port (default: 4000)                 |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to Firebase service account JSON       |
+| `EMBEDDING_AUTH_OPTIONAL`        | Set `true` to skip auth on embedding routes |
