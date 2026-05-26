@@ -2,19 +2,19 @@ import { apiFetch } from "./apiClient";
 
 export interface UserProfile {
   uid: string;
-  displayName: string;
-  email: string;
-  photoURL: string;
+  displayName: string | null;
+  email: string | null;
+  photoURL: string | null;
   metadata: Record<string, unknown>;
 }
 
 export async function fetchProfile(): Promise<UserProfile> {
-  const data = await apiFetch<{ participant: UserProfile }>("/api/participant/me");
+  const data = await apiFetch<{ participant: UserProfile }>("/api/participants/me");
   return data.participant;
 }
 
 export async function updateProfile(updates: Partial<UserProfile>): Promise<UserProfile> {
-  const data = await apiFetch<{ participant: UserProfile }>("/api/participant/me", {
+  const data = await apiFetch<{ participant: UserProfile }>("/api/participants/me", {
     method: "PUT",
     body: JSON.stringify(updates),
   });

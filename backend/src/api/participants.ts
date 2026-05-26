@@ -11,6 +11,7 @@ router.post("/", ParticipantsController.createParticipant);
 router.get("/", authenticateToken, ParticipantsController.getAllParticipants);
 
 router.get("/me", authenticateToken, ParticipantsController.getMe);
+router.put("/me", authenticateToken, ParticipantsController.updateMe);
 
 router.get("/me/sessions", authenticateToken, ParticipantsController.getMeSessions);
 

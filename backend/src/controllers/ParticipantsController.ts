@@ -104,6 +104,54 @@ export class ParticipantsController {
     }
   }
 
+  static async updateMe(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    const { displayName, email, photoURL, metadata } = req.body ?? {};
+
+    try {
+      const currentProfile = await fetchOrCreateProfile(requester.uid);
+      const nextMetadata =
+        metadata && typeof metadata === "object" && !Array.isArray(metadata)
+          ? { ...currentProfile.metadata, ...(metadata as Record<string, unknown>) }
+          : currentProfile.metadata;
+      const nextDisplayName =
+        typeof displayName === "string" ? displayName : (currentProfile.displayName ?? null);
+      const nextPhotoURL =
+        typeof photoURL === "string" ? photoURL : (currentProfile.photoURL ?? null);
+
+      const nextProfile: UserProfile = {
+        uid: currentProfile.uid,
+        email: typeof email === "string" ? email : currentProfile.email,
+        displayName: nextDisplayName,
+        photoURL: nextPhotoURL,
+        metadata: nextMetadata,
+        updatedAt: Date.now(),
+        createdAt: currentProfile.createdAt,
+      };
+
+      const authUpdates: { displayName?: string; email?: string; photoURL?: string } = {};
+      if (typeof displayName === "string") {
+        authUpdates.displayName = displayName;
+      }
+      if (typeof email === "string") {
+        authUpdates.email = email;
+      }
+      if (typeof photoURL === "string") {
+        authUpdates.photoURL = photoURL;
+      }
+
+      if (Object.keys(authUpdates).length > 0) {
+        await admin.auth().updateUser(requester.uid, authUpdates);
+      }
+
+      await participantsCollection.doc(requester.uid).set(nextProfile, { merge: true });
+      return res.json({ participant: normalizeUser(nextProfile) });
+    } catch (error) {
+      console.error("Error updating authenticated participant:", error);
+      return res.status(500).json({ error: "Failed to update participant profile" });
+    }
+  }
+
   static async getMeSessions(req: Request, res: Response) {
     const requester = (req as AuthenticatedRequest).user;
     const { status, limit } = req.query;
