@@ -4,7 +4,7 @@
   "description": "Backend for Promise Unlock",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test --import tsx test/**/*.test.ts",
     "dev": "tsx watch src/server.ts",
     "dev:functions": "firebase emulators:start --only functions,firestore,auth",
     "build": "tsc",

@@ -1,93 +1,142 @@
-
 # Promise Unlocked Backend
 
-This is the backend for the Promise Unlocked project, built with Node.js, TypeScript, Express, and Firebase Cloud Functions.
+Node.js + TypeScript + Express + Firebase backend for the Promise Unlocked mobile app.
+
+## Quick Start
+
+```bash
+cd backend
+npm install
+```
+
+Copy the environment template:
+
+```bash
+cp .env.example .env
+```
+
+Make sure you have a Firebase service account key at `serviceAccountKey.json`.
+
+### Run locally
+
+```bash
+# Standalone Express server with hot reload
+npm run dev
+
+# Or with Firebase emulators (functions, firestore, auth)
+npm run dev:functions
+```
+
+The server starts at `http://localhost:4000`. Swagger docs are at `/api-docs`.
+
+### Test
+
+```bash
+# Smoke tests (requires server running on localhost:4000)
+npm test
+
+# Or point at a different server
+TEST_BASE_URL=http://localhost:4000 npm test
+```
+
+### Build & Deploy
+
+```bash
+npm run build
+firebase deploy --only functions
+```
+
+## API Routes
+
+All authenticated routes require a Firebase ID token in the `Authorization: Bearer <token>` header.
+
+### Auth
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/api/auth/register` | No | Register with email, password, firstName, lastName |
+| POST | `/api/auth/login` | No | Login, returns `idToken` |
+
+### Participants
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/api/participants` | No | Create a new participant |
+| GET | `/api/participants` | Yes | List participants (admin = all, user = self) |
+| GET | `/api/participants/me` | Yes | Get authenticated user's profile |
+| GET | `/api/participants/me/sessions` | Yes | List my sessions |
+| GET | `/api/participants/me/sessions/:sessionId` | Yes | Get a specific session of mine |
+| GET | `/api/participants/:uid` | Yes | Get participant by UID |
+| DELETE | `/api/participants/:uid` | Yes | Delete participant (self or admin) |
+
+### Sessions
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/participants/:pid/sessions` | Yes | List sessions for participant |
+| GET | `/api/participants/:pid/sessions/:sid` | Yes | Get session by ID |
+
+Query params for list: `status` (active|completed|cancelled), `limit` (max 100, default 20).
+
+### Interactions
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/participants/:pid/sessions/:sid/interactions` | Yes | List interactions |
+| GET | `/api/participants/:pid/sessions/:sid/interactions/:id` | Yes | Get interaction |
+| GET | `/api/participants/me/sessions/:sid/interactions/me/:id` | Yes | Get my interaction (uses auth UID) |
+
+Query param for list: `limit` (max 200, default 50).
+
+### Chat
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/api/chat/respond` | Yes | Save response, generate embedding, return similar responses |
+
+Body: `userId`, `skillId`, `responseText`, `question`.
+
+### Profile Embeddings
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| POST | `/api/profile-embeddings/upload` | Yes* | Upload PDF for embedding processing |
+| GET | `/api/profile-embeddings/jobs/:jobId` | Yes* | Check job status |
+
+\* Auth optional if `EMBEDDING_AUTH_OPTIONAL=true`.
+
+Upload is `multipart/form-data` with `file` (PDF), optional `userId`/`email`, optional `text`.
+
+### System
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/health` | No | Health check |
+| GET | `/api-docs` | No | Swagger UI |
+
+## Postman
+
+Import `postman/PromiseUnlocked-API.postman_collection.json`. The Login request auto-saves the bearer token, and list requests auto-save IDs for chained requests.
 
 ## Project Structure
 
 ```
 backend/
-    src/                # All TypeScript source files
-        index.ts          # Firebase Functions entry point
-        app.ts            # Express app (imported by index.ts)
-        ...other files
-    package.json        # Backend dependencies and scripts
-    tsconfig.json       # TypeScript configuration
-    firebase.json       # Firebase configuration
-    .firebaserc         # Firebase project alias config
+  src/
+    api/           # Route definitions
+    controllers/   # Request handlers
+    services/      # Business logic + Firebase
+    middleware/    # Auth middleware
+    validation/    # Zod schemas
+    workers/       # Background job workers
+    test/          # Smoke tests
+  postman/         # Postman collection
 ```
 
-## Setup
-
-1. **Install dependencies:**
-     ```sh
-     cd backend
-     npm install
-     ```
-
-2. **Configure Firebase:**
-     - Make sure you are logged in: `firebase login`
-     - Link to your Firebase project:
-         ```sh
-         firebase use --add
-         # Select: promise-unlocked-sign-up-888a0
-         ```
-
-3. **Development:**
-     - Start the emulator:
-         ```sh
-         npm run dev:functions
-         ```
-     - Run locally with hot reload:
-         ```sh
-         npm run dev
-         ```
-
-4. **Build:**
-     ```sh
-     npm run build
-     ```
-
-5. **Deploy to Firebase Functions:**
-     ```sh
-     npm run deploy
-     # or
-     firebase deploy --only functions
-     ```
-
 ## Environment Variables
-- Store secrets in `.env` or use Firebase environment config for production.
-- `npm run dev` starts the standalone local Express server.
-- `npm run dev:functions` starts the Firebase emulator for Functions, Firestore, and Auth.
 
-## Notes
-- All backend code should be in `src/`.
-- The Firebase Functions entry point is `src/index.ts`.
-- Make sure your `.firebaserc` points to the correct project ID: `promise-unlocked-sign-up-888a0`.
-
----
-
-For more, see the Firebase documentation: https://firebase.google.com/docs/functions
-
--   Deploy indexes: `firebase deploy --only firestore:indexes`
--   Deploy functions/endpoints as needed (see Firebase documentation)
-
----
-
-## Error Logging
-
--   Errors are logged to the console with timestamps (see `src/util/logToFile.ts`).
-
----
-
-## Additional Resources
-
--   [Firebase Emulator Suite Docs](https://firebase.google.com/docs/emulator-suite)
--   [Firestore Indexes](https://firebase.google.com/docs/firestore/query-data/indexing)
--   [Project README](../README.md)
-
----
-
-## Contact
-
-For questions or issues, contact the project maintainer.
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Server port (default: 4000) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to Firebase service account JSON |
+| `EMBEDDING_AUTH_OPTIONAL` | Set `true` to skip auth on embedding routes |
