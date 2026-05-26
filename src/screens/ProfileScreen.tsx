@@ -9,7 +9,7 @@ import type { RootStackParamList } from "../types/navigation";
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
 import { fetchProfile, updateProfile, type UserProfile } from "../services/profileService";
 
-function ChecklistItem({ label, complete }: { label: string; complete: boolean }) {
+function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
     <View style={styles.progressItem}>
       <MaterialIcons
@@ -33,7 +33,6 @@ function GalleryPlaceholder() {
 export default function ProfileScreen() {
   //Profile
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [savingBio, setSavingBio] = useState(false);
 
   useEffect(() => {
@@ -46,7 +45,7 @@ export default function ProfileScreen() {
       .catch((error) => {
         console.log("Failed to fetch profile:", error);
       })
-      .finally(() => setLoading(false));
+      .finally(() => undefined);
   }, []);
 
   const navigation = useNavigation<ProfileNav>();
