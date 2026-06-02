@@ -8,17 +8,20 @@ The mobile app has been transformed to function like the web app with iterative 
 
 ### 1. New Category Taxonomy (`categoryTaxonomyService.ts`)
 
-- **8 categories** matching web app:
-  - 🔧 Human Skills (Durable)
+- **11 categories** (current taxonomy):
+  - 🔧 Human Skills
   - 🧠 Meta-Learning & Self-Awareness
-  - 🛠️ Maker & Builder Skills
-  - 🌍 Civic & Community Impact
-  - 🖼️ Creative Expression & Communication
-  - 🧩 Problem-Solving & Systems Thinking
-  - 💼 Work & Entrepreneurial Experience
-  - 🔭 Future Self & Directionality
+  - 🛠️ Maker & Builder
+  - 🌍 Civic & Community
+  - 🖼️ Creative Expression
+  - 🧩 Problem-Solving
+  - 💼 Work Experience
+  - 🔭 Future Self & Direction
+  - ⚙️ Technological Fluency
+  - 💚 Wellbeing & Personal Resilience
+  - ✨ Faith, Culture & Identity
 - **NO_OP category** for weak fits
-- Progress: mapped categories / 8
+- Progress: mapped categories / 11
 
 ### 2. Category Storage Service (`categoryStorageService.ts`)
 
@@ -38,11 +41,11 @@ Added two new dialogue functions:
 
 **UI Components:**
 
-- 8 category cards (grey when unmapped, purple border when mapped)
+- 11 category cards (grey when unmapped, purple border when mapped)
 - Progress card showing mapped/total/percentage
 - Modal for question/answer
 - Loading modal for API calls
-- Completion modal when all 8 categories mapped
+- Completion modal when all 11 categories mapped
 - Two FABs: Reset (red) and Add Question (purple)
 
 **Flow:**
@@ -52,7 +55,7 @@ Added two new dialogue functions:
 3. User types answer and submits
 4. System maps to category (or NO_OP if weak fit)
 5. Background prefetch starts for next question
-6. Repeat until 8/8 categories mapped
+6. Repeat until 11/11 categories mapped
 
 **Prefetching Logic:**
 
@@ -73,7 +76,7 @@ Added two new dialogue functions:
 
 1. Login → Welcome screen
 2. Tap "Start Journey" button
-3. Should navigate to Skills Passport screen showing 8 grey category cards
+3. Should navigate to Skills Passport screen showing 11 grey category cards
 
 ### First Question
 
@@ -83,7 +86,7 @@ Added two new dialogue functions:
 4. Tap "Submit Answer"
 5. Loading modal shows "Thinking... Mapping your response"
 6. After a few seconds, category card turns purple with border (e.g., "Maker & Builder Skills")
-7. Progress shows 1/8 categories, 12% complete
+7. Progress shows 1/11 categories, ~9% complete
 
 ### Subsequent Questions
 
@@ -91,7 +94,7 @@ Added two new dialogue functions:
 2. Tap + FAB again
 3. New contextual question appears immediately (prefetched)
 4. Answer and submit
-5. Repeat until 8/8
+5. Repeat until 11/11
 
 ### Testing NO_OP (Weak Fit)
 
@@ -116,7 +119,7 @@ Tap any mapped (purple border) category card to see an alert with Gemini's justi
 
 ### Reset
 
-Tap red "Reset" FAB → confirmation alert → clears all data and returns to 0/8.
+Tap red "Reset" FAB → confirmation alert → clears all data and returns to 0/11.
 
 ## API Requirements
 

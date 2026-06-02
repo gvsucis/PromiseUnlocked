@@ -264,7 +264,8 @@ export function useDialogueState(): DialogueState {
             (await GeminiService.synthesizeNextQuestion(
               interactions,
               mappedCategories,
-              getTaxonomyString()
+              getTaxonomyString(),
+              { latestQuestion: question, latestAnswer: answer }
             ));
 
           setPrefetchedQuestion(newQuestion);
@@ -319,7 +320,8 @@ export function useDialogueState(): DialogueState {
       const newQuestion = await GeminiService.synthesizeNextQuestion(
         interactions,
         mappedCategories,
-        getTaxonomyString()
+        getTaxonomyString(),
+        { latestQuestion: savedQuestion, latestAnswer: savedAnswer }
       );
       setCurrentPrompt(newQuestion);
       setUiState("idle");

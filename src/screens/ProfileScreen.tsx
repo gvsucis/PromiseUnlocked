@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, View, StyleSheet, TouchableOpacity, TextInput } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
@@ -7,9 +7,9 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
-import { fetchProfile, UserProfile } from "../services/profileService";
+import { fetchProfile, updateProfile, type UserProfile } from "../services/profileService";
 
-function ChecklistItem({ label, complete }: { label: string; complete: boolean }) {
+function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
     <View style={styles.progressItem}>
       <MaterialIcons
@@ -33,22 +33,53 @@ function GalleryPlaceholder() {
 export default function ProfileScreen() {
   //Profile
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [savingBio, setSavingBio] = useState(false);
 
   useEffect(() => {
     fetchProfile()
-      .then(setProfile)
+      .then((nextProfile) => {
+        setProfile(nextProfile);
+        const bioValue = nextProfile.metadata.bio;
+        setBio(typeof bioValue === "string" ? bioValue : "");
+      })
       .catch((error) => {
         console.log("Failed to fetch profile:", error);
       })
-      .finally(() => setLoading(false));
+      .finally(() => undefined);
   }, []);
 
   const navigation = useNavigation<ProfileNav>();
-  const [bio, setBio] = useState(
-    "I am on a journey to become a full-stack engineer with project-based milestones."
-  );
+  const [bio, setBio] = useState("");
   const [editingBio, setEditingBio] = useState(false);
+
+  const highSchool = useMemo(() => {
+    const value = profile?.metadata.highSchool;
+    return typeof value === "string" && value.trim().length > 0 ? value : "Hometown High School";
+  }, [profile]);
+
+  const handleSaveBio = async () => {
+    if (!profile) {
+      return;
+    }
+
+    setSavingBio(true);
+    try {
+      const updatedProfile = await updateProfile({
+        metadata: {
+          ...profile.metadata,
+          bio,
+        },
+      });
+      setProfile(updatedProfile);
+      const nextBio = updatedProfile.metadata.bio;
+      setBio(typeof nextBio === "string" ? nextBio : "");
+      setEditingBio(false);
+    } catch (error) {
+      console.log("Failed to update profile:", error);
+    } finally {
+      setSavingBio(false);
+    }
+  };
 
   const checklist = [
     { label: "Basic Information", complete: true },
@@ -75,9 +106,9 @@ export default function ProfileScreen() {
               <MaterialIcons name="person" size={32} color="#ffffff" />
             </View>
             <View style={{ flex: 1, justifyContent: "center" }}>
-              <Text style={styles.studentName}>Sample Student</Text>
-              <Text style={styles.meta}>student@email.com</Text>
-              <Text style={styles.meta}>Hometown High School</Text>
+              <Text style={styles.studentName}>{profile?.displayName ?? "Your Profile"}</Text>
+              <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
+              <Text style={styles.meta}>{highSchool}</Text>
             </View>
           </View>
         </View>
@@ -141,14 +172,25 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>About Me</Text>
-            <TouchableOpacity onPress={() => setEditingBio(!editingBio)}>
+            <TouchableOpacity
+              onPress={() => {
+                if (editingBio) {
+                  void handleSaveBio();
+                  return;
+                }
+                setEditingBio(true);
+              }}
+              disabled={savingBio}
+            >
               <Text style={styles.linkText}>{editingBio ? "Save" : "Edit"}</Text>
             </TouchableOpacity>
           </View>
           {editingBio ? (
             <TextInput value={bio} onChangeText={setBio} style={styles.bioInput} multiline />
           ) : (
-            <Text style={styles.bio}>{bio}</Text>
+            <Text style={styles.bio}>
+              {bio || "Add a short bio about your goals and interests."}
+            </Text>
           )}
         </View>
 

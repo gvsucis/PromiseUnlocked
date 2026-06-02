@@ -36,6 +36,12 @@ interface DialogueInteraction {
   mappedCategory: string;
 }
 
+interface QuestionSynthesisContext {
+  latestQuestion?: string;
+  latestAnswer?: string;
+  embeddingHistorySummary?: string;
+}
+
 interface MappedCategory {
   category: string;
   timesMapped?: number;
@@ -529,9 +535,10 @@ Rules:
 4. If the answer is generic filler, unrelated, or only partially addresses the question, use 'NO_MAP_WEAK_FIT'.
 5. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
 6. Keep the justification short and factual, with at most 30 words.
-7. Generate a thoughtful follow-up question to help identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.`;
+7. Generate a thoughtful follow-up question that directly follows from the user's answer and helps identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.
+8. If future embedding response history is provided, treat it as secondary background only; never let it override the latest answer or pull the conversation to an unrelated topic.`;
 
-    const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
+    const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
     try {
       const result = await this.requestGemini({
@@ -579,7 +586,8 @@ Rules:
         jsonString,
         interactions,
         mappedCategories,
-        taxonomyString
+        taxonomyString,
+        { latestQuestion: question, latestAnswer: answer }
       );
       return parsed;
     } catch (error) {
@@ -605,7 +613,8 @@ Rules:
     jsonString: string,
     interactions: DialogueInteraction[],
     mappedCategories: MappedCategory[],
-    taxonomyString: string
+    taxonomyString: string,
+    context?: QuestionSynthesisContext
   ): Promise<MapAnswerResponse> {
     let parsed: MapAnswerResponse;
     try {
@@ -634,7 +643,8 @@ Rules:
     parsed.nextQuestion = await this.synthesizeNextQuestion(
       interactions,
       mappedCategories,
-      taxonomyString
+      taxonomyString,
+      context
     );
     return parsed;
   }
@@ -672,17 +682,27 @@ Rules:
     history: string,
     taxonomyString: string,
     mappedCategoriesList: string,
-    strict: boolean
+    strict: boolean,
+    context?: QuestionSynthesisContext
   ): string {
-    return `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that might help tease out which additional categories might map to me. The question must end with a "?".${strict ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)." : ""} You may (optionally) use what you've learned about me in previous answers as context in the question if it helps.
+    const latestTurnBlock =
+      context?.latestQuestion || context?.latestAnswer
+        ? `\nLATEST_TURN:\nQ: ${context.latestQuestion ?? ""}\nA: ${context.latestAnswer ?? ""}\n`
+        : "\n";
+    const embeddingHistoryBlock = context?.embeddingHistorySummary
+      ? `\nEMBEDDING_HISTORY (background only):\n${context.embeddingHistorySummary}\n`
+      : "";
+
+    return `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strict ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)." : ""} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.
 HISTORY:
 ${history}
 
-TAXONOMY:
+${latestTurnBlock}TAXONOMY:
 ${taxonomyString}
 
 CATEGORIES MAPPED: ${mappedCategoriesList}
 
+${embeddingHistoryBlock}
 RESPOND ONLY with the text of the new question. Do not include any other text, explanation, or formatting.`;
   }
 
@@ -761,7 +781,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
       mappedCategory: string;
     }>,
     mappedCategories: Array<{ category: string }>,
-    taxonomyString: string
+    taxonomyString: string,
+    context?: QuestionSynthesisContext
   ): Promise<string> {
     try {
       const history = interactions
@@ -774,7 +795,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
         history,
         taxonomyString,
         mappedCategoriesList,
-        false
+        false,
+        context
       );
 
       // log the actual prompt sent to the model for debugging
@@ -800,7 +822,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
           history,
           taxonomyString,
           mappedCategoriesList,
-          true
+          true,
+          context
         );
         const strictResponse = await this.fetchSynthesizedQuestion(strictPrompt, true);
         const { text: strictText } = this.readQuestionResponse(strictResponse);

@@ -10,7 +10,14 @@ export interface UserProfile {
   updatedAt: number;
   metadata: Record<string, unknown>;
 }
-
+export interface EmbeddingJob {
+  jobId: string;
+  attempts?: number;
+  storagePath: string;
+  fileName: string;
+  text?: string | null;
+  owner: string;
+}
 export type SessionStatus = "active" | "completed" | "cancelled";
 
 export type FirestoreDateValue = number | string | FirebaseFirestore.Timestamp | null;

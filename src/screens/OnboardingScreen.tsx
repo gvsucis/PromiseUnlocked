@@ -62,11 +62,13 @@ const SLIDES = [
 export default function OnboardingScreen({ navigation }: Readonly<Props>) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentIndexRef = useRef(0);
+  const totalSlides = SLIDES.length;
+  const progressStep = 360 / totalSlides;
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
-  // starts at 1/4 progress (first slide visible)
-  const progressAnim = useRef(new Animated.Value(90)).current;
+  // starts at 1/totalSlides progress (first slide visible)
+  const progressAnim = useRef(new Animated.Value(progressStep)).current;
 
   // Right fill: rotates from -180° (hidden) to 0° (full right half)
   const rightRotation = progressAnim.interpolate({
@@ -81,7 +83,7 @@ export default function OnboardingScreen({ navigation }: Readonly<Props>) {
   });
 
   const animateTransition = (nextIndex: number) => {
-    const nextAngle = (nextIndex + 1) * 90;
+    const nextAngle = (nextIndex + 1) * progressStep;
     const forward = nextIndex > currentIndexRef.current;
 
     Animated.parallel([
@@ -114,7 +116,7 @@ export default function OnboardingScreen({ navigation }: Readonly<Props>) {
   };
 
   const goToNext = () => {
-    if (currentIndexRef.current < SLIDES.length - 1) {
+    if (currentIndexRef.current < totalSlides - 1) {
       animateTransition(currentIndexRef.current + 1);
     } else {
       navigation.replace("Welcome");
@@ -141,7 +143,7 @@ export default function OnboardingScreen({ navigation }: Readonly<Props>) {
   ).current;
 
   const slide = SLIDES[currentIndex];
-  const isLast = currentIndex === SLIDES.length - 1;
+  const isLast = currentIndex === totalSlides - 1;
 
   return (
     <LinearGradient colors={["#818cf8", "#c084fc"]} style={styles.container}>
