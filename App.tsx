@@ -26,6 +26,7 @@ import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
+import MainTabNavigator from "./src/navigation/MainTabNavigator";
 
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 
@@ -62,7 +63,7 @@ function AppNavigator() {
   }
 
   const getInitialRoute = () => {
-    if (session.mode === "authenticated") return "DialogueDashboard" as const;
+    if (session.mode === "authenticated") return "MainTabs" as const;
     if (!hasSeenOnboarding) return "Onboarding" as const;
     return "Welcome" as const;
   };
@@ -82,6 +83,7 @@ function AppNavigator() {
           },
         }}
       >
+        {/* ── Pre-auth screens ── */}
         <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}
@@ -107,48 +109,15 @@ function AppNavigator() {
           component={RegisterScreen}
           options={{ title: "Create Account", headerShown: false }}
         />
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: "Activity Analyzer" }} />
+
+        {/* ── Authenticated shell ── */}
         <Stack.Screen
-          name="Result"
-          component={ResultScreen}
-          options={{ title: "Analysis Results" }}
+          name="MainTabs"
+          component={MainTabNavigator}
+          options={{ headerShown: false }}
         />
-        <Stack.Screen
-          name="Blue"
-          component={BlueScreen}
-          options={{ title: "Voice Transcription" }}
-        />
-        <Stack.Screen
-          name="Dashboard"
-          component={DashboardScreen}
-          options={{ title: "Achievement Dashboard" }}
-        />
-        <Stack.Screen
-          name="SkillsDashboard"
-          component={SkillsDashboardScreen}
-          options={{ title: "Skills Dashboard" }}
-        />
-        <Stack.Screen
-          name="DialogueDashboard"
-          component={DialogueDashboardScreen}
-          options={{ title: "Skills Passport" }}
-        />
-        <Stack.Screen
-          name="VoiceAnalysis"
-          component={VoiceAnalysisScreen}
-          options={{ title: "Voice Analysis" }}
-        />
-        <Stack.Screen
-          name="TextAnalysis"
-          component={TextAnalysisScreen}
-          options={{ title: "Text Analysis" }}
-        />
-        <Stack.Screen
-          name="FollowUpQuestion"
-          component={FollowUpQuestionScreen}
-          options={{ title: "Answer Follow-up Question" }}
-        />
-        <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
+
+        {/* ── Stack screens pushed on top of MainTabs ── */}
         <Stack.Screen
           name="EditProfile"
           component={EditProfileScreen}
@@ -162,19 +131,25 @@ function AppNavigator() {
         <Stack.Screen
           name="Stamps"
           component={StampScreen}
-          options={{
-            title: "Stamps",
-            animation: "none",
-          }}
+          options={{ title: "Stamps", animation: "none" }}
         />
         <Stack.Screen
           name="StampDetails"
           component={DetailStampScreen}
-          options={{
-            title: "Detailed Stamp",
-            animation: "none",
-          }}
+          options={{ title: "Detailed Stamp", animation: "none" }}
         />
+
+        {/* ── Legacy screens (kept until formally removed) ── */}
+        <Stack.Screen name="Home" component={HomeScreen} options={{ title: "Activity Analyzer" }} />
+        <Stack.Screen name="Result" component={ResultScreen} options={{ title: "Analysis Results" }} />
+        <Stack.Screen name="Blue" component={BlueScreen} options={{ title: "Voice Transcription" }} />
+        <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Achievement Dashboard" }} />
+        <Stack.Screen name="SkillsDashboard" component={SkillsDashboardScreen} options={{ title: "Skills Dashboard" }} />
+        <Stack.Screen name="DialogueDashboard" component={DialogueDashboardScreen} options={{ title: "Skills Passport" }} />
+        <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
+        <Stack.Screen name="VoiceAnalysis" component={VoiceAnalysisScreen} options={{ title: "Voice Analysis" }} />
+        <Stack.Screen name="TextAnalysis" component={TextAnalysisScreen} options={{ title: "Text Analysis" }} />
+        <Stack.Screen name="FollowUpQuestion" component={FollowUpQuestionScreen} options={{ title: "Answer Follow-up Question" }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
