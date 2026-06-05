@@ -41,6 +41,10 @@ export default function StampScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={24} color="#1B3A72" />
+        </TouchableOpacity>
+
         <View style={styles.headerRow}>
           <View style={styles.arrowContainer}>
             {previousRegion && (
@@ -90,6 +94,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#EBF2FF",
+    paddingTop: 20,
+  },
+
+  backButton: {
+    marginBottom: 8,
   },
 
   content: {

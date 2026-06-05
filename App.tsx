@@ -121,22 +121,22 @@ function AppNavigator() {
         <Stack.Screen
           name="EditProfile"
           component={EditProfileScreen}
-          options={{ title: "Edit Profile", headerShown: true }}
+          options={{ title: "Edit Profile", headerShown: false }}
         />
         <Stack.Screen
           name="Passport"
           component={PassportScreen}
-          options={{ title: "Skills Passport" }}
+          options={{ title: "Skills Passport", headerShown: false }}
         />
         <Stack.Screen
           name="Stamps"
           component={StampScreen}
-          options={{ title: "Stamps", animation: "none" }}
+          options={{ title: "Stamps", animation: "none", headerShown: false }}
         />
         <Stack.Screen
           name="StampDetails"
           component={DetailStampScreen}
-          options={{ title: "Detailed Stamp", animation: "none" }}
+          options={{ title: "Detailed Stamp", animation: "none", headerShown: false }}
         />
 
         {/* ── Legacy screens (kept until formally removed) ── */}
