@@ -46,7 +46,7 @@ const TAB_CONFIG = [
   },
   {
     name: "Chat",
-    component: DialogueDashboardScreen,
+    component: ChatScreen,
     icon: "add-circle-outline",
     label: "Chat",
     size: 48,
@@ -70,11 +70,8 @@ const TAB_CONFIG = [
   },
 ] as const;
 
-import { useDialogueState } from "../hooks/useDialogueState";
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
-  const { handleStartButtonPress } = useDialogueState();
-
   return (
     <View style={styles.tabBar}>
       {state.routes.map((route: any, index: number) => {
@@ -85,12 +82,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
         const onPress = () => {
           if (isDisabled) return;
-          //Chat tab triggers dialogue
-          if (index === 2) {
-            void handleStartButtonPress();
-            return;
-          }
-
           const event = navigation.emit({
             type: "tabPress",
             target: route.key,
