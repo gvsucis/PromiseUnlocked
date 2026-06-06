@@ -10,6 +10,7 @@ import gracefulShutdown from "http-graceful-shutdown";
 import app from "@/app";
 
 dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 
 const PORT = Number(process.env.APP_PORT) || 4000;
 

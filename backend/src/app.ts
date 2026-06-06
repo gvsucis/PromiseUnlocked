@@ -14,6 +14,7 @@ import { createRateLimitMiddleware } from "@/middleware/rateLimit";
 import { setupSwagger } from "@/swagger";
 
 dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 
 const app = express();
 const publicRateLimit = createRateLimitMiddleware({
@@ -42,20 +43,20 @@ setupSwagger(app);
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "Server is running" });
 });
-app.use("/api/auth", publicRateLimit, authRouter);
-app.use("/api/profile-embeddings", profileEmbeddingsRouter);
+app.use("/auth", publicRateLimit, authRouter);
+app.use("/profile-embeddings", profileEmbeddingsRouter);
 
 // Protected routes
-app.use("/api/chat", authenticateToken, protectedRateLimit, chatRoutes, proofRoutes);
-app.use("/api/participants", authenticateToken, protectedRateLimit, participantsRouter);
+app.use("/chat", authenticateToken, protectedRateLimit, chatRoutes, proofRoutes);
+app.use("/participants", authenticateToken, protectedRateLimit, participantsRouter);
 app.use(
-  "/api/participants/:participantId/sessions",
+  "/participants/:participantId/sessions",
   authenticateToken,
   protectedRateLimit,
   sessionsRouter
 );
 app.use(
-  "/api/participants/:participantId/sessions/:sessionId/interactions",
+  "/participants/:participantId/sessions/:sessionId/interactions",
   authenticateToken,
   protectedRateLimit,
   interactionsRouter

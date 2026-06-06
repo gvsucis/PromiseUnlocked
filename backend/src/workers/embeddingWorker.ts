@@ -2,12 +2,18 @@ import { GoogleGenAI } from "@google/genai";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
 import path from "node:path";
 
-const geminiApiKey = process.env.GEMINI_API_KEY;
-if (!geminiApiKey) {
-  throw new Error("GEMINI API KEY is not configured.");
-}
+let ai: GoogleGenAI | undefined;
 
-const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+function getAi(): GoogleGenAI {
+  if (!ai) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not configured.");
+    }
+    ai = new GoogleGenAI({ apiKey });
+  }
+  return ai;
+}
 
 const PDF_STANDARD_FONT_URL =
   path.resolve(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/").replace(/\\/g, "/") + "/";
@@ -35,7 +41,7 @@ export async function extractTextFromPdfBuffer(buffer: Uint8Array, maxPages = 12
 export async function generatePdfEmbedding(pdfBytes: Uint8Array, fallbackText: string): Promise<number[]> {
   const embedModel = process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2";
   try {
-    const response = await ai.models.embedContent({
+    const response = await getAi().models.embedContent({
       model: embedModel,
       contents: [
         {
@@ -54,7 +60,7 @@ export async function generatePdfEmbedding(pdfBytes: Uint8Array, fallbackText: s
     console.warn("PDF inlineData embedding failed, falling back to text embedding:", error);
   }
 
-  const fallback = await ai.models.embedContent({
+  const fallback = await getAi().models.embedContent({
     model: embedModel,
     contents: fallbackText,
   });

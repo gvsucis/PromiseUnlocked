@@ -16,7 +16,11 @@ const swaggerDefinition = {
   servers: [
     {
       url: "http://localhost:4000",
-      description: "Local server",
+      description: "Local development",
+    },
+    {
+      url: "https://us-central1-promise-unlocked-for-sure.cloudfunctions.net/api",
+      description: "Production (Firebase)",
     },
   ],
 };

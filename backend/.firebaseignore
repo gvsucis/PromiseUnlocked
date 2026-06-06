@@ -1,0 +1,8 @@
+.env
+.env.*
+node_modules/
+.git/
+.gitignore
+README.md
+tsconfig.json
+.eslintrc*

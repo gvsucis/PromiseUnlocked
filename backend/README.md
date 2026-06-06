@@ -79,7 +79,7 @@ This compiles TypeScript, rewrites `@/` path aliases to relative imports, and de
 
 | Function       | Trigger                        | URL pattern                                      |
 | -------------- | ------------------------------ | ------------------------------------------------ |
-| `api`          | HTTPS                          | `https://api-{project}.run.app`                  |
+| `api`          | HTTPS                          | `https://us-central1-{project}.cloudfunctions.net/api`<br>or `https://api-{hash}-{region}.a.run.app` |
 | `verifyProof`  | Firestore doc create           | `proof_verification_jobs/{jobId}`                |
 
 The `api` function URL can be found via:
@@ -96,27 +96,27 @@ All authenticated routes require a Firebase ID token in the `Authorization: Bear
 
 | Method | Route                | Auth | Description                                        |
 | ------ | -------------------- | ---- | -------------------------------------------------- |
-| POST   | `/api/auth/register` | No   | Register with email, password, firstName, lastName |
-| POST   | `/api/auth/login`    | No   | Login, returns `idToken`                           |
+| POST   | `/auth/register` | No   | Register with email, password, firstName, lastName |
+| POST   | `/auth/login`    | No   | Login, returns `idToken`                           |
 
 ### Participants
 
 | Method | Route                                      | Auth | Description                                  |
 | ------ | ------------------------------------------ | ---- | -------------------------------------------- |
-| POST   | `/api/participants`                        | No   | Create a new participant                     |
-| GET    | `/api/participants`                        | Yes  | List participants (admin = all, user = self) |
-| GET    | `/api/participants/me`                     | Yes  | Get authenticated user's profile             |
-| GET    | `/api/participants/me/sessions`            | Yes  | List my sessions                             |
-| GET    | `/api/participants/me/sessions/:sessionId` | Yes  | Get a specific session of mine               |
-| GET    | `/api/participants/:uid`                   | Yes  | Get participant by UID                       |
-| DELETE | `/api/participants/:uid`                   | Yes  | Delete participant (self or admin)           |
+| POST   | `/participants`                        | No   | Create a new participant                     |
+| GET    | `/participants`                        | Yes  | List participants (admin = all, user = self) |
+| GET    | `/participants/me`                     | Yes  | Get authenticated user's profile             |
+| GET    | `/participants/me/sessions`            | Yes  | List my sessions                             |
+| GET    | `/participants/me/sessions/:sessionId` | Yes  | Get a specific session of mine               |
+| GET    | `/participants/:uid`                   | Yes  | Get participant by UID                       |
+| DELETE | `/participants/:uid`                   | Yes  | Delete participant (self or admin)           |
 
 ### Sessions
 
 | Method | Route                                  | Auth | Description                   |
 | ------ | -------------------------------------- | ---- | ----------------------------- |
-| GET    | `/api/participants/:pid/sessions`      | Yes  | List sessions for participant |
-| GET    | `/api/participants/:pid/sessions/:sid` | Yes  | Get session by ID             |
+| GET    | `/participants/:pid/sessions`      | Yes  | List sessions for participant |
+| GET    | `/participants/:pid/sessions/:sid` | Yes  | Get session by ID             |
 
 Query params for list: `status` (active|completed|cancelled), `limit` (max 100, default 20).
 
@@ -124,9 +124,9 @@ Query params for list: `status` (active|completed|cancelled), `limit` (max 100, 
 
 | Method | Route                                                    | Auth | Description                        |
 | ------ | -------------------------------------------------------- | ---- | ---------------------------------- |
-| GET    | `/api/participants/:pid/sessions/:sid/interactions`      | Yes  | List interactions                  |
-| GET    | `/api/participants/:pid/sessions/:sid/interactions/:id`  | Yes  | Get interaction                    |
-| GET    | `/api/participants/me/sessions/:sid/interactions/me/:id` | Yes  | Get my interaction (uses auth UID) |
+| GET    | `/participants/:pid/sessions/:sid/interactions`      | Yes  | List interactions                  |
+| GET    | `/participants/:pid/sessions/:sid/interactions/:id`  | Yes  | Get interaction                    |
+| GET    | `/participants/me/sessions/:sid/interactions/me/:id` | Yes  | Get my interaction (uses auth UID) |
 
 Query param for list: `limit` (max 200, default 50).
 
@@ -134,7 +134,7 @@ Query param for list: `limit` (max 200, default 50).
 
 | Method | Route               | Auth | Description                                                 |
 | ------ | ------------------- | ---- | ----------------------------------------------------------- |
-| POST   | `/api/chat/respond` | Yes  | Save response, generate embedding, return similar responses |
+| POST   | `/chat/respond` | Yes  | Save response, generate embedding, return similar responses |
 
 Body: `userId`, `skillId`, `responseText`, `question`.
 
@@ -142,10 +142,10 @@ Body: `userId`, `skillId`, `responseText`, `question`.
 
 | Method | Route                                 | Auth | Description                             |
 | ------ | ------------------------------------- | ---- | --------------------------------------- |
-| POST   | `/api/profile-embeddings/upload`      | Yes  | Upload PDF for embedding processing     |
-| GET    | `/api/profile-embeddings/list`        | Yes  | List uploaded embeddings for auth user  |
-| GET    | `/api/profile-embeddings/context/:id` | Yes  | Get a single embedding record by ID     |
-| POST   | `/api/profile-embeddings/search`      | Yes  | Semantic search across uploaded PDFs    |
+| POST   | `/profile-embeddings/upload`      | Yes  | Upload PDF for embedding processing     |
+| GET    | `/profile-embeddings/list`        | Yes  | List uploaded embeddings for auth user  |
+| GET    | `/profile-embeddings/context/:id` | Yes  | Get a single embedding record by ID     |
+| POST   | `/profile-embeddings/search`      | Yes  | Semantic search across uploaded PDFs    |
 
 Upload is `multipart/form-data` with `file` (PDF) and optional `userId`/`uid`/`email` to upload on behalf of another user. Guest/anonymous callers are rejected.
 

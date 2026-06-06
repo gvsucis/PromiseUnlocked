@@ -34,7 +34,11 @@ yarn-error.*
 .env*.local
 src/config/env.ts
 src/config/env.secrets.ts
+src/config/env.staging.ts
 .env
+
+# local dev planning
+plans/
 
 # typescript
 *.tsbuildinfo
