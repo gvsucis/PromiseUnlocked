@@ -7,8 +7,9 @@ import {
   participantSessionsCollection,
   participantsCollection,
 } from "@/services/firestore";
-import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
+import type { Address, AuthenticatedRequest, UserProfile } from "@/types/firestore";
 import { canAccessParticipant, isAdminUser } from "@/utils/authz";
+import { profileUpdateSchema } from "@/validation/profileUpdateSchema";
 
 const buildProfileFromRecord = (
   userRecord: admin.auth.UserRecord,
@@ -106,27 +107,61 @@ export class ParticipantsController {
 
   static async updateMe(req: Request, res: Response) {
     const requester = (req as AuthenticatedRequest).user;
-    const { displayName, email, photoURL, metadata } = req.body ?? {};
+
+    const parsed = profileUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid profile fields",
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const {
+      displayName,
+      email,
+      photoURL,
+      pageUrl,
+      fullName,
+      schoolName,
+      schoolAddress,
+      phone,
+      dateOfBirth,
+      gender,
+      ethnicity,
+      address: rawAddress,
+    } = parsed.data;
 
     try {
       const currentProfile = await fetchOrCreateProfile(requester.uid);
-      const nextMetadata =
-        metadata && typeof metadata === "object" && !Array.isArray(metadata)
-          ? { ...currentProfile.metadata, ...(metadata as Record<string, unknown>) }
-          : currentProfile.metadata;
-      const nextDisplayName =
-        typeof displayName === "string" ? displayName : (currentProfile.displayName ?? null);
-      const nextPhotoURL =
-        typeof photoURL === "string" ? photoURL : (currentProfile.photoURL ?? null);
+
+      const src = rawAddress ?? currentProfile.address;
+      const address = src
+          ? {
+              street: src.street ?? null,
+              city: src.city ?? null,
+              state: src.state ?? null,
+              postalCode: src.postalCode ?? null,
+              country: src.country ?? null,
+            } as Address
+          : null;
 
       const nextProfile: UserProfile = {
         uid: currentProfile.uid,
-        email: typeof email === "string" ? email : currentProfile.email,
-        displayName: nextDisplayName,
-        photoURL: nextPhotoURL,
-        metadata: nextMetadata,
+        email: email ?? currentProfile.email,
+        displayName: displayName ?? (currentProfile.displayName ?? null),
+        photoURL: photoURL ?? (currentProfile.photoURL ?? null),
+        pageUrl: pageUrl ?? (currentProfile.pageUrl ?? null),
+        fullName: fullName ?? (currentProfile.fullName ?? null),
+        schoolName: schoolName ?? (currentProfile.schoolName ?? null),
+        schoolAddress: schoolAddress ?? (currentProfile.schoolAddress ?? null),
+        phone: phone ?? (currentProfile.phone ?? null),
+        dateOfBirth: dateOfBirth ?? (currentProfile.dateOfBirth ?? null),
+        gender: gender ?? (currentProfile.gender ?? null),
+        ethnicity: ethnicity ?? (currentProfile.ethnicity ?? null),
+        address,
+        metadata: currentProfile.metadata,
         updatedAt: Date.now(),
-        createdAt: currentProfile.createdAt,
+        createdAt: currentProfile.createdAt ?? Date.now(),
       };
 
       const authUpdates: { displayName?: string; email?: string; photoURL?: string } = {};

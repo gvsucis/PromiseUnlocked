@@ -2,17 +2,17 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "Backend for Promise Unlock",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "test": "node --test --import tsx test/**/*.test.ts",
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/server.ts",
     "dev:functions": "firebase emulators:start --only functions,firestore,auth",
-    "build": "tsc",
+    "build": "tsc && tsc-alias --resolve-full-paths",
     "start": "nodemon --watch src --ext ts --exec tsx src/index.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "serve": "firebase emulators:start --only functions,firestore,auth",
-    "deploy": "firebase deploy --only functions",
+    "deploy": "npm run build && firebase deploy --only functions",
     "logs": "firebase functions:log"
   },
   "keywords": [],
@@ -22,6 +22,7 @@
   "dependencies": {
     "@google/genai": "^1.52.0",
     "@types/swagger-ui-express": "^4.1.8",
+    "axios": "^1.16.1",
     "busboy": "^1.6.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -46,10 +47,11 @@
     "eslint-config-google": "^0.14.0",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.17",
     "tsx": "^3.13.1",
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": "20"
+    "node": "22"
   }
 }

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { firebaseLogin, firebaseRegister } from "../services/firebaseAuthService";
+import { firebaseLogin, firebaseRegister } from "@/services/firebaseAuthService";
 
 export class AuthController {
   static async login(req: Request, res: Response) {

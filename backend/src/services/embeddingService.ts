@@ -92,7 +92,7 @@ export function createEmbeddingService(options: EmbeddingServiceOptions = {}): E
           contents: input,
           config: {
             outputDimensionality,
-            taskType: "RETRIEVAL_DOCUMENT",
+            taskType: "RETRIEVAL_QUERY",
           },
         });
       } catch (error) {
@@ -106,7 +106,7 @@ export function createEmbeddingService(options: EmbeddingServiceOptions = {}): E
           contents: input,
           config: {
             outputDimensionality,
-            taskType: "RETRIEVAL_DOCUMENT",
+            taskType: "RETRIEVAL_QUERY",
           },
         });
       }

@@ -1,18 +1,48 @@
 import express from "express";
-import type { NextFunction, Request, Response } from "express";
 
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken } from "@/middleware/auth";
+import { createRateLimitMiddleware } from "@/middleware/rateLimit";
 import { ProfileEmbeddingsController } from "@/controllers/ProfileEmbeddingsController";
 
 const router = express.Router({ mergeParams: true });
+const profileEmbeddingsRateLimit = createRateLimitMiddleware({
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000),
+  maxRequests: Number(process.env.RATE_LIMIT_MAX_REQUESTS ?? 120),
+});
 
-// optional auth middleware depending on env flag
-function optionalAuth(req: Request, res: Response, next: NextFunction) {
-  if (process.env.EMBEDDING_AUTH_OPTIONAL === "true") return next();
-  return authenticateToken(req, res, next);
-}
+router.post(
+  "/upload",
+  authenticateToken,
+  profileEmbeddingsRateLimit,
+  ProfileEmbeddingsController.uploadPdf
+);
 
-router.post("/upload", optionalAuth, ProfileEmbeddingsController.uploadPdf);
-router.get("/jobs/:jobId", optionalAuth, ProfileEmbeddingsController.getJobStatus);
+router.get(
+  "/jobs/:jobId",
+  authenticateToken,
+  profileEmbeddingsRateLimit,
+  ProfileEmbeddingsController.getJobStatus
+);
+
+router.get(
+  "/list",
+  authenticateToken,
+  profileEmbeddingsRateLimit,
+  ProfileEmbeddingsController.listEmbeddings
+);
+
+router.get(
+  "/context/:embeddingId",
+  authenticateToken,
+  profileEmbeddingsRateLimit,
+  ProfileEmbeddingsController.getEmbeddingContext
+);
+
+router.post(
+  "/search",
+  authenticateToken,
+  profileEmbeddingsRateLimit,
+  ProfileEmbeddingsController.searchEmbeddingsHandler
+);
 
 export default router;

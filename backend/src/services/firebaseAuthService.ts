@@ -1,13 +1,13 @@
 import axios from "axios";
-import { firebaseAuthSchema } from "../validation/firebaseAuthSchema";
+import { firebaseAuthSchema } from "@/validation/firebaseAuthSchema";
 import "dotenv/config";
-import { db as firestore } from "./firestore";
+import { db as firestore } from "@/services/firestore";
 
-const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY;
+const CLIENT_FIREBASE_API_KEY = process.env.CLIENT_FIREBASE_API_KEY;
 
 const endpoints = {
-  login: `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
-  register: `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
+  login: `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${CLIENT_FIREBASE_API_KEY}`,
+  register: `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${CLIENT_FIREBASE_API_KEY}`,
 };
 
 function mapFirebaseError(code: string) {
