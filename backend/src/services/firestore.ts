@@ -1,16 +1,39 @@
 import admin from "firebase-admin";
 import type { FirestoreDataConverter } from "firebase-admin/firestore";
 import type { ServiceAccount } from "firebase-admin";
-import serviceAccount from "../../../backend/serviceAccountKey.json";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import type { InteractionRecord, SessionRecord, UserProfile } from "../types/firestore";
 
-const typedServiceAccount = serviceAccount as ServiceAccount;
-if (!admin.apps.length) {
+/**
+ * Initialise Firebase Admin.
+ *
+ * • Cloud Functions / Cloud Run → Application Default Credentials (ADC) are
+ *   injected automatically, so we just call `initializeApp()`.
+ * • Local development → We fall back to the service-account JSON file checked
+ *   into the repo (loaded at runtime with `readFileSync` to avoid ESM
+ *   import-attribute issues).
+ */
+function initFirebase() {
+  if (admin.apps.length) return;
+
+  // When running inside Cloud Functions the env var is set automatically.
+  if (process.env.FUNCTIONS_EMULATOR || process.env.K_SERVICE || process.env.GCLOUD_PROJECT) {
+    admin.initializeApp();
+    return;
+  }
+
+  // Local dev: load the service-account key file at runtime.
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const keyPath = resolve(__dirname, "../../promise-unlocked-for-sure-firebase-adminsdk-fbsvc-fb7e582d9b.json");
+  const serviceAccount = JSON.parse(readFileSync(keyPath, "utf-8")) as ServiceAccount;
   admin.initializeApp({
-    credential: admin.credential.cert(typedServiceAccount),
-    // No storageBucket configured — Firebase Storage not used in this simplified setup.
+    credential: admin.credential.cert(serviceAccount),
   });
 }
+
+initFirebase();
 const db = admin.firestore();
 
 function getIdFromDoc(d: unknown): string | undefined {
@@ -71,6 +94,15 @@ export function normalizeUser(
     email: data?.email ?? null,
     displayName: data?.displayName ?? null,
     photoURL: data?.photoURL ?? null,
+    fullName: data?.fullName ?? null,
+    schoolName: data?.schoolName ?? null,
+    schoolAddress: data?.schoolAddress ?? null,
+    phone: data?.phone ?? null,
+    address: data?.address ?? null,
+    dateOfBirth: data?.dateOfBirth ?? null,
+    gender: data?.gender ?? null,
+    ethnicity: data?.ethnicity ?? null,
+    pageUrl: data?.pageUrl ?? null,
     metadata: data?.metadata ?? {},
     ...normalizeTimestamps(data!, ["createdAt", "updatedAt", "lastActiveAt"]),
   };

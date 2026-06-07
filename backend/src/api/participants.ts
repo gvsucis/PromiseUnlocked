@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateToken } from "@/middleware/auth";
-import { ParticipantsController } from "../controllers/ParticipantsController";
+import { ParticipantsController } from "@/controllers/ParticipantsController";
 
 const router = express.Router();
 

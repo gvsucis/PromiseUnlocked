@@ -1,67 +1,22 @@
-import express from "express";
-import type { NextFunction, Request, Response } from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import gracefulShutdown from "http-graceful-shutdown";
-import participantsRouter from "./api/participants";
-import sessionsRouter from "./api/sessions";
-import interactionsRouter from "./api/interactions";
-import chatRoutes from "./api/chatRoutes";
-import authRouter from "./api/auth";
-import profileEmbeddingsRouter from "./api/profileEmbeddings";
-import { authenticateToken } from "./middleware/auth";
-import { setupSwagger } from "./swagger";
+/**
+ * Firebase Functions entry point.
+ * Deploy with: npm run deploy
+ *
+ * Exports the Express app as an HTTPS Cloud Function.
+ * For local development, use server.ts instead (npm run dev).
+ */
+import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
+import app from "./app.js";
 
-dotenv.config();
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
+const clientFirebaseApiKey = defineSecret("CLIENT_FIREBASE_API_KEY");
 
-const app = express();
-const PORT = process.env.PORT || 4000;
+// Re-export trigger-based functions
+export { verifyProof } from "./functions/verifyProof.js";
 
-app.use(cors());
-app.use(express.json());
-
-setupSwagger(app);
-
-// Public routes
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "Server is running" });
-});
-app.use("/api/auth", authRouter);
-app.use("/api/chat", chatRoutes);
-app.use("/api/profile-embeddings", profileEmbeddingsRouter);
-
-// Protected routes
-app.use("/api/participants", authenticateToken, participantsRouter);
-app.use("/api/participants/:participantId/sessions", authenticateToken, sessionsRouter);
-app.use(
-  "/api/participants/:participantId/sessions/:sessionId/interactions",
-  authenticateToken,
-  interactionsRouter
+// Export the Express app as the "api" Cloud Function
+export const api = onRequest(
+  { secrets: [geminiApiKey, clientFirebaseApiKey] },
+  app
 );
-
-app.use((req, res) => {
-  res.status(404).json({ error: `Route ${req.path} not found` });
-});
-
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error("Unhandled error:", err);
-  res.status(500).json({ error: "Internal server error" });
-});
-
-const server = app.listen(PORT || 4000, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
-
-gracefulShutdown(server, {
-  signals: "SIGINT SIGTERM",
-  timeout: 20000,
-  development: true,
-  forceExit: false,
-  onShutdown: async () => {
-    console.log("Performing graceful shutdown...");
-  },
-  finally() {
-    console.log("Shutdown complete. Exiting.");
-  },
-});
-export default app;

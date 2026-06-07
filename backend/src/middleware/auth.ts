@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import { admin } from "../services/firestore";
-import type { AuthenticatedRequest } from "../types/firestore";
+import { admin } from "@/services/firestore";
+import type { AuthenticatedRequest } from "@/types/firestore";
 
 export async function authenticateToken(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;

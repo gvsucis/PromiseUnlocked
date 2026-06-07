@@ -1,6 +1,7 @@
 {
   "projects": {
-    "staging": "promise-unlocked-sign-up-888a0"
+    "staging": "promise-unlocked-for-sure",
+    "default": "promise-unlocked-for-sure"
   },
   "targets": {},
   "etags": {}

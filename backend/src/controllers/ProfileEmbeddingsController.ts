@@ -1,188 +1,260 @@
 import type { Request, Response } from "express";
-import type { AuthenticatedRequest } from "../types/firestore";
-import { v4 as uuidv4 } from "uuid";
-import { db } from "../services/firestore";
-import { enqueueJob } from "../workers/embeddingWorker";
+import type { AuthenticatedRequest } from "@/types/firestore";
 import Busboy from "busboy";
-import fs from "node:fs/promises";
-import { createWriteStream } from "node:fs";
-import path from "node:path";
-import { pipeline } from "node:stream/promises";
+import { admin, db } from "@/services/firestore";
+import { isAllowedMimeType, uploadMemoryFile } from "@/services/memoryFileStorageService";
+import {
+  saveEmbedding,
+  listEmbeddings as listUserEmbeddings,
+  getEmbedding as getUserEmbedding,
+  searchEmbeddings as searchUserEmbeddings,
+} from "@/services/userFileEmbeddingService";
+import { extractTextFromPdfBuffer, generatePdfEmbedding } from "@/workers/embeddingWorker";
 
-const CONSTANTS = {
-  COLLECTION_JOBS: "profile_embedding_jobs",
-  UPLOAD_ROOT: path.resolve(process.cwd(), "uploads", "profile-embeddings"),
-  MAX_FILE_SIZE: 20 * 1024 * 1024,
-  ALLOWED_MIME_TYPE: "application/pdf",
-} as const;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-interface FileInfo {
+interface FileBufferState {
+  chunks: Buffer[];
   filename: string;
-  encoding: string;
   mimeType: string;
-}
-
-interface FileUploadState {
-  tmpStoragePath: string | null;
-  originalFileName: string | null;
-  contentType: string | null;
-  errorOccurred: Error | null;
-  fileSeen: boolean;
+  totalSize: number;
+  error: Error | null;
 }
 
 export class ProfileEmbeddingsController {
-  private static async cleanupTmpFile(path: string | null | undefined): Promise<void> {
-    if (!path) return;
-    try {
-      await fs.unlink(path);
-    } catch {
-      // Silently ignore cleanup errors
-    }
-  }
+  private static async resolveTargetUid(
+    fields: Record<string, string>,
+    authUser: admin.auth.DecodedIdToken
+  ): Promise<string | null> {
+    const explicitUserId = fields.userId?.trim() || fields.uid?.trim();
+    const email = fields.email?.trim();
 
-  private static getOwnerFromRequest(req: Request, fields: Record<string, string>): string | null {
-    const userId = fields.userId;
-    const email = fields.email;
-    const authUser = (req as AuthenticatedRequest).user;
-    return userId ?? email ?? authUser?.uid ?? authUser?.email ?? null;
+    if (explicitUserId) {
+      try {
+        const userRecord = await admin.auth().getUser(explicitUserId);
+        return userRecord.uid;
+      } catch (err) {
+        console.error(`[MemoryUpload] User lookup by UID failed: ${explicitUserId}`, err);
+        return null;
+      }
+    }
+
+    if (email) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email);
+        return userRecord.uid;
+      } catch (err) {
+        console.error(`[MemoryUpload] User lookup by email failed: ${email}`, err);
+        return null;
+      }
+    }
+
+    return authUser.uid;
   }
 
   static async uploadPdf(req: Request, res: Response) {
+    const authUser = (req as AuthenticatedRequest).user;
+    if (!authUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (authUser.isAnonymous ?? false) {
+      return res.status(403).json({ error: "Guest users cannot upload files." });
+    }
+
     const bb = Busboy({
       headers: req.headers,
-      limits: { fileSize: CONSTANTS.MAX_FILE_SIZE },
+      limits: { fileSize: MAX_FILE_SIZE },
     });
-    const tempId = uuidv4();
-    const fields: Record<string, string> = {};
-    const uploadPromises: Promise<void>[] = [];
 
-    const state: FileUploadState = {
-      tmpStoragePath: null,
-      originalFileName: null,
-      contentType: null,
-      errorOccurred: null,
-      fileSeen: false,
+    const fields: Record<string, string> = {};
+    const state: FileBufferState = {
+      chunks: [],
+      filename: "",
+      mimeType: "",
+      totalSize: 0,
+      error: null,
     };
 
     bb.on("field", (fieldname: string, val: string) => {
       fields[fieldname] = val;
     });
 
-    bb.on("file", (fieldname: string, fileStream: NodeJS.ReadableStream, info: FileInfo) => {
-      if (state.fileSeen) {
-        state.errorOccurred = new Error("Multiple files not supported");
-        fileStream.resume();
-        return;
+    bb.on(
+      "file",
+      (
+        fieldname: string,
+        fileStream: NodeJS.ReadableStream,
+        info: { filename: string; encoding: string; mimeType: string }
+      ) => {
+        state.filename = info.filename;
+        state.mimeType = info.mimeType;
+
+        fileStream.on("data", (chunk: Buffer) => {
+          state.chunks.push(chunk);
+          state.totalSize += chunk.length;
+          if (state.totalSize > MAX_FILE_SIZE) {
+            state.error = new Error("File exceeds the 5MB maximum size.");
+            fileStream.resume();
+          }
+        });
+
+        fileStream.on("limit", () => {
+          state.error = new Error("File exceeds the 5MB maximum size.");
+        });
+
+        fileStream.on("error", (err: Error) => {
+          state.error = err;
+        });
       }
-
-      state.fileSeen = true;
-      const { filename, mimeType } = info;
-      const safeFileName = path.basename(filename).replace(/[\\/]/g, "_");
-
-      if (mimeType !== CONSTANTS.ALLOWED_MIME_TYPE) {
-        state.errorOccurred = new Error("Only PDF files are accepted");
-        fileStream.resume();
-        return;
-      }
-
-      state.originalFileName = filename;
-      state.contentType = mimeType;
-      state.tmpStoragePath = path.join(
-        CONSTANTS.UPLOAD_ROOT,
-        "tmp",
-        `${process.env.NODE_ENV || "dev"}-${tempId}-${safeFileName}`
-      );
-
-      const uploadPromise = (async () => {
-        await fs.mkdir(path.dirname(state.tmpStoragePath as string), { recursive: true });
-        await pipeline(fileStream, createWriteStream(state.tmpStoragePath as string));
-      })().catch((err) => {
-        state.errorOccurred = err instanceof Error ? err : new Error(String(err));
-        throw err;
-      });
-
-      uploadPromises.push(uploadPromise);
-    });
+    );
 
     bb.on("finish", async () => {
-      if (state.errorOccurred) {
-        console.error("Upload stream error:", state.errorOccurred);
-        await ProfileEmbeddingsController.cleanupTmpFile(state.tmpStoragePath);
-        return res.status(400).json({ error: state.errorOccurred.message });
+      if (state.error) {
+        return res.status(400).json({ error: state.error.message });
       }
-
-      try {
-        await Promise.all(uploadPromises);
-      } catch (err) {
-        console.error("Error finishing upload streams:", err);
-        await ProfileEmbeddingsController.cleanupTmpFile(state.tmpStoragePath);
-        return res.status(500).json({ error: "Upload failed during write" });
-      }
-
-      if (!state.tmpStoragePath || !state.originalFileName || !state.contentType) {
+      if (!state.chunks.length) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-
-      const owner = ProfileEmbeddingsController.getOwnerFromRequest(req, fields);
-      if (!owner) {
-        await ProfileEmbeddingsController.cleanupTmpFile(state.tmpStoragePath);
-        return res.status(400).json({ error: "No userId or email provided" });
+      if (!isAllowedMimeType(state.mimeType)) {
+        return res.status(400).json({ error: "Only PDF files are accepted (5MB max)." });
       }
 
-      // Ensure the owner corresponds to an existing participant
-      // (uploads are only allowed for existing participants)
-      const authUser = (req as AuthenticatedRequest).user;
-      const { findParticipantRef } = await import("@/services/participantService");
-      const participantRef = await findParticipantRef(owner, authUser);
-      if (!participantRef) {
-        await ProfileEmbeddingsController.cleanupTmpFile(state.tmpStoragePath);
-        return res.status(404).json({ error: "Participant not found" });
+      const targetUid = await ProfileEmbeddingsController.resolveTargetUid(fields, authUser);
+      if (!targetUid) {
+        return res
+          .status(404)
+          .json({ error: "Target user not found. Provide a valid userId, uid, or email." });
       }
 
-      const timestamp = Date.now();
-      const fileName = `${timestamp}-${state.originalFileName}`;
-      const finalStoragePath = path.join(CONSTANTS.UPLOAD_ROOT, owner, fileName);
+      const fileBuffer = Buffer.concat(state.chunks);
 
+      let gcsResult;
       try {
-        await fs.mkdir(path.dirname(finalStoragePath), { recursive: true });
-        await fs.rename(state.tmpStoragePath, finalStoragePath);
-
-        const jobId = uuidv4();
-        const payload = {
-          jobId,
-          owner,
-          storagePath: finalStoragePath,
-          fileName: state.originalFileName,
-          text: fields.text ?? null,
-        };
-
-        // Enqueue the job payload for local processing (no Firestore job documents).
-        enqueueJob(payload).catch((err) => console.error("Enqueue failed:", err));
-
-        console.log(`Upload accepted: job=${jobId} owner=${owner} file=${fileName}`);
-        return res.status(202).json({ jobId, message: "Upload accepted" });
+        gcsResult = await uploadMemoryFile({
+          userId: targetUid,
+          fileName: state.filename,
+          fileBuffer,
+          contentType: state.mimeType,
+        });
       } catch (err) {
-        console.error("Error moving file or creating job:", err);
-        await this.cleanupTmpFile(state.tmpStoragePath);
-        return res.status(500).json({ error: "Upload failed" });
+        console.error("[MemoryUpload] GCS upload failed:", err);
+        return res.status(500).json({ error: "File storage failed" });
+      }
+
+      let extractedText = "";
+      let vector: number[] | null = null;
+      try {
+        const uint8 = new Uint8Array(fileBuffer);
+        extractedText = await extractTextFromPdfBuffer(uint8, 12);
+        vector = await generatePdfEmbedding(uint8, extractedText || state.filename);
+      } catch (err) {
+        console.error("[MemoryUpload] Embedding generation failed:", err);
+        return res.status(500).json({ error: "Embedding generation failed" });
+      }
+
+      let truncatedText = state.filename;
+      if (extractedText) {
+        if (extractedText.length <= 12000) {
+          truncatedText = extractedText;
+        } else {
+          truncatedText = extractedText.slice(0, extractedText.lastIndexOf(" ", 12000) || 12000);
+        }
+      }
+      try {
+        const embeddingId = await saveEmbedding(targetUid, {
+          userId: targetUid,
+          fileName: state.filename,
+          storagePath: gcsResult.storagePath,
+          bucket: gcsResult.bucket,
+          fileSizeBytes: fileBuffer.length,
+          contentType: state.mimeType,
+          extractedText: truncatedText,
+          embedding: vector,
+          embeddingModel: process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2",
+        });
+
+        console.log(`[MemoryUpload] Saved embedding ${embeddingId} for user ${targetUid}`);
+        return res.status(201).json({
+          embeddingId,
+          targetUid,
+          fileName: state.filename,
+          fileSizeBytes: fileBuffer.length,
+          message: "Upload successful",
+        });
+      } catch (err) {
+        console.error("[MemoryUpload] Firestore write failed:", err);
+        return res.status(500).json({ error: "Failed to save embedding record" });
+      }
+    });
+
+    bb.on("error", (err: Error) => {
+      console.error("[MemoryUpload] Busboy error:", err);
+      if (!res.headersSent) {
+        res.status(400).json({ error: err.message || "Upload parsing failed" });
       }
     });
 
     req.pipe(bb);
   }
 
+  static async listEmbeddings(req: Request, res: Response) {
+    const authUser = (req as AuthenticatedRequest).user;
+    if (!authUser) return res.status(401).json({ error: "Authentication required" });
+
+    try {
+      const items = await listUserEmbeddings(authUser.uid);
+      return res.json({ embeddings: items });
+    } catch (err) {
+      console.error("[MemoryUpload] listEmbeddings error:", err);
+      return res.status(500).json({ error: "Failed to list embeddings" });
+    }
+  }
+
+  static async getEmbeddingContext(req: Request, res: Response) {
+    const authUser = (req as AuthenticatedRequest).user;
+    if (!authUser) return res.status(401).json({ error: "Authentication required" });
+
+    const { embeddingId } = req.params as { embeddingId?: string };
+    if (!embeddingId) return res.status(400).json({ error: "Missing embeddingId" });
+
+    try {
+      const embedding = await getUserEmbedding(authUser.uid, embeddingId);
+      if (!embedding) return res.status(404).json({ error: "Embedding not found" });
+      return res.json({ embedding });
+    } catch (err) {
+      console.error("[MemoryUpload] getEmbeddingContext error:", err);
+      return res.status(500).json({ error: "Failed to get embedding" });
+    }
+  }
+
+  static async searchEmbeddingsHandler(req: Request, res: Response) {
+    const authUser = (req as AuthenticatedRequest).user;
+    if (!authUser) return res.status(401).json({ error: "Authentication required" });
+
+    const { query } = req.body as { query?: string };
+    const rawLimit = typeof req.body.limit === "number" ? req.body.limit : 5;
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= 20 ? Math.floor(rawLimit) : 5;
+
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res.status(400).json({ error: "Query string is required" });
+    }
+
+    try {
+      const results = await searchUserEmbeddings(authUser.uid, query.trim(), limit);
+      return res.json({ results });
+    } catch (err) {
+      console.error("[MemoryUpload] searchEmbeddings error:", err);
+      return res.status(500).json({ error: "Search failed" });
+    }
+  }
+
   static async getJobStatus(req: Request, res: Response) {
     try {
       const { jobId } = req.params as { jobId?: string };
-      if (!jobId) {
-        return res.status(400).json({ error: "Missing jobId" });
-      }
-      const jobDoc = await db.collection(CONSTANTS.COLLECTION_JOBS).doc(jobId).get();
-
-      if (!jobDoc.exists) {
-        return res.status(404).json({ error: "Job not found" });
-      }
-
+      if (!jobId) return res.status(400).json({ error: "Missing jobId" });
+      const jobDoc = await db.collection("profile_embedding_jobs").doc(jobId).get();
+      if (!jobDoc.exists) return res.status(404).json({ error: "Job not found" });
       return res.status(200).json({ job: jobDoc.data() });
     } catch (error) {
       console.error("getJobStatus error:", error);

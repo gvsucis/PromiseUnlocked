@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateToken } from "@/middleware/auth";
-import { InteractionsController } from "../controllers/InteractionsController";
+import { InteractionsController } from "@/controllers/InteractionsController";
 
 const router = express.Router({ mergeParams: true });
 
