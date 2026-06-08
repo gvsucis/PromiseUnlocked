@@ -10,7 +10,7 @@ function ChatScreen() {
   return (
     <View style={placeholderStyles.container}>
       <MaterialIcons name="chat-bubble-outline" size={48} color="#c7c2d8" />
-      <Text style={placeholderStyles.title}>This feature isn't done yet lol</Text>
+      <Text style={placeholderStyles.title}>This will be a modal, not a screen.</Text>
     </View>
   );
 }
