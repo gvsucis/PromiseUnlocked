@@ -2,12 +2,10 @@ import React, { useRef, useState } from "react";
 import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { Text, Card, ActivityIndicator } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
-import TopTabBar from "../components/TopTabBar";
 import { MaterialIcons } from "@expo/vector-icons";
-import { StackNavigationProp } from "@react-navigation/stack";
-import { RouteProp } from "@react-navigation/native";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { RootStackParamList } from "../types/navigation";
+import { useNavigation } from "@react-navigation/native";
 import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
 import { GeminiService } from "../services/geminiService";
 import { ImagePickerService } from "../services/imagePickerService";
@@ -31,15 +29,8 @@ import { useAuth } from "../context/AuthContext";
 
 const { width } = Dimensions.get("window");
 
-type DialogueDashboardNavigationProp = StackNavigationProp<RootStackParamList, "DialogueDashboard">;
-type DialogueDashboardRouteProp = RouteProp<RootStackParamList, "DialogueDashboard">;
-
-interface Props {
-  readonly navigation: DialogueDashboardNavigationProp;
-  readonly route: DialogueDashboardRouteProp;
-}
-
-export default function DialogueDashboardScreen({ navigation }: Props) {
+export default function DialogueDashboardScreen() {
+  const navigation = useNavigation<any>();
   const { session, logoutToGuest } = useAuth();
   const {
     mappedCategories,
@@ -229,7 +220,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
       await setAudioModeAsync({ allowsRecording: false });
 
       const uri = recorder.uri;
-
       if (uri) setRecordingUri(uri);
     } catch (err) {
       console.error("Error stopping recording:", err);
@@ -534,26 +524,7 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
           </Card.Content>
         </Card>
 
-        <TopTabBar
-          containerStyle={styles.topTabBarInPassport}
-          tabs={[
-            {
-              key: "profile",
-              title: "Profile",
-              onPress: () => navigation.navigate("Profile"),
-            },
-            {
-              key: "schools",
-              title: "Schools",
-              onPress: () => {},
-            },
-            {
-              key: "interests",
-              title: "Interests",
-              onPress: () => {},
-            },
-          ]}
-        />
+        {/* TopTabBar row removed — navigation now handled by bottom tab bar */}
 
         {error ? (
           <Card style={styles.errorCard}>
@@ -617,7 +588,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
         onCancel={handleVoiceCancel}
       />
 
-      {/* Combined Question + Input Type Modal */}
       <QuestionInputModal
         visible={showQuestionInputModal && !!pendingQuestion}
         question={pendingQuestion || ""}
@@ -667,54 +637,6 @@ export default function DialogueDashboardScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  questionInputModalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  questionInputModalContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    width: "85%",
-    alignItems: "center",
-  },
-  questionInputModalQuestion: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  questionInputModalSubtitle: {
-    fontSize: 15,
-    marginBottom: 18,
-    color: "#555",
-    textAlign: "center",
-  },
-  questionInputModalInputRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-  },
-  questionInputModalInputButton: {
-    alignItems: "center",
-    marginHorizontal: 12,
-  },
-  questionInputModalInputLabel: {
-    marginTop: 6,
-  },
-  questionInputModalCancelButton: {
-    marginTop: 24,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#eee",
-  },
-  questionInputModalCancelText: {
-    color: "#667eea",
-    fontWeight: "bold",
-  },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -742,25 +664,18 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 100,
+    paddingBottom: 110,
   },
   header: {
     alignItems: "center",
     marginBottom: 20,
+    paddingTop: 80,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#fff",
     marginTop: 10,
-  },
-  topTabBarInPassport: {
-    marginTop: 14,
-    marginBottom: 14,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.45)",
   },
   subtitle: {
     fontSize: 16,
