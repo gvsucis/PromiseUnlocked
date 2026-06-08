@@ -79,16 +79,20 @@ export function AnswerModal({
                   <Image source={{ uri: selectedImage }} style={styles.previewImage} />
                 </TouchableOpacity>
                 <View style={styles.imageActions}>
-                  <TouchableOpacity style={styles.changeImageButton} onPress={onChangeImage}>
-                    <Text style={styles.changeImageButtonText}>Change Image</Text>
+                  <TouchableOpacity style={styles.replaceImageButton} onPress={onChangeImage}>
+                    <Text style={styles.replaceImageButtonText}>Change Image</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.submitButton}
+                    style={[
+                      styles.submitButton,
+                      { flex: 1 },
+                      isAnalyzingImage && styles.submitButtonDisabled,
+                    ]}
                     onPress={onSubmitImage}
                     disabled={isAnalyzingImage}
                   >
                     <Text style={styles.submitButtonText}>
-                      {isAnalyzingImage ? "Analyzing..." : "Submit Image"}
+                      {isAnalyzingImage ? "Analyzing..." : "Submit"}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -129,7 +133,7 @@ export function AnswerModal({
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -164,23 +168,25 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 15,
     marginBottom: 15,
-    resizeMode: "cover",
+    resizeMode: "contain",
+    backgroundColor: "#f1f3f5",
   },
   imageActions: {
     flexDirection: "row",
     gap: 10,
+    marginTop: 10,
   },
-  changeImageButton: {
+  replaceImageButton: {
     flex: 1,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#eef2ff",
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#c7d2fe",
   },
-  changeImageButtonText: {
-    color: "#666",
+  replaceImageButtonText: {
+    color: "#4f46e5",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -251,5 +257,8 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  submitButtonDisabled: {
+    opacity: 0.5,
   },
 });

@@ -33,6 +33,7 @@ export class ProofController {
   ): Promise<Response | void> {
     const requesterId = req.user?.uid;
     if (!requesterId) {
+      console.warn("[ProofUpload] Unauthorized upload attempt — no uid in token");
       return sendError(res, 401, "Unauthorized");
     }
 
@@ -58,6 +59,7 @@ export class ProofController {
 
     bb.on("file", (_name, file, info) => {
       if (state.fileSeen) {
+        console.warn("[ProofUpload] Rejected duplicate file from user", requesterId);
         state.streamError = new Error("Only one image file is allowed");
         file.resume();
         return;
@@ -67,6 +69,10 @@ export class ProofController {
       state.mimeType = normalizeProofMimeType(info.mimeType);
 
       if (!isProofMimeTypeAllowed(info.mimeType)) {
+        console.warn("[ProofUpload] Rejected unsupported MIME type", {
+          userId: requesterId,
+          mimeType: info.mimeType,
+        });
         state.streamError = new Error("Only image files are supported");
         file.resume();
         return;
@@ -101,6 +107,7 @@ export class ProofController {
       }
 
       if (!state.fileSeen || !state.mimeType || state.chunks.length === 0) {
+        console.warn("[ProofUpload] Missing image file from user", requesterId);
         return respond.error(400, "Image proof file is required");
       }
 
@@ -110,12 +117,20 @@ export class ProofController {
       const answer = normalizeField(fields.answer);
 
       if (!sessionId || !interactionId || !question || !answer) {
+        console.warn("[ProofUpload] Missing required fields", {
+          userId: requesterId,
+          sessionId,
+          interactionId,
+          hasQuestion: !!question,
+          hasAnswer: !!answer,
+        });
         return respond.error(400, "sessionId, interactionId, question, and answer are required");
       }
 
       const participantRef = db.collection("participants").doc(requesterId);
       const participantSnap = await participantRef.get();
       if (!participantSnap.exists) {
+        console.warn("[ProofUpload] Participant not found", { userId: requesterId });
         return respond.error(404, "Participant not found");
       }
 
@@ -126,6 +141,11 @@ export class ProofController {
         .doc(interactionId);
       const interactionSnap = await interactionRef.get();
       if (!interactionSnap.exists) {
+        console.warn("[ProofUpload] Interaction not found", {
+          userId: requesterId,
+          sessionId,
+          interactionId,
+        });
         return respond.error(404, "Interaction not found");
       }
 
@@ -181,7 +201,13 @@ export class ProofController {
           storagePath: stored.storagePath,
         });
       } catch (error) {
-        console.error("Proof upload failed:", error);
+        console.error("[ProofUpload] Upload failed for user", requesterId, {
+          sessionId,
+          interactionId,
+          mimeType: state.mimeType,
+          fileSizeBytes: state.fileSizeBytes,
+          error: error instanceof Error ? error.message : error,
+        });
         return respond.error(500, "Failed to upload proof image");
       }
     });

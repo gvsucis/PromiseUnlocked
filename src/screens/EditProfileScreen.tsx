@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ScrollView, View, StyleSheet, TouchableOpacity, Platform, Modal } from "react-native";
+import { Alert, ScrollView, View, StyleSheet, TouchableOpacity, Platform, Modal } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -10,6 +10,58 @@ import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { states } from "states-us";
+import { updateProfile } from "../services/profileService";
+
+type EditProfileFormState = {
+  dob: Date | null;
+  gender: string;
+  ethnicity: string;
+  phone: string;
+  email: string;
+  pageUrl: string;
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  schoolName: string;
+  schoolAddress: string;
+};
+
+function buildUpdatePayload(formState: EditProfileFormState) {
+  return {
+    email: formState.email.trim() || undefined,
+    pageUrl: formState.pageUrl.trim() || undefined,
+    gender: formState.gender || undefined,
+    ethnicity: formState.ethnicity || undefined,
+    phone: formState.phone || undefined,
+    schoolName: formState.schoolName || undefined,
+    schoolAddress: formState.schoolAddress || undefined,
+    dateOfBirth: formState.dob ? formState.dob.toISOString().split("T")[0] : undefined,
+    address:
+      formState.street || formState.city || formState.state || formState.postalCode
+        ? {
+            street: formState.street || undefined,
+            city: formState.city || undefined,
+            state: formState.state || undefined,
+            postalCode: formState.postalCode || undefined,
+          }
+        : undefined,
+  };
+}
+
+function validateProfileForm(formState: EditProfileFormState): string | null {
+  if (formState.email && !/^\S+@\S+\.\S+$/.test(formState.email)) {
+    return "Please enter a valid email address.";
+  }
+
+  if (formState.postalCode && formState.postalCode.length !== 5) {
+    return "ZIP code must be 5 digits.";
+  }
+
+  return null;
+}
+
+// NOSONAR
 export default function EditProfileScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -20,11 +72,14 @@ export default function EditProfileScreen() {
   const [ethnicity, setEthnicity] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [pageUrl, setPageUrl] = useState("");
   const [street, setStreet] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
-  const [zip, setZip] = useState("");
-  const [highSchool, setHighSchool] = useState("Hometown High School");
+  const [postalCode, setPostalCode] = useState("");
+  const [schoolName, setSchoolName] = useState("Hometown High School");
+  const [schoolAddress, setSchoolAddress] = useState("");
+  const [saving, setSaving] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showEthnicityPicker, setShowEthnicityPicker] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
@@ -61,6 +116,42 @@ export default function EditProfileScreen() {
     ...states.map((state) => ({ label: state.name, value: state.abbreviation })),
   ];
 
+  // Save handler: gather form state, validate, call backend via profileService
+  async function handleSave(): Promise<void> {
+    const formState: EditProfileFormState = {
+      dob,
+      gender,
+      ethnicity,
+      phone,
+      email,
+      pageUrl,
+      street,
+      city,
+      state,
+      postalCode,
+      schoolName,
+      schoolAddress,
+    };
+
+    const validationError = validateProfileForm(formState);
+    if (validationError) {
+      Alert.alert("Invalid profile", validationError);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await updateProfile(buildUpdatePayload(formState));
+      setSaving(false);
+      Alert.alert("Saved", "Your profile was updated.");
+      navigation.goBack();
+    } catch (error) {
+      setSaving(false);
+      console.error("UpdateProfile error:", error);
+      Alert.alert("Save failed", "Could not update profile. Please try again.");
+    }
+  }
+
   return (
     <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
       <ScrollView
@@ -84,23 +175,13 @@ export default function EditProfileScreen() {
 
           <View style={styles.fieldGroup}>
             <Label style={styles.label}>Date of birth</Label>
-            {Platform.OS === "ios" ? (
-              <TouchableOpacity style={styles.pickerWrapper} onPress={() => setShowDobPicker(true)}>
-                <Text style={dob ? styles.pickerText : styles.pickerPlaceholder}>
-                  {dob
-                    ? `${String(dob.getMonth() + 1).padStart(2, "0")}/${String(dob.getDate()).padStart(2, "0")}/${dob.getFullYear()}`
-                    : "MM/DD/YYYY"}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.pickerWrapper} onPress={() => setShowDobPicker(true)}>
-                <Text style={dob ? styles.pickerText : styles.pickerPlaceholder}>
-                  {dob
-                    ? `${String(dob.getMonth() + 1).padStart(2, "0")}/${String(dob.getDate()).padStart(2, "0")}/${dob.getFullYear()}`
-                    : "MM/DD/ YYYY"}
-                </Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity style={styles.pickerWrapper} onPress={() => setShowDobPicker(true)}>
+              <Text style={dob ? styles.pickerText : styles.pickerPlaceholder}>
+                {dob
+                  ? `${String(dob.getMonth() + 1).padStart(2, "0")}/${String(dob.getDate()).padStart(2, "0")}/${dob.getFullYear()}`
+                  : "MM/DD/YYYY"}
+              </Text>
+            </TouchableOpacity>
             {Platform.OS === "android" && showDobPicker && (
               <DateTimePicker
                 value={dob ?? new Date()}
@@ -202,6 +283,21 @@ export default function EditProfileScreen() {
               />
             </View>
           </View>
+
+          <View style={styles.fieldGroup}>
+            <Label style={styles.label}>Portfolio / Profile URL</Label>
+            <View style={styles.inputWrapper}>
+              <Input
+                placeholder="linkedin.com/in/username or personal website"
+                value={pageUrl}
+                onChangeText={setPageUrl}
+                keyboardType="url"
+                autoCapitalize="none"
+                className="h-10 px-0 text-sm bg-white border-0"
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
         </View>
 
         {/* Address */}
@@ -267,8 +363,8 @@ export default function EditProfileScreen() {
             <View style={styles.inputWrapper}>
               <Input
                 placeholder="49512"
-                value={zip}
-                onChangeText={setZip}
+                value={postalCode}
+                onChangeText={setPostalCode}
                 keyboardType="number-pad"
                 maxLength={5}
                 className="h-10 px-0 text-sm bg-white border-0"
@@ -287,8 +383,8 @@ export default function EditProfileScreen() {
             <View style={styles.inputWrapper}>
               <Input
                 placeholder="Hometown High School"
-                value={highSchool}
-                onChangeText={setHighSchool}
+                value={schoolName}
+                onChangeText={setSchoolName}
                 className="h-10 px-0 text-sm bg-white border-0"
                 style={{ flex: 1 }}
               />
@@ -297,8 +393,8 @@ export default function EditProfileScreen() {
         </View>
 
         {/* Buttons */}
-        <TouchableOpacity style={styles.saveButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.saveButtonText}>Save changes</Text>
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
+          <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save changes"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>

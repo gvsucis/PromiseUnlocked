@@ -1,6 +1,6 @@
 import React from "react";
 
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MaterialIcons } from "@expo/vector-icons";
@@ -11,6 +11,41 @@ import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+
+// ============================================================================
+// RETROACTIVE PROOF UPLOAD (FOR FUTURE IMPLEMENTATION)
+// ============================================================================
+// When the stamp system is fully completed, users should be able to upload 
+// proof for already-mapped categories from this screen. 
+// 
+// Flow:
+// 1. User taps "Add Proof" on a completed stamp.
+// 2. App opens image picker (camera/gallery).
+// 3. Image is compressed and sent to the existing `/api/chat/proof/upload` endpoint.
+// 4. Background worker verifies the image and upgrades the stamp tier (T2 -> T3/T4).
+// 
+// TODO: Integrate with `useProofUpload` hook or `uploadProofImage` service 
+// when the backend interaction-to-stamp mapping is fully wired.
+// ============================================================================
+
+function handleAddProofRetroactively(stampName: string, region: string) {
+  // Placeholder for future implementation
+  Alert.alert(
+    "Add Proof (Coming Soon)",
+    `You will soon be able to upload a photo or artifact to upgrade your "${stampName}" stamp to a higher tier.`,
+    [{ text: "OK" }]
+  );
+  
+  /* 
+  FUTURE IMPLEMENTATION EXAMPLE:
+  const imageUri = await launchImageLibraryAsync({ ... });
+  if (imageUri) {
+    await uploadProofImage({ 
+      // ... params including the specific interactionId linked to this stamp
+    });
+  }
+  */
+}
 
 type StampDetailRouteProp = RouteProp<RootStackParamList, "StampDetails">;
 

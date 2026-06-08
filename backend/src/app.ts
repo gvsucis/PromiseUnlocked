@@ -63,6 +63,11 @@ app.use(
 );
 
 app.use((req, res) => {
+  console.warn("[App] 404 — route not found", {
+    method: req.method,
+    path: req.path,
+    query: req.query,
+  });
   res.status(404).json({ error: `Route ${req.path} not found` });
 });
 

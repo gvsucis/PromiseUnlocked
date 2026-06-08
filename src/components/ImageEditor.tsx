@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { View, StyleSheet, Dimensions, ScrollView, Image, Modal, StatusBar } from "react-native";
 import { IconButton, Text, Button, Portal } from "react-native-paper";
+import * as ImageManipulator from "expo-image-manipulator";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -10,9 +11,22 @@ interface ImageEditorProps {
   onCancel: () => void;
 }
 
-export default function ImageEditor({ imageUri, onSave, onCancel }: ImageEditorProps) {
+export default function ImageEditor({ imageUri, onSave, onCancel }: Readonly<ImageEditorProps>) {
   const [scale, setScale] = useState(1);
+  const [resizePreset, setResizePreset] = useState<"original" | "large" | "medium" | "small">(
+    "large"
+  );
+  const [isSaving, setIsSaving] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  const presetPreviewScale: Record<"original" | "large" | "medium" | "small", number> = {
+    original: 1.15,
+    large: 1,
+    medium: 0.85,
+    small: 0.7,
+  };
+
+  const effectivePreviewScale = scale * presetPreviewScale[resizePreset];
 
   const resetZoom = () => {
     setScale(1);
@@ -27,15 +41,39 @@ export default function ImageEditor({ imageUri, onSave, onCancel }: ImageEditorP
     setScale((prev) => Math.max(prev / 1.2, 0.5));
   };
 
-  const rotateImage = () => {
-    // For now, we'll just reset zoom as rotation requires more complex handling
-    resetZoom();
+  const resolveTargetWidth = (): number | null => {
+    if (resizePreset === "original") return null;
+    if (resizePreset === "large") return 1400;
+    if (resizePreset === "medium") return 1100;
+    return 800;
   };
 
-  const handleSave = () => {
-    // For now, we'll save the current image as-is
-    // In a full implementation, you might want to capture the current view
-    onSave(imageUri);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const actions: ImageManipulator.Action[] = [];
+
+      const targetWidth = resolveTargetWidth();
+      if (targetWidth !== null) {
+        actions.push({ resize: { width: targetWidth } });
+      }
+
+      if (actions.length === 0) {
+        onSave(imageUri);
+        return;
+      }
+
+      const edited = await ImageManipulator.manipulateAsync(imageUri, actions, {
+        compress: 0.82,
+        format: ImageManipulator.SaveFormat.JPEG,
+      });
+
+      onSave(edited.uri);
+    } catch {
+      onSave(imageUri);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -51,7 +89,6 @@ export default function ImageEditor({ imageUri, onSave, onCancel }: ImageEditorP
           <View style={styles.header}>
             <Text style={styles.headerText}>Edit Image</Text>
             <View style={styles.headerButtons}>
-              <IconButton icon="rotate-right" size={24} onPress={rotateImage} iconColor="#1976D2" />
               <IconButton icon="close" size={24} onPress={onCancel} iconColor="#f44336" />
             </View>
           </View>
@@ -63,24 +100,71 @@ export default function ImageEditor({ imageUri, onSave, onCancel }: ImageEditorP
               contentContainerStyle={styles.scrollContent}
               maximumZoomScale={3}
               minimumZoomScale={0.5}
+              horizontal
               showsHorizontalScrollIndicator={false}
               showsVerticalScrollIndicator={false}
               onScroll={(event) => {
-                // Update scale based on scroll view zoom
                 const zoomScale = event.nativeEvent.zoomScale;
-                if (zoomScale !== scale) {
+                if (
+                  typeof zoomScale === "number" &&
+                  Number.isFinite(zoomScale) &&
+                  zoomScale !== scale
+                ) {
                   setScale(zoomScale);
                 }
               }}
               scrollEventThrottle={16}
             >
-              <View style={styles.imageWrapper}>
+              <View
+                style={[
+                  styles.imageWrapper,
+                  {
+                    width: screenWidth * 0.9 * Math.max(0.5, effectivePreviewScale),
+                    height: screenHeight * 0.58 * Math.max(0.5, effectivePreviewScale),
+                  },
+                ]}
+              >
                 <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
               </View>
             </ScrollView>
           </View>
 
           <View style={styles.controls}>
+            <View style={styles.presetRow}>
+              <Button
+                mode={resizePreset === "original" ? "contained" : "outlined"}
+                compact
+                onPress={() => setResizePreset("original")}
+                style={styles.presetButton}
+              >
+                Original
+              </Button>
+              <Button
+                mode={resizePreset === "large" ? "contained" : "outlined"}
+                compact
+                onPress={() => setResizePreset("large")}
+                style={styles.presetButton}
+              >
+                Large
+              </Button>
+              <Button
+                mode={resizePreset === "medium" ? "contained" : "outlined"}
+                compact
+                onPress={() => setResizePreset("medium")}
+                style={styles.presetButton}
+              >
+                Medium
+              </Button>
+              <Button
+                mode={resizePreset === "small" ? "contained" : "outlined"}
+                compact
+                onPress={() => setResizePreset("small")}
+                style={styles.presetButton}
+              >
+                Small
+              </Button>
+            </View>
+
             <View style={styles.zoomControls}>
               <IconButton
                 icon="magnify-minus"
@@ -103,15 +187,22 @@ export default function ImageEditor({ imageUri, onSave, onCancel }: ImageEditorP
               <Button mode="outlined" onPress={resetZoom} style={styles.resetButton} icon="refresh">
                 Reset
               </Button>
-              <Button mode="contained" onPress={handleSave} style={styles.saveButton} icon="check">
-                Use This Image
+              <Button
+                mode="contained"
+                onPress={handleSave}
+                style={styles.saveButton}
+                icon="check"
+                loading={isSaving}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Use This Image"}
               </Button>
             </View>
           </View>
 
           <View style={styles.instructions}>
             <Text style={styles.instructionText}>
-              Pinch to zoom • Drag to pan • Adjust the image as needed
+              Use + / - to zoom • Choose output size before saving
             </Text>
           </View>
         </View>
@@ -156,10 +247,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   imageWrapper: {
-    width: screenWidth,
-    height: screenHeight * 0.6,
+    width: screenWidth * 0.9,
+    height: screenHeight * 0.58,
     justifyContent: "center",
     alignItems: "center",
+    padding: 8,
   },
   image: {
     width: "100%",
@@ -170,6 +262,15 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
+  },
+  presetRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    gap: 6,
+  },
+  presetButton: {
+    flex: 1,
   },
   zoomControls: {
     flexDirection: "row",

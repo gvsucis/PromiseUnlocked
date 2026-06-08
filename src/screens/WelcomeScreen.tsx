@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
+import React from "react";
+import { View, StyleSheet, Text } from "react-native";
 import { Button } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -14,25 +14,13 @@ interface Props {
 }
 
 export default function WelcomeScreen({ navigation }: Readonly<Props>) {
-  const { continueAsGuest, session } = useAuth();
-  const [loadingGuest, setLoadingGuest] = useState(false);
+  const { session } = useAuth();
 
   React.useEffect(() => {
     if (session.mode === "authenticated") {
       navigation.replace("MainTabs");
     }
   }, [navigation, session.mode]);
-
-  const handleStartJourney = async () => {
-    if (loadingGuest) return;
-    try {
-      setLoadingGuest(true);
-      await continueAsGuest();
-      navigation.navigate("MainTabs");
-    } finally {
-      setLoadingGuest(false);
-    }
-  };
 
   const handleSignIn = () => {
     navigation.navigate("Login");
@@ -50,21 +38,20 @@ export default function WelcomeScreen({ navigation }: Readonly<Props>) {
         </View>
         <Text style={styles.mainText}>What are you doing when you lose track of time?</Text>
         <Text style={styles.subText}>
-          Start as a guest right away, or sign in to keep building your passport with an account.
+          Sign in or create an account to start building your personal passport.
         </Text>
       </View>
 
       <View style={styles.actionsContainer}>
         <Button
           mode="contained"
-          onPress={handleStartJourney}
+          disabled={true}
           style={styles.primaryButton}
           contentStyle={styles.primaryButtonContent}
           labelStyle={styles.primaryButtonLabel}
-          disabled={loadingGuest}
           icon="rocket-launch"
         >
-          {loadingGuest ? <ActivityIndicator color="#fff" size="small" /> : "Continue as Guest"}
+          Continue as Guest
         </Button>
 
         <Button

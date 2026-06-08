@@ -6,13 +6,13 @@ import { getAuth, initializeAuth } from "firebase/auth";
 import * as FirebaseAuth from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD9KKN0M--DKCwdi5WkLn6dLkycRlHqva8",
-  authDomain: "promise-unlocked-sign-up-888a0.firebaseapp.com",
-  projectId: "promise-unlocked-sign-up-888a0",
-  storageBucket: "promise-unlocked-sign-up-888a0.firebasestorage.app",
-  messagingSenderId: "524335478039",
-  appId: "1:524335478039:web:231ca9dff07c64a631b352",
-  measurementId: "G-Q2KT88BSST",
+  apiKey: "AIzaSyCZKgqKsdbPr1OdpElH2Xz28EGSPrwMJaY",
+  authDomain: "promise-unlocked-for-sure.firebaseapp.com",
+  projectId: "promise-unlocked-for-sure",
+  storageBucket: "promise-unlocked-for-sure.firebasestorage.app",
+  messagingSenderId: "26141705792",
+  appId: "1:26141705792:web:c20f90f4e21e999c7a01a5",
+  measurementId: "G-Q8ZTZ5N8L7",
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();

@@ -11,7 +11,7 @@ import {
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "../../config/firebase";
-import { removeManyFromStorage, setJSONInStorage } from "../../utils/asyncStorage";
+import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../../utils/asyncStorage";
 import type { AppAuthSession } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
 
@@ -20,6 +20,7 @@ const SCOPED_STORAGE_KEYS = [
   "@active_session_id",
   "@mappedCategories",
   "@userInteractions",
+  "@dialogue_active_state",
 ] as const;
 const GLOBAL_USER_STORAGE_KEYS = [
   "@user_identified_skills",
@@ -41,6 +42,50 @@ let authListenerInitialized = false;
 let resolvingAnonymousUser = false;
 
 const subscribers = new Set<(session: AppAuthSession) => void>();
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    return String((error as { code?: unknown }).code);
+  }
+  return undefined;
+}
+
+async function setSignedOutSession(): Promise<AppAuthSession> {
+  const signedOutSession = buildSession(null);
+  emitSession(signedOutSession);
+  await persistSession(signedOutSession);
+  return signedOutSession;
+}
+
+async function handleAuthenticatedUser(
+  user: User,
+  previousSession: AppAuthSession
+): Promise<AppAuthSession> {
+  const nextSession = buildSession(user);
+  const shouldClearPreviousLocalData =
+    previousSession.mode !== "loading" &&
+    previousSession.uid !== null &&
+    previousSession.uid !== nextSession.uid;
+
+  emitSession(nextSession);
+  await persistSession(nextSession);
+
+  if (shouldClearPreviousLocalData) {
+    const previousUid = previousSession.uid;
+    if (previousUid) {
+      void clearLocalDataForUid(previousUid).catch((error) => {
+        console.warn("[AuthSession] Failed to clear previous local user data:", error);
+      });
+    }
+  }
+
+  // Keep auth transitions snappy by not blocking on remote sync work.
+  void syncUserDocument(user).catch((error) => {
+    console.warn("[AuthSession] Failed to sync user document:", error);
+  });
+
+  return nextSession;
+}
 
 async function clearLocalDataForUid(uid: string): Promise<void> {
   const scopedKeys = SCOPED_STORAGE_KEYS.map((key) => `${key}:${uid}`);
@@ -98,7 +143,21 @@ async function syncUserDocument(user: User): Promise<void> {
     userDoc.createdAt = serverTimestamp() as unknown as Timestamp;
   }
 
-  await setDoc(userRef, userDoc, { merge: true });
+  try {
+    await setDoc(userRef, userDoc, { merge: true });
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+
+    if (code === "permission-denied" || code === "firestore/permission-denied") {
+      console.warn("[AuthSession] Skipping user doc sync due to Firestore permissions.");
+      return;
+    }
+
+    throw error;
+  }
 }
 
 async function handleAuthState(user: User | null): Promise<AppAuthSession> {
@@ -110,6 +169,13 @@ async function handleAuthState(user: User | null): Promise<AppAuthSession> {
       try {
         await signInAnonymously(auth);
         return currentSession;
+      } catch (error) {
+        const code = getErrorCode(error);
+        if (code === "auth/admin-restricted-operation") {
+          // Anonymous auth is disabled for this Firebase project.
+          return setSignedOutSession();
+        }
+        throw error;
       } finally {
         resolvingAnonymousUser = false;
       }
@@ -119,33 +185,10 @@ async function handleAuthState(user: User | null): Promise<AppAuthSession> {
       return currentSession;
     }
 
-    const signedOutSession = buildSession(null);
-    emitSession(signedOutSession);
-    await persistSession(signedOutSession);
-    return signedOutSession;
+    return setSignedOutSession();
   }
 
-  const nextSession = buildSession(user);
-  const shouldClearPreviousLocalData =
-    previousSession.mode !== "loading" &&
-    previousSession.uid !== null &&
-    previousSession.uid !== nextSession.uid;
-
-  if (shouldClearPreviousLocalData) {
-    try {
-      const previousUid = previousSession.uid;
-      if (previousUid) {
-        await clearLocalDataForUid(previousUid);
-      }
-    } catch (error) {
-      console.warn("[AuthSession] Failed to clear previous local user data:", error);
-    }
-  }
-
-  await syncUserDocument(user);
-  emitSession(nextSession);
-  await persistSession(nextSession);
-  return nextSession;
+  return handleAuthenticatedUser(user, previousSession);
 }
 
 function initializeAuthListener(): void {
@@ -214,15 +257,28 @@ export async function getScopedStorageKey(baseKey: string): Promise<string> {
 }
 
 export async function continueAsGuest(): Promise<void> {
-  await waitForAuthReady();
+  initializeAuthListener();
 
-  if (auth.currentUser?.isAnonymous) {
+  const currentUser = auth.currentUser;
+
+  if (currentUser?.isAnonymous) {
     return;
   }
 
-  emitSession(DEFAULT_SESSION);
-  await signOut(auth);
-  await bootstrapAuthSession();
+  if (currentUser) {
+    await signOut(auth);
+  }
+
+  try {
+    await signInAnonymously(auth);
+  } catch (error) {
+    const code = getErrorCode(error);
+    if (code === "auth/admin-restricted-operation") {
+      await setSignedOutSession();
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function signInWithEmail(email: string, password: string) {
@@ -246,7 +302,7 @@ export async function signUpWithEmail(email: string, password: string) {
           ? String((error as { code?: unknown }).code)
           : undefined;
 
-      // If the email is already in use, attempt to sign into that account.
+      // Email belongs to an existing account — sign in directly instead.
       if (code === "auth/email-already-in-use") {
         return signInWithEmailAndPassword(auth, normalizedEmail, password);
       }
@@ -263,7 +319,30 @@ export async function resetPassword(email: string): Promise<void> {
 }
 
 export async function logoutToGuest(): Promise<void> {
-  emitSession(DEFAULT_SESSION);
-  await signOut(auth);
-  await bootstrapAuthSession();
+  await continueAsGuest();
+}
+
+const GUEST_EXPIRY_KEY = "@guest_session_expiry";
+const GUEST_EXPIRY_MS = 60_000;
+
+export async function saveGuestSessionTimestamp(): Promise<void> {
+  try {
+    await setJSONInStorage(GUEST_EXPIRY_KEY, Date.now());
+  } catch {
+    // Not critical — silently ignore.
+  }
+}
+
+export async function clearExpiredGuestDataIfNeeded(): Promise<void> {
+  try {
+    const session = getCurrentAuthSession();
+    if (session.mode !== "guest" || !session.uid) return;
+
+    const lastActive = await getJSONFromStorage<number>(GUEST_EXPIRY_KEY, 0);
+    if (Date.now() - lastActive < GUEST_EXPIRY_MS) return;
+
+    await clearLocalDataForUid(session.uid);
+  } catch {
+    // Not critical — silently ignore.
+  }
 }

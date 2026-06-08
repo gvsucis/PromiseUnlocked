@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ScrollView, View, StyleSheet, TouchableOpacity, TextInput } from "react-native";
+import { ScrollView, View, StyleSheet, TouchableOpacity, TextInput, Image } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
 import { useNavigation } from "@react-navigation/native";
@@ -7,7 +7,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
-import { fetchProfile, updateProfile, type UserProfile } from "../services/profileService";
+import { fetchProfile, updateProfile, buildLocalProfile, type UserProfile } from "../services/profileService";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -43,7 +43,10 @@ export default function ProfileScreen() {
         setBio(typeof bioValue === "string" ? bioValue : "");
       })
       .catch((error) => {
-        console.log("Failed to fetch profile:", error);
+        console.warn("Failed to fetch profile from backend, falling back to local auth data:", error);
+        // Fallback to local Firebase Auth data if backend is unreachable
+        setProfile(buildLocalProfile());
+        setBio("");
       })
       .finally(() => undefined);
   }, []);
@@ -103,12 +106,21 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <View style={styles.profileHeader}>
             <View style={styles.avatarCircle}>
-              <MaterialIcons name="person" size={32} color="#ffffff" />
+              {profile?.photoURL ? (
+                <Image source={{ uri: profile.photoURL }} style={styles.avatarImage} />
+              ) : (
+                <MaterialIcons name="person" size={32} color="#ffffff" />
+              )}
             </View>
             <View style={{ flex: 1, justifyContent: "center" }}>
               <Text style={styles.studentName}>{profile?.displayName ?? "Your Profile"}</Text>
               <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
               <Text style={styles.meta}>{highSchool}</Text>
+              {profile?.pageUrl && (
+                <Text style={[styles.meta, { color: "#6d5efc", marginTop: 4 }]}>
+                  {profile.pageUrl}
+                </Text>
+              )}
             </View>
           </View>
         </View>
@@ -253,6 +265,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   studentName: { fontSize: 16, fontWeight: "700", color: "#111827" },
   meta: { fontSize: 13, color: "#6b7280", marginTop: 2 },

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -20,6 +20,13 @@ import { ImagePickerService } from "../services/imagePickerService";
 import { GeminiService } from "../services/geminiService";
 import ZoomableImageView from "../components/ZoomableImageView";
 import ImageEditor from "../components/ImageEditor";
+import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
+import {
+  useAudioRecorder,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+} from "expo-audio";
 
 type FollowUpQuestionScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -34,8 +41,8 @@ interface Props {
 
 const { width, height } = Dimensions.get("window");
 
-export default function FollowUpQuestionScreen({ navigation, route }: Props) {
-  const { question, context } = route.params;
+export default function FollowUpQuestionScreen({ navigation, route }: Readonly<Props>) {
+  const { question } = route.params;
 
   // State management
   const [isOpen, setIsOpen] = useState(false);
@@ -49,6 +56,20 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [tempImageUri, setTempImageUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [recordingUri, setRecordingUri] = useState<string | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const recordingTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup recording timer on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current);
+      }
+    };
+  }, []);
 
   // Animation values for FAB
   const animation = useRef(new Animated.Value(0)).current;
@@ -224,6 +245,67 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
     setTempImageUri(null);
   };
 
+  // Voice recording callbacks
+  const handleStartRecording = async () => {
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    await recorder.prepareToRecordAsync();
+    recorder.record();
+    setIsRecording(true);
+    recordingTimer.current = setInterval(() => {
+      setRecordingDuration((d) => d + 1);
+    }, 1000);
+  };
+
+  const handleStopRecording = async () => {
+    await recorder.stop();
+    await setAudioModeAsync({ allowsRecording: false });
+    setIsRecording(false);
+    setRecordingUri(recorder.uri ?? null);
+    if (recordingTimer.current) {
+      clearInterval(recordingTimer.current);
+      recordingTimer.current = null;
+    }
+  };
+
+  const handleSubmitVoice = async () => {
+    if (!recordingUri) return;
+    setIsProcessingAudio(true);
+    try {
+      const result = await GeminiService.transcribeAudio(recordingUri);
+      if (result.success && result.transcript) {
+        setTextInput(result.transcript);
+        setInputMode("text");
+      } else {
+        showSnackbar(result.error ?? "Transcription failed");
+      }
+    } finally {
+      setIsProcessingAudio(false);
+      setRecordingUri(null);
+      setRecordingDuration(0);
+    }
+  };
+
+  const handleRecordAgain = () => {
+    setRecordingUri(null);
+    setRecordingDuration(0);
+  };
+
+  const handleCancelVoice = () => {
+    if (isRecording) {
+      recorder.stop().catch(() => {});
+      setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+    }
+    setIsRecording(false);
+    setRecordingUri(null);
+    setRecordingDuration(0);
+    setIsProcessingAudio(false);
+    setInputMode("none");
+    if (recordingTimer.current) {
+      clearInterval(recordingTimer.current);
+      recordingTimer.current = null;
+    }
+  };
+
   // Handle photo button press
   const handlePhotoPress = () => {
     toggleMenu();
@@ -257,10 +339,14 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
   };
 
   // Handle voice button press
-  const handleVoicePress = () => {
+  const handleVoicePress = async () => {
     toggleMenu();
+    const perm = await requestRecordingPermissionsAsync();
+    if (!perm.granted) {
+      showSnackbar("Microphone permission is required to record audio");
+      return;
+    }
     setInputMode("voice");
-    navigation.navigate("VoiceAnalysis", { question, context });
   };
 
   // Handle text button press
@@ -310,7 +396,7 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
     setIsAnalyzing(true);
     try {
       // Analyze the image in the context of the follow-up question
-      const result = await GeminiService.analyzeActionImage(selectedImage);
+      const result = await GeminiService.analyzeActionImage(selectedImage, question);
 
       if (result.success) {
         navigation.navigate("Result", { result });
@@ -337,6 +423,23 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
             <Paragraph style={styles.questionText}>{question}</Paragraph>
           </Card.Content>
         </Card>
+
+        {/* Voice Recording Modal */}
+        {inputMode === "voice" && (
+          <VoiceRecordingModal
+            visible={inputMode === "voice"}
+            currentPrompt={question}
+            isRecording={isRecording}
+            recordingDuration={recordingDuration}
+            recordingUri={recordingUri}
+            isProcessingAudio={isProcessingAudio}
+            onStartRecording={handleStartRecording}
+            onStopRecording={handleStopRecording}
+            onSubmit={handleSubmitVoice}
+            onRecordAgain={handleRecordAgain}
+            onCancel={handleCancelVoice}
+          />
+        )}
 
         {/* Text Input Mode */}
         {inputMode === "text" && (
@@ -573,6 +676,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   submitButton: {
+    flex: 1,
     marginTop: 10,
   },
   previewImage: {
