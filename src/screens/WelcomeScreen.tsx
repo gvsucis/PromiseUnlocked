@@ -19,7 +19,7 @@ export default function WelcomeScreen({ navigation }: Readonly<Props>) {
 
   React.useEffect(() => {
     if (session.mode === "authenticated") {
-      navigation.replace("DialogueDashboard");
+      navigation.replace("MainTabs");
     }
   }, [navigation, session.mode]);
 
@@ -28,7 +28,7 @@ export default function WelcomeScreen({ navigation }: Readonly<Props>) {
     try {
       setLoadingGuest(true);
       await continueAsGuest();
-      navigation.navigate("DialogueDashboard");
+      navigation.navigate("MainTabs");
     } finally {
       setLoadingGuest(false);
     }

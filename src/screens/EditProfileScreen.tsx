@@ -68,6 +68,10 @@ export default function EditProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+        </TouchableOpacity>
+
         <View style={styles.header}>
           <MaterialIcons name="person" size={40} color="#fff" />
           <Text style={styles.title}>Edit Profile</Text>
@@ -403,6 +407,10 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: 20,
+  },
+  backButton: {
+    marginBottom: 8,
   },
   header: {
     alignItems: "center",

@@ -24,7 +24,7 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
-    onSuccess: () => navigation.replace("DialogueDashboard"),
+    onSuccess: () => navigation.replace("MainTabs"),
   });
 
   const emailValid = useMemo(() => EMAIL_REGEX.test(email.trim()), [email]);
@@ -41,7 +41,7 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
 
   React.useEffect(() => {
     if (session.mode === "authenticated") {
-      navigation.replace("DialogueDashboard");
+      navigation.replace("MainTabs");
     }
   }, [navigation, session.mode]);
 
@@ -68,7 +68,7 @@ export default function RegisterScreen({ navigation }: Readonly<Props>) {
     try {
       setLoading(true);
       await signUpWithEmail(email, password);
-      navigation.replace("DialogueDashboard");
+      navigation.replace("MainTabs");
     } catch (error: unknown) {
       const { code, message } = getErrorDetails(error);
       let msg = message;

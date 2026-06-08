@@ -19,7 +19,7 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
-    onSuccess: () => navigation.replace("DialogueDashboard"),
+    onSuccess: () => navigation.replace("MainTabs"),
   });
 
   const emailValid = /.+@.+\..+/.test(email.trim());
@@ -30,7 +30,7 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
 
   React.useEffect(() => {
     if (session.mode === "authenticated") {
-      navigation.replace("DialogueDashboard");
+      navigation.replace("MainTabs");
     }
   }, [navigation, session.mode]);
 
@@ -41,7 +41,6 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
         message: error.message,
       };
     }
-
     return { code: undefined, message: "Unknown error" };
   };
 
@@ -65,7 +64,7 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
     try {
       setLoading(true);
       await signInWithEmail(email, password);
-      navigation.replace("DialogueDashboard");
+      navigation.replace("MainTabs");
     } catch (error: unknown) {
       const { code, message } = getErrorDetails(error);
       let msg = message;
@@ -97,7 +96,7 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
     try {
       setLoading(true);
       await continueAsGuest();
-      navigation.replace("DialogueDashboard");
+      navigation.replace("MainTabs");
     } catch (error: unknown) {
       const { message } = getErrorDetails(error);
       Alert.alert("Error", message || "Failed to continue as guest.");
@@ -238,7 +237,6 @@ const styles = StyleSheet.create({
   divider: { marginVertical: 12, backgroundColor: "rgba(255,255,255,0.2)" },
   outlined: { borderColor: "rgba(255,255,255,0.7)", marginBottom: 8 },
   outlinedLabel: { color: "#fff" },
-  apple: { marginTop: 0 },
   linkLabel: { color: "#fff" },
   secondaryContained: { backgroundColor: "rgba(255,255,255,0.18)" },
   secondaryLabel: { color: "#fff", fontWeight: "600" },
