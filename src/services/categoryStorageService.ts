@@ -10,7 +10,7 @@ import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../
 
 import { getScopedStorageKey } from "./auth/authSessionService";
 import { clearSessionState, endSession, getOrStartSession, getUserId } from "./sessionManager";
-import { saveInteraction, savePassportMapping } from "./firebase/firestoreService";
+import { saveInteraction, savePassportMapping, saveStampUnlock } from "./firebase/firestoreService";
 import { enqueueFirestoreWrite } from "./firebase/firestoreWriteQueue";
 
 // Log errors to a file instead of console.error
@@ -226,6 +226,68 @@ export async function isCategoryMapped(categoryName: string): Promise<boolean> {
 export async function getMappedCategoryNames(): Promise<string[]> {
   const mapped = await getMappedCategories();
   return mapped.map((c) => c.category);
+}
+
+/**
+ * Add or increment a stamp unlock for a mapped category
+ */
+export async function addStampUnlock(categoryName: string, stampName: string): Promise<void> {
+  try {
+    const current = await getMappedCategories();
+    const idx = current.findIndex((c) => c.category === categoryName);
+    if (idx === -1) return;
+
+    const entry = current[idx];
+    const stamps = entry.unlockedStamps ?? [];
+    const existingIdx = stamps.findIndex((s) => s.name === stampName);
+
+    if (existingIdx >= 0) {
+      stamps[existingIdx] = {
+        ...stamps[existingIdx],
+        timesUnlocked: stamps[existingIdx].timesUnlocked + 1,
+      };
+    } else {
+      stamps.push({ name: stampName, timesUnlocked: 1 });
+    }
+
+    current[idx] = { ...entry, unlockedStamps: stamps };
+    const storageKey = await getMappedCategoriesStorageKey();
+    await setJSONInStorage(storageKey, current);
+
+    try {
+      const writeContext = await getFirestoreWriteContext();
+      await enqueueFirestoreWrite(
+        async () => {
+          await saveStampUnlock(writeContext.userId, categoryName, stampName);
+        },
+        { rethrowOnFailure: true }
+      );
+    } catch (error) {
+      if (shouldSkipFirestoreMirror(error)) {
+        console.warn("[CategoryStorage] Skipping stamp unlock Firestore mirror:", error);
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    logErrorToFile("Error adding stamp unlock:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get unlocked stamps for a specific category
+ */
+export async function getUnlockedStampsForCategory(
+  categoryName: string
+): Promise<Array<{ name: string; timesUnlocked: number }>> {
+  try {
+    const current = await getMappedCategories();
+    const entry = current.find((c) => c.category === categoryName);
+    return entry?.unlockedStamps ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function clearAllData(): Promise<void> {

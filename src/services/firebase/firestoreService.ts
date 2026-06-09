@@ -283,6 +283,57 @@ export async function savePassportMapping(
   }
 }
 
+/**
+ * Save a stamp unlock to the passport document
+ * Uses increment for atomic counter update
+ */
+export async function saveStampUnlock(
+  userId: string,
+  category: string,
+  stampName: string
+): Promise<void> {
+  try {
+    const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+    const passportRef = doc(db, "participants", userId, "skillPassport", categoryId);
+
+    const stampKey = `unlockedStamps.${stampName.replaceAll(/[.[\]/]/g, "_")}`;
+    const existing = await getDoc(passportRef);
+    const data = existing.data();
+    const hasStamp =
+      data?.unlockedStamps &&
+      typeof data.unlockedStamps === "object" &&
+      stampName in data.unlockedStamps;
+
+    if (hasStamp) {
+      await setDoc(
+        passportRef,
+        {
+          [stampKey]: {
+            timesUnlocked: increment(1),
+            lastUnlockedAt: serverTimestamp(),
+          },
+        },
+        { merge: true }
+      );
+    } else {
+      await setDoc(
+        passportRef,
+        {
+          [stampKey]: {
+            timesUnlocked: 1,
+            firstUnlockedAt: serverTimestamp(),
+            lastUnlockedAt: serverTimestamp(),
+          },
+        },
+        { merge: true }
+      );
+    }
+  } catch (err) {
+    console.error("[Firestore] Failed to save stamp unlock:", err);
+    throw err;
+  }
+}
+
 export async function fetchPassportMappings(
   userId: string
 ): Promise<{ category: string; firstMappedAt: Date; totalMappings: number }[]> {

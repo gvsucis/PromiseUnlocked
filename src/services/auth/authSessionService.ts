@@ -113,16 +113,29 @@ async function hydratePassportMappings(uid: string): Promise<void> {
       justification: string;
       dateIdentified: string;
       timesMapped: number;
+      unlockedStamps?: Array<{ name: string; timesUnlocked: number }>;
     }[] = [];
     snapshot.docs.forEach((doc) => {
       const data = doc.data();
       const category = data.category as string | undefined;
       if (!category) return;
+
+      const unlockedStamps: { name: string; timesUnlocked: number }[] = [];
+      const rawStamps = data.unlockedStamps as
+        | Record<string, { timesUnlocked?: number }>
+        | undefined;
+      if (rawStamps) {
+        for (const [name, entry] of Object.entries(rawStamps)) {
+          unlockedStamps.push({ name, timesUnlocked: entry.timesUnlocked ?? 1 });
+        }
+      }
+
       mappedCategories.push({
         category,
         justification: "",
         dateIdentified: (data.firstMappedAt?.toDate?.() ?? new Date()).toISOString(),
         timesMapped: (data.totalMappings as number) ?? 1,
+        unlockedStamps: unlockedStamps.length > 0 ? unlockedStamps : undefined,
       });
     });
 
