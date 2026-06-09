@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "promiseunlocked-api-v2",
     "name": "PromiseUnlocked API",
-    "description": "Full API collection for PromiseUnlocked backend.\n\nWorkflow:\n1. Register or Login to get a Firebase ID token.\n2. The Login request auto-saves the token as `bearerToken`.\n3. List requests auto-save IDs (`participantId`, `sessionId`, `interactionId`) for chained requests.\n4. Use `/api/participants/me/*` routes for the authenticated user's own data.",
+    "description": "Full API collection for PromiseUnlocked backend.\n\nWorkflow:\n1. Register or Login to get a Firebase ID token.\n2. The Login request auto-saves the token as `bearerToken`.\n3. List requests auto-save IDs (`participantId`, `sessionId`, `interactionId`) for chained requests.\n4. Use `/participants/me/*` routes for the authenticated user's own data.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -39,6 +39,29 @@
               "body": "{ \"status\": \"Server is running\" }"
             }
           ]
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "description": "Opens the Swagger/OpenAPI documentation UI.",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api-docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api-docs"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "html",
+              "header": [{ "key": "Content-Type", "value": "text/html" }],
+              "body": "<!DOCTYPE html><html><head><title>Swagger UI</title></head><body>Swagger UI</body></html>"
+            }
+          ]
         }
       ]
     },
@@ -55,9 +78,9 @@
               "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/auth/register",
+              "raw": "{{baseUrl}}/auth/register",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "register"]
+              "path": ["auth", "register"]
             }
           },
           "response": [
@@ -71,9 +94,9 @@
                   "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/api/auth/register",
+                  "raw": "{{baseUrl}}/auth/register",
                   "host": ["{{baseUrl}}"],
-                  "path": ["api", "auth", "register"]
+                  "path": ["auth", "register"]
                 }
               },
               "status": "Created",
@@ -81,6 +104,22 @@
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  if (data.idToken) pm.environment.set('bearerToken', data.idToken);",
+                  "  if (data.localId) pm.environment.set('userId', data.localId);",
+                  "  if (data.email) pm.environment.set('userEmail', data.email);",
+                  "}"
+                ]
+              }
             }
           ]
         },
@@ -94,9 +133,9 @@
               "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
+              "raw": "{{baseUrl}}/auth/login",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "auth", "login"]
+              "path": ["auth", "login"]
             }
           },
           "response": [
@@ -110,9 +149,9 @@
                   "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/api/auth/login",
+                  "raw": "{{baseUrl}}/auth/login",
                   "host": ["{{baseUrl}}"],
-                  "path": ["api", "auth", "login"]
+                  "path": ["auth", "login"]
                 }
               },
               "status": "OK",
@@ -154,9 +193,9 @@
               "raw": "{\n  \"email\": \"new@example.com\",\n  \"password\": \"password123\",\n  \"displayName\": \"New User\",\n  \"metadata\": {\"role\": \"participant\"}\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/participants",
+              "raw": "{{baseUrl}}/participants",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants"]
+              "path": ["participants"]
             }
           },
           "response": [
@@ -167,6 +206,22 @@
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"participant\": {\n    \"uid\": \"xyz789\",\n    \"email\": \"new@example.com\",\n    \"displayName\": \"New User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {\"role\": \"participant\"}\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  var data = pm.response.json();",
+                  "  if (data.participant && data.participant.uid) {",
+                  "    pm.environment.set('participantId', data.participant.uid);",
+                  "  }",
+                  "}"
+                ]
+              }
             }
           ]
         },
@@ -180,9 +235,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants",
+              "raw": "{{baseUrl}}/participants",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants"]
+              "path": ["participants"]
             }
           },
           "response": [
@@ -225,9 +280,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/me",
+              "raw": "{{baseUrl}}/participants/me",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants", "me"]
+              "path": ["participants", "me"]
             }
           },
           "response": [
@@ -258,6 +313,53 @@
           ]
         },
         {
+          "name": "Update My Profile",
+          "request": {
+            "description": "Updates the authenticated user's profile fields.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Name\",\n  \"fullName\": \"Updated Full Name\",\n  \"schoolName\": \"New School\",\n  \"metadata\": {\"bio\": \"Updated bio text\"}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/participants/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["participants", "me"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Updated Name\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {\"bio\": \"Updated bio text\"}\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  if (data.participant && data.participant.uid) {",
+                  "    pm.environment.set('participantId', data.participant.uid);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Get Participant",
           "request": {
             "description": "Requires `participantId` environment variable.",
@@ -268,24 +370,40 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/{{participantId}}",
+              "raw": "{{baseUrl}}/participants/{{participantId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants", "{{participantId}}"]
-            }
+                "path": ["participants", "{{participantId}}"]
+              }
+            },
+            "response": [
+              {
+                "name": "200 OK",
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  if (data.participant && data.participant.uid) {",
+                    "    pm.environment.set('participantId', data.participant.uid);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
           },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
-            }
-          ]
-        },
-        {
-          "name": "Delete Participant",
+          {
+            "name": "Delete Participant",
           "request": {
             "description": "Admin only or self-delete. Returns 204 No Content.",
             "auth": {
@@ -295,9 +413,9 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/{{participantId}}",
+              "raw": "{{baseUrl}}/participants/{{participantId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants", "{{participantId}}"]
+              "path": ["participants", "{{participantId}}"]
             }
           },
           "response": [
@@ -327,9 +445,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/me/sessions?status=active&limit=20",
+              "raw": "{{baseUrl}}/participants/me/sessions?status=active&limit=20",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants", "me", "sessions"],
+              "path": ["participants", "me", "sessions"],
               "query": [
                 {
                   "key": "status",
@@ -380,24 +498,40 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/me/sessions/{{sessionId}}",
+              "raw": "{{baseUrl}}/participants/me/sessions/{{sessionId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants", "me", "sessions", "{{sessionId}}"]
-            }
+                "path": ["participants", "me", "sessions", "{{sessionId}}"]
+              }
+            },
+            "response": [
+              {
+                "name": "200 OK",
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": "{\n  \"session\": {\n    \"id\": \"sess001\",\n    \"status\": \"active\",\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"completedAt\": null,\n    \"taxonomySnapshot\": null\n  }\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  if (data.session && data.session.id) {",
+                    "    pm.environment.set('sessionId', data.session.id);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
           },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"session\": {\n    \"id\": \"sess001\",\n    \"status\": \"active\",\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"completedAt\": null,\n    \"taxonomySnapshot\": null\n  }\n}"
-            }
-          ]
-        },
-        {
-          "name": "List Sessions for Participant",
+          {
+            "name": "List Sessions for Participant",
           "request": {
             "description": "Requires `participantId` environment variable.",
             "auth": {
@@ -407,9 +541,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions?status=active&limit=20",
+              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions?status=active&limit=20",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants", "{{participantId}}", "sessions"],
+              "path": ["participants", "{{participantId}}", "sessions"],
               "query": [
                 {
                   "key": "status",
@@ -460,24 +594,41 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}",
+              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "participants", "{{participantId}}", "sessions", "{{sessionId}}"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"session\": {\n    \"id\": \"sess001\",\n    \"status\": \"active\",\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"completedAt\": null,\n    \"taxonomySnapshot\": null\n  }\n}"
-            }
-          ]
-        }
-      ]
-    },
+                "path": ["participants", "{{participantId}}", "sessions", "{{sessionId}}"]
+              }
+            },
+            "response": [
+              {
+                "name": "200 OK",
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": "{\n  \"session\": {\n    \"id\": \"sess001\",\n    \"status\": \"active\",\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"completedAt\": null,\n    \"taxonomySnapshot\": null\n  }\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  if (data.session && data.session.id) {",
+                    "    pm.environment.set('sessionId', data.session.id);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ,
     {
       "name": "Interactions",
       "item": [
@@ -492,10 +643,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
+              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
               "host": ["{{baseUrl}}"],
               "path": [
-                "api",
                 "participants",
                 "{{participantId}}",
                 "sessions",
@@ -547,10 +697,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
+              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
               "host": ["{{baseUrl}}"],
               "path": [
-                "api",
                 "participants",
                 "{{participantId}}",
                 "sessions",
@@ -569,6 +718,22 @@
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem Solving\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
             }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  if (data.interaction && data.interaction.id) {",
+                  "    pm.environment.set('interactionId', data.interaction.id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
           ]
         },
         {
@@ -582,10 +747,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/me/sessions/{{sessionId}}/interactions/me/{{interactionId}}",
+              "raw": "{{baseUrl}}/participants/me/sessions/{{sessionId}}/interactions/me/{{interactionId}}",
               "host": ["{{baseUrl}}"],
               "path": [
-                "api",
                 "participants",
                 "me",
                 "sessions",
@@ -605,12 +769,29 @@
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem Solving\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
             }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  var data = pm.response.json();",
+                  "  if (data.interaction && data.interaction.id) {",
+                  "    pm.environment.set('interactionId', data.interaction.id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
           ]
         }
       ]
-    },
-    {
-      "name": "Chat",
+    }
+  ,
+  {
+    "name": "Chat",
       "item": [
         {
           "name": "Save Response & Get Similar",
@@ -627,9 +808,9 @@
               "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"skillId\": \"problem-solving\",\n  \"responseText\": \"I traced logs and isolated the failing service.\",\n  \"question\": \"Tell me about a time you solved a hard problem?\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/chat/respond",
+              "raw": "{{baseUrl}}/chat/respond",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "chat", "respond"]
+              "path": ["chat", "respond"]
             }
           },
           "response": [
@@ -639,14 +820,126 @@
               "code": 200,
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"similarResponses\": [\n      {\n        \"id\": \"resp001\",\n        \"userId\": \"abc123\",\n        \"skillId\": \"problem-solving\",\n        \"excerpt\": \"I debugged a production issue...\",\n        \"createdAt\": \"2026-05-15T08:30:00.000Z\",\n        \"distance\": 0.12\n      }\n    ]\n  },\n  \"error\": null\n}"
+                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"similarResponses\": [\n      {\n        \"id\": \"resp001\",\n        \"userId\": \"abc123\",\n        \"skillId\": \"problem-solving\",\n        \"excerpt\": \"I debugged a production issue...\",\n        \"createdAt\": \"2026-05-15T08:30:00.000Z\",\n        \"distance\": 0.12\n      }\n    ]\n  },\n  \"error\": null\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  if (data.data && data.data.similarResponses && data.data.similarResponses.length > 0) {",
+                    "    pm.environment.set('responseId', data.data.similarResponses[0].id);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "Get Proof Status",
+            "request": {
+              "description": "Gets the status of a proof upload by job ID. Requires `jobId` environment variable.",
+              "auth": {
+                "type": "bearer",
+                "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+              },
+              "method": "GET",
+              "header": [],
+              "url": {
+                "raw": "{{baseUrl}}/chat/proof/{{jobId}}",
+                "host": ["{{baseUrl}}"],
+                "path": ["chat", "proof", "{{jobId}}"]
+              }
+            },
+            "response": [
+              {
+                "name": "200 OK",
+                "status": "OK",
+                "code": 200,
+                "_postman_previewlanguage": "json",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": "{\n  \"jobId\": \"job-uuid-123\",\n  \"status\": \"completed\",\n  \"result\": {}\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  if (data.success && data.data) {",
+                    "    if (data.data.id) pm.environment.set('jobId', data.data.id);",
+                    "    if (data.data.proofStatus) pm.environment.set('proofStatus', data.data.proofStatus);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "Upload Proof",
+            "request": {
+            "description": "Uploads a proof artifact for verification. Returns a jobId for status tracking.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "/path/to/proof.pdf" },
+                { "key": "userId", "value": "{{userId}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/chat/proof/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "proof", "upload"]
             }
-          ]
-        }
+          },
+          "response": [
+            {
+              "name": "202 Accepted",
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"jobId\": \"job-uuid-123\",\n  \"message\": \"Upload accepted, processing started\"\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 202) {",
+                    "  var data = pm.response.json();",
+                    "  if (data.success && data.data) {",
+                    "    if (data.data.jobId) pm.environment.set('jobId', data.data.jobId);",
+                    "    if (data.data.proofStatus) pm.environment.set('proofStatus', data.data.proofStatus);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          }
       ]
-    },
-    {
-      "name": "Profile Embeddings",
+    }
+  ,
+  {
+    "name": "Profile Embeddings",
       "item": [
         {
           "name": "Upload PDF",
@@ -667,16 +960,16 @@
               ]
             },
             "url": {
-              "raw": "{{baseUrl}}/api/profile-embeddings/upload",
+              "raw": "{{baseUrl}}/profile-embeddings/upload",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "profile-embeddings", "upload"]
+              "path": ["profile-embeddings", "upload"]
             }
           },
           "response": [
             {
-              "name": "202 Accepted",
-              "status": "Accepted",
-              "code": 202,
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"jobId\": \"job-uuid-123\",\n  \"message\": \"Upload accepted\"\n}"
@@ -688,9 +981,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 202) {",
+                  "if (pm.response.code === 201) {",
                   "  var data = pm.response.json();",
-                  "  if (data.jobId) pm.environment.set('jobId', data.jobId);",
+                  "  if (data.embeddingId) pm.environment.set('embeddingId', data.embeddingId);",
                   "}"
                 ]
               }
@@ -708,9 +1001,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/profile-embeddings/jobs/{{jobId}}",
+              "raw": "{{baseUrl}}/profile-embeddings/jobs/{{jobId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "profile-embeddings", "jobs", "{{jobId}}"]
+              "path": ["profile-embeddings", "jobs", "{{jobId}}"]
             }
           },
           "response": [
@@ -721,10 +1014,162 @@
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"job\": {\n    \"jobId\": \"job-uuid-123\",\n    \"owner\": \"abc123\",\n    \"status\": \"processing\",\n    \"storagePath\": \"/uploads/profile-embeddings/abc123/...\",\n    \"fileName\": \"profile.pdf\"\n  }\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  if (data.job && data.job.jobId) {",
+                    "    pm.environment.set('jobId', data.job.jobId);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "Get Embedding Context",
+          "request": {
+            "description": "Retrieves the context for a specific embedding by ID. Requires `embeddingId` environment variable.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profile-embeddings/context/{{embeddingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile-embeddings", "context", "{{embeddingId}}"]
             }
-          ]
-        }
-      ]
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"embedding\": {\n    \"id\": \"emb-001\",\n    \"content\": \"Extracted text content...\",\n    \"metadata\": {}\n  }\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  if (data.embedding && data.embedding.id) {",
+                    "    pm.environment.set('embeddingId', data.embedding.id);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "List Embeddings",
+          "request": {
+            "description": "Lists all profile embeddings for the authenticated user.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profile-embeddings/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile-embeddings", "list"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"embeddings\": [\n    {\n      \"id\": \"emb-001\",\n      \"fileName\": \"profile.pdf\",\n      \"uploadedAt\": \"2026-06-01T12:00:00.000Z\"\n    }\n  ]\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  var list = Array.isArray(data.embeddings) ? data.embeddings.filter(function(e) { return e && e.id; }) : [];",
+                    "  if (list.length > 0) {",
+                    "    var random = list[Math.floor(Math.random() * list.length)];",
+                    "    pm.environment.set('embeddingId', random.id);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "Search Embeddings",
+          "request": {
+            "description": "Searches profile embeddings by text query. Returns ranked results.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"leadership experience\",\n  \"limit\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profile-embeddings/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["profile-embeddings", "search"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"results\": [\n    {\n      \"embeddingId\": \"emb-001\",\n      \"score\": 0.89,\n      \"snippet\": \"...leadership experience...\"\n    }\n  ]\n}"
+              }
+            ],
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "  var data = pm.response.json();",
+                    "  var list = Array.isArray(data.results) ? data.results.filter(function(r) { return r && r.embeddingId; }) : [];",
+                    "  if (list.length > 0) {",
+                    "    pm.environment.set('embeddingId', list[0].embeddingId);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
     }
   ],
   "event": [],
