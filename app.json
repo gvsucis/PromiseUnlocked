@@ -72,7 +72,6 @@
           "cameraPermission": "The app accesses your camera to let you share photos with your friends."
         }
       ],
-      "expo-apple-authentication",
       "expo-web-browser",
       "expo-build-properties",
       "expo-audio"
@@ -84,7 +83,12 @@
     },
     "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://u.expo.dev/dab9b9dc-bae0-4d27-8c15-47573a0a1d58"
+      "url": "https://u.expo.dev/dab9b9dc-bae0-4d27-8c15-47573a0a1d58",
+      "enabled": true,
+      "fallbackToCacheTimeout": 0,
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
     }
   }
 }
