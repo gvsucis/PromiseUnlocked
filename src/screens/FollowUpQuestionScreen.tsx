@@ -9,6 +9,8 @@ import {
   Dimensions,
   Image,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { FAB, Card, Title, Paragraph, Snackbar, TextInput, Button } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
@@ -411,219 +413,228 @@ export default function FollowUpQuestionScreen({ navigation, route }: Readonly<P
   };
 
   return (
-    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Question Card */}
-        <Card style={styles.questionCard}>
-          <Card.Content>
-            <View style={styles.cardTitleContainer}>
-              <MaterialIcons name="extension" size={24} color="#667eea" />
-              <Title style={styles.cardTitle}>Follow-up Question</Title>
-            </View>
-            <Paragraph style={styles.questionText}>{question}</Paragraph>
-          </Card.Content>
-        </Card>
-
-        {/* Voice Recording Modal */}
-        {inputMode === "voice" && (
-          <VoiceRecordingModal
-            visible={inputMode === "voice"}
-            currentPrompt={question}
-            isRecording={isRecording}
-            recordingDuration={recordingDuration}
-            recordingUri={recordingUri}
-            isProcessingAudio={isProcessingAudio}
-            onStartRecording={handleStartRecording}
-            onStopRecording={handleStopRecording}
-            onSubmit={handleSubmitVoice}
-            onRecordAgain={handleRecordAgain}
-            onCancel={handleCancelVoice}
-          />
-        )}
-
-        {/* Text Input Mode */}
-        {inputMode === "text" && (
-          <Card style={styles.inputCard}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Question Card */}
+          <Card style={styles.questionCard}>
             <Card.Content>
               <View style={styles.cardTitleContainer}>
-                <MaterialIcons name="edit" size={22} color="#667eea" />
-                <Title style={styles.inputTitle}>Your Response</Title>
+                <MaterialIcons name="extension" size={24} color="#667eea" />
+                <Title style={styles.cardTitle}>Follow-up Question</Title>
               </View>
-              <TextInput
-                mode="outlined"
-                placeholder="Type your answer here..."
-                value={textInput}
-                onChangeText={setTextInput}
-                multiline
-                numberOfLines={6}
-                style={styles.textInput}
-                outlineColor="#6C5CE7"
-                activeOutlineColor="#667eea"
-                autoCorrect={true}
-              />
-              <Button
-                mode="contained"
-                onPress={handleSubmitText}
-                loading={isAnalyzing}
-                disabled={isAnalyzing || !textInput.trim()}
-                style={styles.submitButton}
-                buttonColor="#6C5CE7"
-              >
-                {isAnalyzing ? "Analyzing..." : "Submit Response"}
-              </Button>
+              <Paragraph style={styles.questionText}>{question}</Paragraph>
             </Card.Content>
           </Card>
-        )}
 
-        {/* Image Input Mode */}
-        {inputMode === "image" && selectedImage && (
-          <Card style={styles.inputCard}>
-            <Card.Content>
-              <View style={styles.cardTitleContainer}>
-                <MaterialIcons name="photo-camera" size={22} color="#667eea" />
-                <Title style={styles.inputTitle}>Selected Image</Title>
-              </View>
-              <TouchableOpacity onPress={() => setZoomViewerVisible(true)}>
-                <Image source={{ uri: selectedImage }} style={styles.previewImage} />
-              </TouchableOpacity>
-              <View style={styles.imageActions}>
-                <Button
+          {/* Voice Recording Modal */}
+          {inputMode === "voice" && (
+            <VoiceRecordingModal
+              visible={inputMode === "voice"}
+              currentPrompt={question}
+              isRecording={isRecording}
+              recordingDuration={recordingDuration}
+              recordingUri={recordingUri}
+              isProcessingAudio={isProcessingAudio}
+              onStartRecording={handleStartRecording}
+              onStopRecording={handleStopRecording}
+              onSubmit={handleSubmitVoice}
+              onRecordAgain={handleRecordAgain}
+              onCancel={handleCancelVoice}
+            />
+          )}
+
+          {/* Text Input Mode */}
+          {inputMode === "text" && (
+            <Card style={styles.inputCard}>
+              <Card.Content>
+                <View style={styles.cardTitleContainer}>
+                  <MaterialIcons name="edit" size={22} color="#667eea" />
+                  <Title style={styles.inputTitle}>Your Response</Title>
+                </View>
+                <TextInput
                   mode="outlined"
-                  onPress={() => setSelectedImage(null)}
-                  style={styles.changeImageButton}
-                  textColor="#6C5CE7"
-                >
-                  Change Image
-                </Button>
+                  placeholder="Type your answer here..."
+                  value={textInput}
+                  onChangeText={setTextInput}
+                  multiline
+                  numberOfLines={6}
+                  style={styles.textInput}
+                  outlineColor="#6C5CE7"
+                  activeOutlineColor="#667eea"
+                  autoCorrect={true}
+                />
                 <Button
                   mode="contained"
-                  onPress={handleSubmitImage}
+                  onPress={handleSubmitText}
                   loading={isAnalyzing}
-                  disabled={isAnalyzing}
+                  disabled={isAnalyzing || !textInput.trim()}
                   style={styles.submitButton}
                   buttonColor="#6C5CE7"
                 >
-                  {isAnalyzing ? "Analyzing..." : "Submit Image"}
+                  {isAnalyzing ? "Analyzing..." : "Submit Response"}
                 </Button>
-              </View>
-            </Card.Content>
-          </Card>
-        )}
+              </Card.Content>
+            </Card>
+          )}
 
-        {/* Instructions when no input mode selected */}
-        {inputMode === "none" && (
-          <Card style={styles.instructionCard}>
-            <Card.Content>
-              <Paragraph style={styles.instructionText}>
-                Tap the + button below to choose how you'd like to respond:
-              </Paragraph>
-              <View style={styles.optionsList}>
-                <View style={styles.optionItem}>
-                  <MaterialIcons name="image" size={24} color="#FF6B6B" />
-                  <Text style={styles.optionText}>Share a photo</Text>
+          {/* Image Input Mode */}
+          {inputMode === "image" && selectedImage && (
+            <Card style={styles.inputCard}>
+              <Card.Content>
+                <View style={styles.cardTitleContainer}>
+                  <MaterialIcons name="photo-camera" size={22} color="#667eea" />
+                  <Title style={styles.inputTitle}>Selected Image</Title>
                 </View>
-                <View style={styles.optionItem}>
-                  <MaterialIcons name="mic" size={24} color="#4ECDC4" />
-                  <Text style={styles.optionText}>Record your voice</Text>
+                <TouchableOpacity onPress={() => setZoomViewerVisible(true)}>
+                  <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+                </TouchableOpacity>
+                <View style={styles.imageActions}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setSelectedImage(null)}
+                    style={styles.changeImageButton}
+                    textColor="#6C5CE7"
+                  >
+                    Change Image
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={handleSubmitImage}
+                    loading={isAnalyzing}
+                    disabled={isAnalyzing}
+                    style={styles.submitButton}
+                    buttonColor="#6C5CE7"
+                  >
+                    {isAnalyzing ? "Analyzing..." : "Submit Image"}
+                  </Button>
                 </View>
-                <View style={styles.optionItem}>
-                  <MaterialIcons name="chat-bubble" size={24} color="#45B7D1" />
-                  <Text style={styles.optionText}>Type a response</Text>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-        )}
-      </ScrollView>
+              </Card.Content>
+            </Card>
+          )}
 
-      {/* Floating Action Buttons */}
-      <View style={styles.fabContainer}>
-        <View style={styles.fabInner}>
-          {/* Action Button 1 - Photo */}
-          <Animated.View style={[styles.actionButton, button1Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="image" size={28} color="white" />
+          {/* Instructions when no input mode selected */}
+          {inputMode === "none" && (
+            <Card style={styles.instructionCard}>
+              <Card.Content>
+                <Paragraph style={styles.instructionText}>
+                  Tap the + button below to choose how you'd like to respond:
+                </Paragraph>
+                <View style={styles.optionsList}>
+                  <View style={styles.optionItem}>
+                    <MaterialIcons name="image" size={24} color="#FF6B6B" />
+                    <Text style={styles.optionText}>Share a photo</Text>
+                  </View>
+                  <View style={styles.optionItem}>
+                    <MaterialIcons name="mic" size={24} color="#4ECDC4" />
+                    <Text style={styles.optionText}>Record your voice</Text>
+                  </View>
+                  <View style={styles.optionItem}>
+                    <MaterialIcons name="chat-bubble" size={24} color="#45B7D1" />
+                    <Text style={styles.optionText}>Type a response</Text>
+                  </View>
                 </View>
-              )}
-              onPress={handlePhotoPress}
-              style={[styles.fab, { backgroundColor: "#FF6B6B" }]}
-              size="small"
-            />
-          </Animated.View>
+              </Card.Content>
+            </Card>
+          )}
+        </ScrollView>
 
-          {/* Action Button 2 - Voice */}
-          <Animated.View style={[styles.actionButton, button2Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="mic" size={28} color="white" />
-                </View>
-              )}
-              onPress={handleVoicePress}
-              style={[styles.fab, { backgroundColor: "#4ECDC4" }]}
-              size="small"
-            />
-          </Animated.View>
+        {/* Floating Action Buttons */}
+        <View style={styles.fabContainer}>
+          <View style={styles.fabInner}>
+            {/* Action Button 1 - Photo */}
+            <Animated.View style={[styles.actionButton, button1Style]} pointerEvents="auto">
+              <FAB
+                icon={() => (
+                  <View style={styles.iconContainer}>
+                    <MaterialIcons name="image" size={28} color="white" />
+                  </View>
+                )}
+                onPress={handlePhotoPress}
+                style={[styles.fab, { backgroundColor: "#FF6B6B" }]}
+                size="small"
+              />
+            </Animated.View>
 
-          {/* Action Button 3 - Text */}
-          <Animated.View style={[styles.actionButton, button3Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="chat-bubble" size={28} color="white" />
-                </View>
-              )}
-              onPress={handleTextPress}
-              style={[styles.fab, { backgroundColor: "#45B7D1" }]}
-              size="small"
-            />
-          </Animated.View>
+            {/* Action Button 2 - Voice */}
+            <Animated.View style={[styles.actionButton, button2Style]} pointerEvents="auto">
+              <FAB
+                icon={() => (
+                  <View style={styles.iconContainer}>
+                    <MaterialIcons name="mic" size={28} color="white" />
+                  </View>
+                )}
+                onPress={handleVoicePress}
+                style={[styles.fab, { backgroundColor: "#4ECDC4" }]}
+                size="small"
+              />
+            </Animated.View>
 
-          {/* Main FAB */}
-          <Animated.View style={[styles.mainFabWrapper, { transform: [{ rotate: rotation }] }]}>
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="add" size={32} color="white" />
-                </View>
-              )}
-              onPress={toggleMenu}
-              style={[styles.mainFab, { backgroundColor: "#6C5CE7" }]}
-            />
-          </Animated.View>
+            {/* Action Button 3 - Text */}
+            <Animated.View style={[styles.actionButton, button3Style]} pointerEvents="auto">
+              <FAB
+                icon={() => (
+                  <View style={styles.iconContainer}>
+                    <MaterialIcons name="chat-bubble" size={28} color="white" />
+                  </View>
+                )}
+                onPress={handleTextPress}
+                style={[styles.fab, { backgroundColor: "#45B7D1" }]}
+                size="small"
+              />
+            </Animated.View>
+
+            {/* Main FAB */}
+            <Animated.View style={[styles.mainFabWrapper, { transform: [{ rotate: rotation }] }]}>
+              <FAB
+                icon={() => (
+                  <View style={styles.iconContainer}>
+                    <MaterialIcons name="add" size={32} color="white" />
+                  </View>
+                )}
+                onPress={toggleMenu}
+                style={[styles.mainFab, { backgroundColor: "#6C5CE7" }]}
+              />
+            </Animated.View>
+          </View>
         </View>
-      </View>
 
-      {/* Image Editor Modal */}
-      {showImageEditor && tempImageUri && (
-        <ImageEditor
-          imageUri={tempImageUri}
-          onSave={handleImageEditorSave}
-          onCancel={handleImageEditorCancel}
-        />
-      )}
+        {/* Image Editor Modal */}
+        {showImageEditor && tempImageUri && (
+          <ImageEditor
+            imageUri={tempImageUri}
+            onSave={handleImageEditorSave}
+            onCancel={handleImageEditorCancel}
+          />
+        )}
 
-      {/* Zoom Viewer Modal */}
-      {zoomViewerVisible && selectedImage && (
-        <ZoomableImageView
-          imageUri={selectedImage}
-          visible={zoomViewerVisible}
-          onClose={() => setZoomViewerVisible(false)}
-        />
-      )}
+        {/* Zoom Viewer Modal */}
+        {zoomViewerVisible && selectedImage && (
+          <ZoomableImageView
+            imageUri={selectedImage}
+            visible={zoomViewerVisible}
+            onClose={() => setZoomViewerVisible(false)}
+          />
+        )}
 
-      {/* Snackbar */}
-      <Snackbar
-        visible={snackbarVisible}
-        onDismiss={() => setSnackbarVisible(false)}
-        duration={3000}
-        style={styles.snackbar}
-      >
-        {snackbarMessage}
-      </Snackbar>
-    </LinearGradient>
+        {/* Snackbar */}
+        <Snackbar
+          visible={snackbarVisible}
+          onDismiss={() => setSnackbarVisible(false)}
+          duration={3000}
+          style={styles.snackbar}
+        >
+          {snackbarMessage}
+        </Snackbar>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }
 

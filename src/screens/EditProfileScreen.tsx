@@ -5,6 +5,7 @@ import {
   View,
   StyleSheet,
   TouchableOpacity,
+  KeyboardAvoidingView,
   Platform,
   Modal,
 } from "react-native";
@@ -161,203 +162,101 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
-        </TouchableOpacity>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
 
-        <View style={styles.header}>
-          <MaterialIcons name="person" size={40} color="#fff" />
-          <Text style={styles.title}>Edit Profile</Text>
-          <Text style={styles.subtitle}>Update your personal information</Text>
-        </View>
-
-        {/* Personal Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>PERSONAL INFO</Text>
-
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>Date of birth</Label>
-            <TouchableOpacity style={styles.pickerWrapper} onPress={() => setShowDobPicker(true)}>
-              <Text style={dob ? styles.pickerText : styles.pickerPlaceholder}>
-                {dob
-                  ? `${String(dob.getMonth() + 1).padStart(2, "0")}/${String(dob.getDate()).padStart(2, "0")}/${dob.getFullYear()}`
-                  : "MM/DD/YYYY"}
-              </Text>
-            </TouchableOpacity>
-            {Platform.OS === "android" && showDobPicker && (
-              <DateTimePicker
-                value={dob ?? new Date()}
-                mode="date"
-                display="default"
-                maximumDate={new Date()}
-                onChange={(event, selectedDate) => {
-                  setShowDobPicker(false);
-                  if (event.type === "set" && selectedDate) {
-                    setDob(selectedDate);
-                  }
-                }}
-              />
-            )}
+          <View style={styles.header}>
+            <MaterialIcons name="person" size={40} color="#fff" />
+            <Text style={styles.title}>Edit Profile</Text>
+            <Text style={styles.subtitle}>Update your personal information</Text>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>Gender</Label>
-            {Platform.OS === "ios" ? (
-              <TouchableOpacity
-                style={styles.pickerWrapper}
-                onPress={() => setShowGenderPicker(true)}
-              >
-                <Text style={gender ? styles.pickerText : styles.pickerPlaceholder}>
-                  {gender ? getLabel(genderOptions, gender) : "Select gender"}
+          {/* Personal Info */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>PERSONAL INFO</Text>
+
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>Date of birth</Label>
+              <TouchableOpacity style={styles.pickerWrapper} onPress={() => setShowDobPicker(true)}>
+                <Text style={dob ? styles.pickerText : styles.pickerPlaceholder}>
+                  {dob
+                    ? `${String(dob.getMonth() + 1).padStart(2, "0")}/${String(dob.getDate()).padStart(2, "0")}/${dob.getFullYear()}`
+                    : "MM/DD/YYYY"}
                 </Text>
               </TouchableOpacity>
-            ) : (
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={gender}
-                  onValueChange={(value) => setGender(value)}
-                  style={styles.picker}
-                >
-                  {genderOptions.map((opt) => (
-                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                  ))}
-                </Picker>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>Ethnicity</Label>
-            {Platform.OS === "ios" ? (
-              <TouchableOpacity
-                style={styles.pickerWrapper}
-                onPress={() => setShowEthnicityPicker(true)}
-              >
-                <Text style={ethnicity ? styles.pickerText : styles.pickerPlaceholder}>
-                  {ethnicity ? getLabel(ethnicityOptions, ethnicity) : "Select ethnicity"}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={ethnicity}
-                  onValueChange={(value) => setEthnicity(value)}
-                  style={styles.picker}
-                >
-                  {ethnicityOptions.map((opt) => (
-                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                  ))}
-                </Picker>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Contact */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>CONTACT</Text>
-
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>Phone</Label>
-            <View style={styles.inputWrapper}>
-              <Input
-                placeholder="555-555-5555"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                className="h-10 px-0 text-sm bg-white border-0"
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>Email</Label>
-            <View style={styles.inputWrapper}>
-              <Input
-                placeholder="student@email.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                className="h-10 px-0 text-sm bg-white border-0"
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>Portfolio / Profile URL</Label>
-            <View style={styles.inputWrapper}>
-              <Input
-                placeholder="linkedin.com/in/username or personal website"
-                value={pageUrl}
-                onChangeText={setPageUrl}
-                keyboardType="url"
-                autoCapitalize="none"
-                className="h-10 px-0 text-sm bg-white border-0"
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Address */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ADDRESS</Text>
-
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>Street address</Label>
-            <View style={styles.inputWrapper}>
-              <Input
-                placeholder="123 Main St"
-                value={street}
-                onChangeText={setStreet}
-                className="h-10 px-0 text-sm bg-white border-0"
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-
-          <View style={styles.fieldRow}>
-            <View style={styles.fieldHalf}>
-              <Label style={styles.label}>City</Label>
-              <View style={styles.inputWrapper}>
-                <Input
-                  placeholder="City"
-                  value={city}
-                  onChangeText={setCity}
-                  className="h-10 px-0 text-sm bg-white border-0"
-                  style={{ flex: 1 }}
+              {Platform.OS === "android" && showDobPicker && (
+                <DateTimePicker
+                  value={dob ?? new Date()}
+                  mode="date"
+                  display="default"
+                  maximumDate={new Date()}
+                  onChange={(event, selectedDate) => {
+                    setShowDobPicker(false);
+                    if (event.type === "set" && selectedDate) {
+                      setDob(selectedDate);
+                    }
+                  }}
                 />
-              </View>
+              )}
             </View>
 
-            <View style={styles.fieldHalf}>
-              <Label style={styles.label}>State</Label>
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>Gender</Label>
               {Platform.OS === "ios" ? (
                 <TouchableOpacity
                   style={styles.pickerWrapper}
-                  onPress={() => setShowStatePicker(true)}
+                  onPress={() => setShowGenderPicker(true)}
                 >
-                  <Text style={state ? styles.pickerText : styles.pickerPlaceholder}>
-                    {state || "Select state"}
+                  <Text style={gender ? styles.pickerText : styles.pickerPlaceholder}>
+                    {gender ? getLabel(genderOptions, gender) : "Select gender"}
                   </Text>
                 </TouchableOpacity>
               ) : (
                 <View style={styles.pickerWrapper}>
                   <Picker
-                    selectedValue={state}
-                    onValueChange={(value) => setState(value)}
+                    selectedValue={gender}
+                    onValueChange={(value) => setGender(value)}
                     style={styles.picker}
                   >
-                    {stateOptions.map((opt) => (
+                    {genderOptions.map((opt) => (
+                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                    ))}
+                  </Picker>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>Ethnicity</Label>
+              {Platform.OS === "ios" ? (
+                <TouchableOpacity
+                  style={styles.pickerWrapper}
+                  onPress={() => setShowEthnicityPicker(true)}
+                >
+                  <Text style={ethnicity ? styles.pickerText : styles.pickerPlaceholder}>
+                    {ethnicity ? getLabel(ethnicityOptions, ethnicity) : "Select ethnicity"}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.pickerWrapper}>
+                  <Picker
+                    selectedValue={ethnicity}
+                    onValueChange={(value) => setEthnicity(value)}
+                    style={styles.picker}
+                  >
+                    {ethnicityOptions.map((opt) => (
                       <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
                     ))}
                   </Picker>
@@ -366,145 +265,253 @@ export default function EditProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>ZIP code</Label>
-            <View style={styles.inputWrapper}>
-              <Input
-                placeholder="49512"
-                value={postalCode}
-                onChangeText={setPostalCode}
-                keyboardType="number-pad"
-                maxLength={5}
-                className="h-10 px-0 text-sm bg-white border-0"
-                style={{ flex: 1 }}
-              />
+          {/* Contact */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>CONTACT</Text>
+
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>Phone</Label>
+              <View style={styles.inputWrapper}>
+                <Input
+                  placeholder="555-555-5555"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  className="h-10 px-0 text-sm bg-white border-0"
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>Email</Label>
+              <View style={styles.inputWrapper}>
+                <Input
+                  placeholder="student@email.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  className="h-10 px-0 text-sm bg-white border-0"
+                  style={{ flex: 1 }}
+                />
+              </View>
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>Portfolio / Profile URL</Label>
+              <View style={styles.inputWrapper}>
+                <Input
+                  placeholder="linkedin.com/in/username or personal website"
+                  value={pageUrl}
+                  onChangeText={setPageUrl}
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  className="h-10 px-0 text-sm bg-white border-0"
+                  style={{ flex: 1 }}
+                />
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* School */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SCHOOL</Text>
+          {/* Address */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ADDRESS</Text>
 
-          <View style={styles.fieldGroup}>
-            <Label style={styles.label}>High school</Label>
-            <View style={styles.inputWrapper}>
-              <Input
-                placeholder="Hometown High School"
-                value={schoolName}
-                onChangeText={setSchoolName}
-                className="h-10 px-0 text-sm bg-white border-0"
-                style={{ flex: 1 }}
-              />
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>Street address</Label>
+              <View style={styles.inputWrapper}>
+                <Input
+                  placeholder="123 Main St"
+                  value={street}
+                  onChangeText={setStreet}
+                  className="h-10 px-0 text-sm bg-white border-0"
+                  style={{ flex: 1 }}
+                />
+              </View>
             </View>
-          </View>
-        </View>
 
-        {/* Buttons */}
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-          <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save changes"}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* iOS Modal Pickers */}
-      {Platform.OS === "ios" && (
-        <>
-          <Modal visible={showDobPicker} transparent animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity onPress={() => setShowDobPicker(false)}>
-                    <Text style={styles.modalDone}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ alignItems: "center" }}>
-                  <DateTimePicker
-                    value={dob ?? new Date()}
-                    mode="date"
-                    display="spinner"
-                    maximumDate={new Date()}
-                    themeVariant="light"
-                    style={{ width: "100%" }}
-                    onChange={(event, selectedDate) => {
-                      if (selectedDate) {
-                        setDob(selectedDate);
-                      }
-                    }}
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldHalf}>
+                <Label style={styles.label}>City</Label>
+                <View style={styles.inputWrapper}>
+                  <Input
+                    placeholder="City"
+                    value={city}
+                    onChangeText={setCity}
+                    className="h-10 px-0 text-sm bg-white border-0"
+                    style={{ flex: 1 }}
                   />
                 </View>
               </View>
-            </View>
-          </Modal>
 
-          <Modal visible={showGenderPicker} transparent animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                    <Text style={styles.modalDone}>Done</Text>
+              <View style={styles.fieldHalf}>
+                <Label style={styles.label}>State</Label>
+                {Platform.OS === "ios" ? (
+                  <TouchableOpacity
+                    style={styles.pickerWrapper}
+                    onPress={() => setShowStatePicker(true)}
+                  >
+                    <Text style={state ? styles.pickerText : styles.pickerPlaceholder}>
+                      {state || "Select state"}
+                    </Text>
                   </TouchableOpacity>
-                </View>
-                <Picker
-                  selectedValue={gender}
-                  onValueChange={(value) => setGender(value)}
-                  itemStyle={{ color: "#000" }}
-                >
-                  {genderOptions.map((opt) => (
-                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                  ))}
-                </Picker>
+                ) : (
+                  <View style={styles.pickerWrapper}>
+                    <Picker
+                      selectedValue={state}
+                      onValueChange={(value) => setState(value)}
+                      style={styles.picker}
+                    >
+                      {stateOptions.map((opt) => (
+                        <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                      ))}
+                    </Picker>
+                  </View>
+                )}
               </View>
             </View>
-          </Modal>
 
-          <Modal visible={showEthnicityPicker} transparent animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity onPress={() => setShowEthnicityPicker(false)}>
-                    <Text style={styles.modalDone}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-                <Picker
-                  selectedValue={ethnicity}
-                  onValueChange={(value) => setEthnicity(value)}
-                  itemStyle={{ color: "#000" }}
-                >
-                  {ethnicityOptions.map((opt) => (
-                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                  ))}
-                </Picker>
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>ZIP code</Label>
+              <View style={styles.inputWrapper}>
+                <Input
+                  placeholder="49512"
+                  value={postalCode}
+                  onChangeText={setPostalCode}
+                  keyboardType="number-pad"
+                  maxLength={5}
+                  className="h-10 px-0 text-sm bg-white border-0"
+                  style={{ flex: 1 }}
+                />
               </View>
             </View>
-          </Modal>
+          </View>
 
-          <Modal visible={showStatePicker} transparent animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity onPress={() => setShowStatePicker(false)}>
-                    <Text style={styles.modalDone}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-                <Picker
-                  selectedValue={state}
-                  onValueChange={(value) => setState(value)}
-                  itemStyle={{ color: "#000" }}
-                >
-                  {stateOptions.map((opt) => (
-                    <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                  ))}
-                </Picker>
+          {/* School */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>SCHOOL</Text>
+
+            <View style={styles.fieldGroup}>
+              <Label style={styles.label}>High school</Label>
+              <View style={styles.inputWrapper}>
+                <Input
+                  placeholder="Hometown High School"
+                  value={schoolName}
+                  onChangeText={setSchoolName}
+                  className="h-10 px-0 text-sm bg-white border-0"
+                  style={{ flex: 1 }}
+                />
               </View>
             </View>
-          </Modal>
-        </>
-      )}
-    </LinearGradient>
+          </View>
+
+          {/* Buttons */}
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
+            <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save changes"}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* iOS Modal Pickers */}
+        {Platform.OS === "ios" && (
+          <>
+            <Modal visible={showDobPicker} transparent animationType="slide">
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <TouchableOpacity onPress={() => setShowDobPicker(false)}>
+                      <Text style={styles.modalDone}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ alignItems: "center" }}>
+                    <DateTimePicker
+                      value={dob ?? new Date()}
+                      mode="date"
+                      display="spinner"
+                      maximumDate={new Date()}
+                      themeVariant="light"
+                      style={{ width: "100%" }}
+                      onChange={(event, selectedDate) => {
+                        if (selectedDate) {
+                          setDob(selectedDate);
+                        }
+                      }}
+                    />
+                  </View>
+                </View>
+              </View>
+            </Modal>
+
+            <Modal visible={showGenderPicker} transparent animationType="slide">
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
+                      <Text style={styles.modalDone}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Picker
+                    selectedValue={gender}
+                    onValueChange={(value) => setGender(value)}
+                    itemStyle={{ color: "#000" }}
+                  >
+                    {genderOptions.map((opt) => (
+                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            </Modal>
+
+            <Modal visible={showEthnicityPicker} transparent animationType="slide">
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <TouchableOpacity onPress={() => setShowEthnicityPicker(false)}>
+                      <Text style={styles.modalDone}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Picker
+                    selectedValue={ethnicity}
+                    onValueChange={(value) => setEthnicity(value)}
+                    itemStyle={{ color: "#000" }}
+                  >
+                    {ethnicityOptions.map((opt) => (
+                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            </Modal>
+
+            <Modal visible={showStatePicker} transparent animationType="slide">
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <TouchableOpacity onPress={() => setShowStatePicker(false)}>
+                      <Text style={styles.modalDone}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Picker
+                    selectedValue={state}
+                    onValueChange={(value) => setState(value)}
+                    itemStyle={{ color: "#000" }}
+                  >
+                    {stateOptions.map((opt) => (
+                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            </Modal>
+          </>
+        )}
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }
 

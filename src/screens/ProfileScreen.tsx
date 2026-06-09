@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ScrollView, View, StyleSheet, TouchableOpacity, TextInput, Image } from "react-native";
+import {
+  ScrollView,
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
 import { useNavigation } from "@react-navigation/native";
@@ -104,133 +113,138 @@ export default function ProfileScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headerSection}>
-          <Text style={styles.title}>My Profile</Text>
-          <Text style={styles.subtitle}>Track your journey and manage your progress.</Text>
-        </View>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.headerSection}>
+            <Text style={styles.title}>My Profile</Text>
+            <Text style={styles.subtitle}>Track your journey and manage your progress.</Text>
+          </View>
 
-        <View style={styles.card}>
-          <View style={styles.profileHeader}>
-            <View style={styles.avatarCircle}>
-              {profile?.photoURL ? (
-                <Image source={{ uri: profile.photoURL }} style={styles.avatarImage} />
-              ) : (
-                <MaterialIcons name="person" size={32} color="#ffffff" />
-              )}
+          <View style={styles.card}>
+            <View style={styles.profileHeader}>
+              <View style={styles.avatarCircle}>
+                {profile?.photoURL ? (
+                  <Image source={{ uri: profile.photoURL }} style={styles.avatarImage} />
+                ) : (
+                  <MaterialIcons name="person" size={32} color="#ffffff" />
+                )}
+              </View>
+              <View style={{ flex: 1, justifyContent: "center" }}>
+                <Text style={styles.studentName}>{profile?.displayName ?? "Your Profile"}</Text>
+                <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
+                <Text style={styles.meta}>{highSchool}</Text>
+                {profile?.pageUrl && (
+                  <Text style={[styles.meta, { color: "#6d5efc", marginTop: 4 }]}>
+                    {profile.pageUrl}
+                  </Text>
+                )}
+              </View>
             </View>
-            <View style={{ flex: 1, justifyContent: "center" }}>
-              <Text style={styles.studentName}>{profile?.displayName ?? "Your Profile"}</Text>
-              <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
-              <Text style={styles.meta}>{highSchool}</Text>
-              {profile?.pageUrl && (
-                <Text style={[styles.meta, { color: "#6d5efc", marginTop: 4 }]}>
-                  {profile.pageUrl}
+          </View>
+
+          {/* Personal info CTA */}
+          <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("EditProfile")}>
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>Add Your Personal Information</Text>
+                <Text style={styles.cardSubtitle}>
+                  Share details about your background and journey.
                 </Text>
-              )}
+              </View>
+              <MaterialIcons name="chevron-right" size={24} color="#8b85c9" />
             </View>
-          </View>
-        </View>
-
-        {/* Personal info CTA */}
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate("EditProfile")}>
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Add Your Personal Information</Text>
-              <Text style={styles.cardSubtitle}>
-                Share details about your background and journey.
-              </Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color="#8b85c9" />
-          </View>
-        </TouchableOpacity>
-
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={{ flex: 1, paddingRight: 16 }}>
-              <Text style={styles.cardTitle}>Profile Completion</Text>
-              <Text style={styles.cardSubtitle}>
-                Complete your profile to unlock more opportunities.
-              </Text>
-            </View>
-            <Text style={styles.progressPercent}>{progressPercent}%</Text>
-          </View>
-
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-          </View>
-
-          <View style={styles.progressChecklist}>
-            {checklist.map((item) => (
-              <ChecklistItem key={item.label} {...item} />
-            ))}
-          </View>
-
-          <Text style={styles.footnote}>
-            Your journey continues beyond profile completion through stamps and experiences.
-          </Text>
-        </View>
-
-        <View style={styles.cardRow}>
-          <TouchableOpacity
-            style={styles.passportCard}
-            onPress={() => navigation.navigate("Passport")}
-          >
-            <MaterialIcons name="card-travel" size={32} color="#ffffff" />
-            <Text style={styles.passportTitle}>Passport</Text>
-            <Text style={styles.passportSubtitle}>View your stamps</Text>
           </TouchableOpacity>
 
-          <View style={styles.disabledCard}>
-            <MaterialIcons name="groups" size={32} color="#9ca3af" />
-            <Text style={styles.disabledTitle}>My Network</Text>
-            <Text style={styles.disabledSubtitle}>Coming soon!</Text>
-          </View>
-        </View>
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={styles.cardTitle}>Profile Completion</Text>
+                <Text style={styles.cardSubtitle}>
+                  Complete your profile to unlock more opportunities.
+                </Text>
+              </View>
+              <Text style={styles.progressPercent}>{progressPercent}%</Text>
+            </View>
 
-        <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>About Me</Text>
-            <TouchableOpacity
-              onPress={() => {
-                if (editingBio) {
-                  void handleSaveBio();
-                  return;
-                }
-                setEditingBio(true);
-              }}
-              disabled={savingBio}
-            >
-              <Text style={styles.linkText}>{editingBio ? "Save" : "Edit"}</Text>
-            </TouchableOpacity>
-          </View>
-          {editingBio ? (
-            <TextInput value={bio} onChangeText={setBio} style={styles.bioInput} multiline />
-          ) : (
-            <Text style={styles.bio}>
-              {bio || "Add a short bio about your goals and interests."}
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+            </View>
+
+            <View style={styles.progressChecklist}>
+              {checklist.map((item) => (
+                <ChecklistItem key={item.label} {...item} />
+              ))}
+            </View>
+
+            <Text style={styles.footnote}>
+              Your journey continues beyond profile completion through stamps and experiences.
             </Text>
-          )}
-        </View>
+          </View>
 
-        <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Moments</Text>
-            <TouchableOpacity>
-              <Text style={styles.linkText}>Add</Text>
+          <View style={styles.cardRow}>
+            <TouchableOpacity
+              style={styles.passportCard}
+              onPress={() => navigation.navigate("Passport")}
+            >
+              <MaterialIcons name="card-travel" size={32} color="#ffffff" />
+              <Text style={styles.passportTitle}>Passport</Text>
+              <Text style={styles.passportSubtitle}>View your stamps</Text>
             </TouchableOpacity>
+
+            <View style={styles.disabledCard}>
+              <MaterialIcons name="groups" size={32} color="#9ca3af" />
+              <Text style={styles.disabledTitle}>My Network</Text>
+              <Text style={styles.disabledSubtitle}>Coming soon!</Text>
+            </View>
           </View>
-          <View style={styles.galleryRow}>
-            <GalleryPlaceholder />
-            <GalleryPlaceholder />
-            <TouchableOpacity style={styles.galleryAddCard}>
-              <MaterialIcons name="add" size={28} color="#8b85c9" />
-            </TouchableOpacity>
+
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>About Me</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (editingBio) {
+                    void handleSaveBio();
+                    return;
+                  }
+                  setEditingBio(true);
+                }}
+                disabled={savingBio}
+              >
+                <Text style={styles.linkText}>{editingBio ? "Save" : "Edit"}</Text>
+              </TouchableOpacity>
+            </View>
+            {editingBio ? (
+              <TextInput value={bio} onChangeText={setBio} style={styles.bioInput} multiline />
+            ) : (
+              <Text style={styles.bio}>
+                {bio || "Add a short bio about your goals and interests."}
+              </Text>
+            )}
           </View>
-        </View>
-      </ScrollView>
-    </View>
+
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Moments</Text>
+              <TouchableOpacity>
+                <Text style={styles.linkText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.galleryRow}>
+              <GalleryPlaceholder />
+              <GalleryPlaceholder />
+              <TouchableOpacity style={styles.galleryAddCard}>
+                <MaterialIcons name="add" size={28} color="#8b85c9" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

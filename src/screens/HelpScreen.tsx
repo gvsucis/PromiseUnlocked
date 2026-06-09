@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 
 export default function HelpScreen() {
@@ -21,40 +23,45 @@ export default function HelpScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>Report an Issue</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <Text style={styles.title}>Report an Issue</Text>
 
-      <Text style={styles.label}>Where did you notice the issue?</Text>
+        <Text style={styles.label}>Where did you notice the issue?</Text>
 
-      <View style={styles.optionContainer}>
-        {["Chat", "Dashboard", "Profile", "Other"].map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[styles.option, location === item && styles.optionSelected]}
-            onPress={() => setLocation(item)}
-          >
-            <Text style={[styles.optionText, location === item && styles.optionTextSelected]}>
-              {item}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <View style={styles.optionContainer}>
+          {["Chat", "Dashboard", "Profile", "Other"].map((item) => (
+            <TouchableOpacity
+              key={item}
+              style={[styles.option, location === item && styles.optionSelected]}
+              onPress={() => setLocation(item)}
+            >
+              <Text style={[styles.optionText, location === item && styles.optionTextSelected]}>
+                {item}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <Text style={styles.label}>Please describe the issue</Text>
+        <Text style={styles.label}>Please describe the issue</Text>
 
-      <TextInput
-        style={styles.textArea}
-        multiline
-        value={description}
-        onChangeText={setDescription}
-        placeholder="Tell us what happened..."
-        textAlignVertical="top"
-      />
+        <TextInput
+          style={styles.textArea}
+          multiline
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Tell us what happened..."
+          textAlignVertical="top"
+        />
 
-      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-        <Text style={styles.submitText}>Submit Report</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+          <Text style={styles.submitText}>Submit Report</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
