@@ -47,5 +47,6 @@ export interface MapAnswerResponse {
   nextQuestion?: string | null;
   suggestArtifactUpload?: boolean;
   artifactUploadReason?: string;
+  specificStamp?: string;
   [key: string]: unknown;
 }

@@ -43,12 +43,19 @@ export interface PassportCategoryMapping {
   timestamp: Timestamp;
 }
 
+export interface UnlockedStampEntry {
+  timesUnlocked: number;
+  firstUnlockedAt: Timestamp;
+  lastUnlockedAt: Timestamp;
+}
+
 export interface SkillPassportDocument {
   category: string;
   firstMappedAt: Timestamp;
   lastMappedAt: Timestamp;
   totalMappings: number;
   mappings: PassportCategoryMapping[];
+  unlockedStamps?: Record<string, UnlockedStampEntry>;
 }
 
 export interface IdentifiedSkillDocument {
