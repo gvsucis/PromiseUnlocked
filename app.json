@@ -2,6 +2,7 @@
   "expo": {
     "name": "promiseUnlocked",
     "slug": "promiseunlocked",
+    "owner": "promiseunlocked",
     "scheme": "promiseunlocked",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,9 +19,16 @@
         "NSCameraUsageDescription": "This app needs access to camera to take photos of your academic transcript.",
         "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select images of your academic transcript.",
         "NSMicrophoneUsageDescription": "We use the mic to transcribe your speech on device.",
-        "NSSpeechRecognitionUsageDescription": "We use speech recognition to transcribe audio on device."
+        "NSSpeechRecognitionUsageDescription": "We use speech recognition to transcribe audio on device.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.26141705792-gbbbkovfgpsdqtlhbkfv0ebuvuibhoj3"
+            ]
+          }
+        ]
       },
-      "bundleIdentifier": "com.anonymous.TranscriptAnalyzer"
+      "bundleIdentifier": "com.anonymous.promiseUnlocked"
     },
     "android": {
       "adaptiveIcon": {
@@ -38,7 +46,19 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.TranscriptAnalyzer"
+      "package": "com.anonymous.promiseUnlocked",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "com.googleusercontent.apps.26141705792-ulrjshvjas4g8akq5n466dpc9n5c5tu9"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

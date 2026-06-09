@@ -1,6 +1,6 @@
 /**
  * Conflict Resolution Modal
- * 
+ *
  * Displays detected conflicts between new statements and existing facts,
  * allowing the user to clarify, update, or merge conflicting information.
  */
@@ -43,7 +43,9 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
   const [selectedConflict, setSelectedConflict] = useState<FactConflict | null>(null);
   const [correctedValue, setCorrectedValue] = useState("");
   const [note, setNote] = useState("");
-  const [resolutionAction, setResolutionAction] = useState<"update" | "reject" | "merge" | null>(null);
+  const [resolutionAction, setResolutionAction] = useState<"update" | "reject" | "merge" | null>(
+    null
+  );
 
   const handleResolve = () => {
     if (!selectedConflict || !resolutionAction) return;
@@ -87,12 +89,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
   if (!visible || conflicts.length === 0) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onDismiss}
-    >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
       <View style={styles.overlay}>
         <View style={styles.container}>
           <View style={styles.header}>
@@ -175,9 +172,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
                     >
                       Update It
                     </Text>
-                    <Text style={styles.actionButtonSubtext}>
-                      My info has changed
-                    </Text>
+                    <Text style={styles.actionButtonSubtext}>My info has changed</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -200,9 +195,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
                     >
                       Keep Original
                     </Text>
-                    <Text style={styles.actionButtonSubtext}>
-                      New info was a mistake
-                    </Text>
+                    <Text style={styles.actionButtonSubtext}>New info was a mistake</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -225,9 +218,7 @@ export const ConflictResolutionModal: React.FC<ConflictResolutionModalProps> = (
                     >
                       Both Are True
                     </Text>
-                    <Text style={styles.actionButtonSubtext}>
-                      I do/have both
-                    </Text>
+                    <Text style={styles.actionButtonSubtext}>I do/have both</Text>
                   </TouchableOpacity>
                 </View>
 

@@ -43,14 +43,13 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
-        void Promise.all([
-          flushPendingFirestoreWrites(),
-          clearExpiredGuestDataIfNeeded(),
-        ]).catch((error) => {
-          console.error("[FirestoreQueue] Failed to flush pending writes:", error);
-        });
+        void Promise.all([flushPendingFirestoreWrites(), clearExpiredGuestDataIfNeeded()]).catch(
+          (error) => {
+            console.error("[FirestoreQueue] Failed to flush pending writes:", error);
+          }
+        );
       } else if (nextState === "background") {
-        void saveGuestSessionTimestamp().catch(() => {});
+        saveGuestSessionTimestamp().catch(() => {});
       }
     });
 

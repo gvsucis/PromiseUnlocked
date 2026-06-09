@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { Alert, ScrollView, View, StyleSheet, TouchableOpacity, Platform, Modal } from "react-native";
+import {
+  Alert,
+  ScrollView,
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Modal,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";

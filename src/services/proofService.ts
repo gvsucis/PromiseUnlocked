@@ -47,7 +47,8 @@ async function compressProofImage(
   imageUri: string
 ): Promise<{ uri: string; sizeBytes: number | null }> {
   const originalSizeBytes = await getFileSizeBytes(imageUri);
-  if (__DEV__) console.log("[ProofUpload] Original image", { imageUri, sizeBytes: originalSizeBytes });
+  if (__DEV__)
+    console.log("[ProofUpload] Original image", { imageUri, sizeBytes: originalSizeBytes });
 
   try {
     let compressed = await ImageManipulator.manipulateAsync(
@@ -73,11 +74,12 @@ async function compressProofImage(
       compressedSizeBytes = await getFileSizeBytes(compressed.uri);
     }
 
-    if (__DEV__) console.log("[ProofUpload] Compressed image", {
-      compressedUri: compressed.uri,
-      sizeBytes: compressedSizeBytes,
-      targetMaxBytes: PROOF_TARGET_MAX_BYTES,
-    });
+    if (__DEV__)
+      console.log("[ProofUpload] Compressed image", {
+        compressedUri: compressed.uri,
+        sizeBytes: compressedSizeBytes,
+        targetMaxBytes: PROOF_TARGET_MAX_BYTES,
+      });
 
     return { uri: compressed.uri, sizeBytes: compressedSizeBytes };
   } catch (error) {
@@ -94,18 +96,20 @@ export async function uploadProofImage(params: {
   answer: string;
   imageUri: string;
 }): Promise<ProofUploadResponse> {
-  if (__DEV__) console.log("[ProofUpload] Starting upload", {
-    userId: params.userId,
-    sessionId: params.sessionId,
-    interactionId: params.interactionId,
-  });
+  if (__DEV__)
+    console.log("[ProofUpload] Starting upload", {
+      userId: params.userId,
+      sessionId: params.sessionId,
+      interactionId: params.interactionId,
+    });
 
   const compressedImage = await compressProofImage(params.imageUri);
 
-  if (__DEV__) console.log("[ProofUpload] Payload prepared", {
-    imageUri: compressedImage.uri,
-    compressedSizeBytes: compressedImage.sizeBytes,
-  });
+  if (__DEV__)
+    console.log("[ProofUpload] Payload prepared", {
+      imageUri: compressedImage.uri,
+      compressedSizeBytes: compressedImage.sizeBytes,
+    });
 
   const formData = new FormData();
   formData.append("sessionId", params.sessionId);
@@ -130,10 +134,11 @@ export async function uploadProofImage(params: {
     body: formData,
   });
 
-  if (__DEV__) console.log("[ProofUpload] Upload response", {
-    status: response.status,
-    ok: response.ok,
-  });
+  if (__DEV__)
+    console.log("[ProofUpload] Upload response", {
+      status: response.status,
+      ok: response.ok,
+    });
 
   if (!response.ok) {
     throw new Error(`Proof upload failed: ${response.status} ${response.statusText}`);
@@ -158,11 +163,12 @@ export async function fetchProofStatus(jobId: string): Promise<ProofStatusRespon
     },
   });
 
-  if (__DEV__) console.log("[ProofUpload] Status response", {
-    jobId,
-    status: response.status,
-    ok: response.ok,
-  });
+  if (__DEV__)
+    console.log("[ProofUpload] Status response", {
+      jobId,
+      status: response.status,
+      ok: response.ok,
+    });
 
   if (!response.ok) {
     throw new Error(`Proof status request failed: ${response.status} ${response.statusText}`);

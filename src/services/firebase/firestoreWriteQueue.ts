@@ -1,10 +1,7 @@
 let firestoreWriteQueue: Promise<void> = Promise.resolve();
 const retryBuffer: Array<() => Promise<void>> = [];
 
-async function runWriteTask(
-  task: () => Promise<void>,
-  rethrowOnFailure = false
-): Promise<void> {
+async function runWriteTask(task: () => Promise<void>, rethrowOnFailure = false): Promise<void> {
   try {
     await task();
   } catch (error) {

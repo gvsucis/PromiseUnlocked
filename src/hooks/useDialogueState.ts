@@ -148,8 +148,11 @@ export function useDialogueState(): DialogueState {
       return "Your response was saved on this device. Cloud sync is temporarily unavailable.";
     }
 
-    if (message.includes("System busy at the moment")) {
-      return message;
+    if (
+      message.includes("System busy at the moment") ||
+      message.includes("Failed to generate next question")
+    ) {
+      return "System busy. Please try again.";
     }
 
     return "Failed to process your answer. Please try again.";
@@ -264,7 +267,7 @@ export function useDialogueState(): DialogueState {
         setUiState("idle");
       } catch (err) {
         console.error("Error generating next question:", err);
-        setError("Failed to generate next question. Please try again.");
+        setError(getFriendlyDialogueErrorMessage(err));
         setUiState("idle");
       }
     };

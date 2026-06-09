@@ -10,10 +10,13 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "developmentClient": false
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "distribution": "store",
+      "developmentClient": false
     }
   },
   "submit": {

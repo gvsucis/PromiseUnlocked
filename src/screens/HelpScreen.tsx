@@ -14,20 +14,14 @@ export default function HelpScreen() {
   const [description, setDescription] = useState("");
 
   const handleSubmit = () => {
-    Alert.alert(
-      "Bug Report Submitted",
-      "Thank you for helping us improve the app."
-    );
+    Alert.alert("Bug Report Submitted", "Thank you for helping us improve the app.");
 
     setLocation("");
     setDescription("");
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled"
-    >
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>Report an Issue</Text>
 
       <Text style={styles.label}>Where did you notice the issue?</Text>
@@ -36,18 +30,10 @@ export default function HelpScreen() {
         {["Chat", "Dashboard", "Profile", "Other"].map((item) => (
           <TouchableOpacity
             key={item}
-            style={[
-              styles.option,
-              location === item && styles.optionSelected,
-            ]}
+            style={[styles.option, location === item && styles.optionSelected]}
             onPress={() => setLocation(item)}
           >
-            <Text
-              style={[
-                styles.optionText,
-                location === item && styles.optionTextSelected,
-              ]}
-            >
+            <Text style={[styles.optionText, location === item && styles.optionTextSelected]}>
               {item}
             </Text>
           </TouchableOpacity>
@@ -65,10 +51,7 @@ export default function HelpScreen() {
         textAlignVertical="top"
       />
 
-      <TouchableOpacity
-        style={styles.submitButton}
-        onPress={handleSubmit}
-      >
+      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
         <Text style={styles.submitText}>Submit Report</Text>
       </TouchableOpacity>
     </ScrollView>

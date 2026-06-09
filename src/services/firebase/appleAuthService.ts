@@ -1,4 +1,9 @@
-import { OAuthProvider, linkWithCredential, signInWithCredential, updateProfile } from "firebase/auth";
+import {
+  OAuthProvider,
+  linkWithCredential,
+  signInWithCredential,
+  updateProfile,
+} from "firebase/auth";
 import { auth } from "../../config/firebase";
 
 interface AppleProfileInput {

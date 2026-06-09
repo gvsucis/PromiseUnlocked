@@ -14,13 +14,13 @@ export class GuestUserError extends Error {
 }
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // Anonymous (guest) users don't have backend accounts — skip the network
+  // Anonymous (guest) or unauthenticated users don't have backend accounts — skip the network
   // call entirely instead of making a request that will always return 401.
-  if (auth.currentUser?.isAnonymous) {
+  if (!auth.currentUser || auth.currentUser.isAnonymous) {
     throw new GuestUserError();
   }
 
-  const token = await auth.currentUser?.getIdToken();
+  const token = await auth.currentUser.getIdToken();
   const method = (options.method ?? "GET").toUpperCase();
   const url = `${CONFIG.API_BASE_URL}${path}`;
   const headers = {

@@ -19,7 +19,7 @@ export async function searchPdfContext(query: string, limit = 3): Promise<string
     return "";
   }
 
-  const url = `${CONFIG.API_BASE_URL}/api/profile-embeddings/search`;
+  const url = `${CONFIG.API_BASE_URL}/profile-embeddings/search`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
 

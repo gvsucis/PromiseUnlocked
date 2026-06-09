@@ -7,7 +7,12 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
-import { fetchProfile, updateProfile, buildLocalProfile, type UserProfile } from "../services/profileService";
+import {
+  fetchProfile,
+  updateProfile,
+  buildLocalProfile,
+  type UserProfile,
+} from "../services/profileService";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -43,7 +48,10 @@ export default function ProfileScreen() {
         setBio(typeof bioValue === "string" ? bioValue : "");
       })
       .catch((error) => {
-        console.warn("Failed to fetch profile from backend, falling back to local auth data:", error);
+        console.warn(
+          "Failed to fetch profile from backend, falling back to local auth data:",
+          error
+        );
         // Fallback to local Firebase Auth data if backend is unreachable
         setProfile(buildLocalProfile());
         setBio("");
@@ -139,7 +147,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         <View style={styles.card}>
-          <View style={[styles.row, { marginBottom: 14 }]}>
+          <View style={styles.row}>
             <View style={{ flex: 1, paddingRight: 16 }}>
               <Text style={styles.cardTitle}>Profile Completion</Text>
               <Text style={styles.cardSubtitle}>
@@ -229,8 +237,8 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f7fc',
-    paddingTop: 80,
+    backgroundColor: "#f8f7fc",
+    paddingTop: 50,
   },
 
   scrollContent: { paddingBottom: 32 },
@@ -239,10 +247,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 24,
     paddingHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  title: { fontSize: 28, fontWeight: "700", color: "#111827", marginTop: 10 },
-  subtitle: { fontSize: 14, color: "#6b7280", marginTop: 6, textAlign: "center" },
+  title: { fontSize: 28, fontWeight: "700", color: "#111827" },
+  subtitle: { fontSize: 14, color: "#6b7280", marginTop: 4, textAlign: "center" },
 
   card: {
     backgroundColor: "#ffffff",
@@ -254,7 +262,7 @@ const styles = StyleSheet.create({
     borderColor: "#e9e7f7",
   },
 
-  row: { flexDirection: "row", alignItems: "center" },
+  row: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
 
   profileHeader: { flexDirection: "row", alignItems: "center" },
   avatarCircle: {
@@ -342,7 +350,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
 
-  galleryRow: { flexDirection: "row", gap: 12, marginTop: 8 },
+  galleryRow: { flexDirection: "row", gap: 12 },
   galleryPlaceholder: {
     width: 88,
     height: 88,

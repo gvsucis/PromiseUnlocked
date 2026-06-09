@@ -131,7 +131,13 @@ export function VoiceRecordingModal({
   onCancel,
 }: Readonly<VoiceRecordingModalProps>) {
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onCancel}
+    >
       <TouchableWithoutFeedback onPress={onCancel}>
         <View style={styles.modalOverlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
@@ -167,7 +173,7 @@ export function VoiceRecordingModal({
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,

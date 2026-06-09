@@ -15,16 +15,16 @@ import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 // ============================================================================
 // RETROACTIVE PROOF UPLOAD (FOR FUTURE IMPLEMENTATION)
 // ============================================================================
-// When the stamp system is fully completed, users should be able to upload 
-// proof for already-mapped categories from this screen. 
-// 
+// When the stamp system is fully completed, users should be able to upload
+// proof for already-mapped categories from this screen.
+//
 // Flow:
 // 1. User taps "Add Proof" on a completed stamp.
 // 2. App opens image picker (camera/gallery).
 // 3. Image is compressed and sent to the existing `/api/chat/proof/upload` endpoint.
 // 4. Background worker verifies the image and upgrades the stamp tier (T2 -> T3/T4).
-// 
-// TODO: Integrate with `useProofUpload` hook or `uploadProofImage` service 
+//
+// TODO: Integrate with `useProofUpload` hook or `uploadProofImage` service
 // when the backend interaction-to-stamp mapping is fully wired.
 // ============================================================================
 
@@ -35,7 +35,7 @@ function handleAddProofRetroactively(stampName: string, region: string) {
     `You will soon be able to upload a photo or artifact to upgrade your "${stampName}" stamp to a higher tier.`,
     [{ text: "OK" }]
   );
-  
+
   /* 
   FUTURE IMPLEMENTATION EXAMPLE:
   const imageUri = await launchImageLibraryAsync({ ... });

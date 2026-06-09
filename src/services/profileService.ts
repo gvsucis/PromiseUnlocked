@@ -13,7 +13,13 @@ export interface UserProfile {
   schoolName?: string | null;
   schoolAddress?: string | null;
   phone?: string | null;
-  address?: { street?: string; city?: string; state?: string; postalCode?: string; country?: string } | null;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  } | null;
   dateOfBirth?: string | null;
   gender?: string | null;
   ethnicity?: string | null;
@@ -76,7 +82,7 @@ export async function fetchProfile(): Promise<UserProfile> {
   }
 
   try {
-    const data = await apiFetch<{ participant?: UserProfile }>("/api/participants/me");
+    const data = await apiFetch<{ participant?: UserProfile }>("/participants/me");
     return data.participant ?? buildLocalProfile();
   } catch (error) {
     if (!(error instanceof GuestUserError)) {
@@ -92,7 +98,7 @@ export async function updateProfile(updates: Partial<UserProfile>): Promise<User
   }
 
   try {
-    const data = await apiFetch<{ participant?: UserProfile }>("/api/participants/me", {
+    const data = await apiFetch<{ participant?: UserProfile }>("/participants/me", {
       method: "PUT",
       body: JSON.stringify(updates),
     });
@@ -113,7 +119,7 @@ export async function fetchUserSessionHistory(): Promise<
   }
 
   try {
-    return await apiFetch<{ sessionId: string; timestamp: string }[]>("/api/user/sessions");
+    return await apiFetch<{ sessionId: string; timestamp: string }[]>("/participants/me/sessions");
   } catch (error) {
     if (!(error instanceof GuestUserError)) {
       console.warn("[profileService] Falling back to empty session history:", error);
@@ -128,7 +134,7 @@ export async function fetchUserSessionDetails(_sessionId: string): Promise<unkno
   }
 
   try {
-    return await apiFetch(`/api/user/sessions/${_sessionId}`);
+    return await apiFetch(`/participants/me/sessions/${_sessionId}`);
   } catch (error) {
     console.warn("[profileService] Falling back to empty session details:", error);
     return null;

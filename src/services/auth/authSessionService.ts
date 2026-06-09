@@ -9,9 +9,13 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { doc, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
+import { collection, doc, getDocs, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "../../config/firebase";
-import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../../utils/asyncStorage";
+import {
+  getJSONFromStorage,
+  removeManyFromStorage,
+  setJSONInStorage,
+} from "../../utils/asyncStorage";
 import type { AppAuthSession } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
 
@@ -67,6 +71,12 @@ async function handleAuthenticatedUser(
     previousSession.uid !== null &&
     previousSession.uid !== nextSession.uid;
 
+  // Restore passport mappings from Firestore to AsyncStorage before emitting
+  // the session, so screens (Passport, DialogueDashboard) see the data on mount.
+  if (!user.isAnonymous) {
+    await hydratePassportMappings(user.uid);
+  }
+
   emitSession(nextSession);
   await persistSession(nextSession);
 
@@ -85,6 +95,44 @@ async function handleAuthenticatedUser(
   });
 
   return nextSession;
+}
+
+async function hydratePassportMappings(uid: string): Promise<void> {
+  try {
+    const passportRef = collection(db, "participants", uid, "skillPassport");
+    const snapshot = await getDocs(passportRef);
+    if (snapshot.empty) return;
+
+    const mappedCategoriesKey = `@mappedCategories:${uid}`;
+    const existing = await getJSONFromStorage<unknown[]>(mappedCategoriesKey, []);
+
+    if (existing.length >= snapshot.size) return;
+
+    const mappedCategories: {
+      category: string;
+      justification: string;
+      dateIdentified: string;
+      timesMapped: number;
+    }[] = [];
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      const category = data.category as string | undefined;
+      if (!category) return;
+      mappedCategories.push({
+        category,
+        justification: "",
+        dateIdentified: (data.firstMappedAt?.toDate?.() ?? new Date()).toISOString(),
+        timesMapped: (data.totalMappings as number) ?? 1,
+      });
+    });
+
+    await setJSONInStorage(mappedCategoriesKey, mappedCategories);
+    console.log(
+      `[AuthSession] Hydrated ${mappedCategories.length} passport mappings from Firestore`
+    );
+  } catch (error) {
+    console.warn("[AuthSession] Failed to hydrate passport mappings:", error);
+  }
 }
 
 async function clearLocalDataForUid(uid: string): Promise<void> {

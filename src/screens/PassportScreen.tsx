@@ -1,39 +1,64 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 import { RadarChart } from "react-native-gifted-charts";
+import { getMappedCategories } from "../services/categoryStorageService";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
+
+const REGION_TO_CATEGORY: Record<string, string> = {
+  "Human Skills": "Human Skills (Durable)",
+  "Digital & Tech Fluency": "Technological Fluency",
+};
+
+const radarLabelMap: Record<string, string> = {
+  "Human Skills": "Human Skills",
+  "Creative Expression & Communication": "Creative",
+  "Problem-Solving & Systems Thinking": "Problem-Solving",
+  "Work & Entrepreneurial Experience": "Work & Entrepreneurship",
+  "Future Self & Directionality": "Future Self",
+  "Meta-Learning & Self-Awareness": "Meta-Learning",
+  "Maker & Builder Skills": "Maker & Builder",
+  "Civic & Community Impact": "Civic & Community",
+  "Digital & Tech Fluency": "Tech Fluency",
+  "Wellbeing & Personal Resilience": "Wellbeing",
+  "Faith, Culture & Identity": "Faith & Culture",
+};
 
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
 
   const regions = Object.keys(SKILLS_TAXONOMY);
+  const [radarData, setRadarData] = useState<number[]>(regions.map(() => 0));
 
-  const radarLabelMap: Record<string, string> = {
-    "Human Skills (Durable)": "Human Skills",
-    "Creative Expression & Communication": "Creative",
-    "Problem-Solving & Systems Thinking": "Problem-Solving",
-    "Work & Entrepreneurial Experience": "Work & Entrepreneurship",
-    "Future Self & Directionality": "Future Self",
-    "Meta-Learning & Self-Awareness": "Meta-Learning",
-    "Maker & Builder Skills": "Maker & Builder",
-    "Civic & Community Impact": "Civic & Community",
-    "Digital & Tech Fluency": "Tech Fluency",
-    "Wellbeing & Personal Resilience": "Wellbeing",
-    "Faith, Culture & Identity": "Faith & Culture",
-  };
+  const loadData = useCallback(async () => {
+    try {
+      const mappedCategories = await getMappedCategories();
+      const mappedNames = new Set(mappedCategories.map((c) => c.category));
+      setRadarData(
+        regions.map((region) => {
+          const categoryName = REGION_TO_CATEGORY[region] ?? region;
+          return mappedNames.has(categoryName) ? 100 : 0;
+        })
+      );
+    } catch {
+      // silently keep zeros
+    }
+  }, [regions]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const radarLabels: string[] = regions.map((region) => radarLabelMap[region] ?? region);
-
-  // data must be number[] — swap 0s for real scores (0–100) when ready
-  const radarData: number[] = regions.map(() => 0);
 
   return (
     <SafeAreaView style={styles.container}>

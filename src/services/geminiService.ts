@@ -353,9 +353,7 @@ export class GeminiService {
    * PUBLIC API: Check if an image is within the acceptable size limit for vision analysis.
    * Returns { valid: boolean; message?: string } — if invalid, message explains why.
    */
-  public static async validateImageSize(
-    imageUri: string
-  ): Promise<{ valid: boolean }> {
+  public static async validateImageSize(imageUri: string): Promise<{ valid: boolean }> {
     const size = await this.getFileSizeBytes(imageUri);
     if (size === null) return { valid: true };
     return { valid: size <= this.MAX_VISION_IMAGE_BYTES };
@@ -371,7 +369,9 @@ export class GeminiService {
     skipCompression?: boolean
   ): Promise<{ success: boolean; rawResponse?: string; error?: string }> {
     try {
-      const optimizedImageUri = skipCompression ? imageUri : await this.compressImageForVision(imageUri);
+      const optimizedImageUri = skipCompression
+        ? imageUri
+        : await this.compressImageForVision(imageUri);
       const base64Image = await this.encodeImageToBase64(optimizedImageUri);
 
       const requestBody = {

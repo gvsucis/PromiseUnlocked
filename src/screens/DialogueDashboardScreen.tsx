@@ -723,8 +723,7 @@ export default function DialogueDashboardScreen() {
                   }
                 }}
                 disabled={
-                  uiState !== "idle" ||
-                  (session.mode === "guest" && mappedCategories.length >= 1)
+                  uiState !== "idle" || (session.mode === "guest" && mappedCategories.length >= 1)
                 }
                 activeOpacity={0.8}
               >
@@ -966,7 +965,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     marginBottom: 20,
-    paddingTop: 80,
+    paddingTop: 20,
   },
   title: {
     fontSize: 28,

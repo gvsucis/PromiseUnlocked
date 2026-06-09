@@ -7,7 +7,10 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../types/navigation";
 import { TranscriptAnalysis, Course } from "../types";
-import { mapSkillsToTaxonomy, normalizeTaxonomyCategoryName } from "../services/skillTaxonomyService";
+import {
+  mapSkillsToTaxonomy,
+  normalizeTaxonomyCategoryName,
+} from "../services/skillTaxonomyService";
 import { saveIdentifiedSkills } from "../services/userSkillsService";
 
 interface ActionAnalysisResult {

@@ -16,6 +16,7 @@ import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 import { getMappingStats } from "../services/categoryStorageService";
+import { getCurrentAuthSession, subscribeToAuthSession } from "../services/auth/authSessionService";
 import type { GuestUpgradeDecision } from "../services/firebase/googleAuthService";
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
@@ -106,6 +107,19 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
     try {
       setEmailLoading(true);
       await signInWithEmail(email, password);
+
+      const session = getCurrentAuthSession();
+      if (session.mode !== "authenticated") {
+        await new Promise<void>((resolve) => {
+          const unsub = subscribeToAuthSession((s) => {
+            if (s.mode === "authenticated") {
+              unsub();
+              resolve();
+            }
+          });
+        });
+      }
+
       navigation.replace("MainTabs");
     } catch (error: unknown) {
       const { code, message } = getErrorDetails(error);
@@ -128,7 +142,6 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
       }
 
       Alert.alert("Error", msg);
-    } finally {
       setEmailLoading(false);
     }
   };

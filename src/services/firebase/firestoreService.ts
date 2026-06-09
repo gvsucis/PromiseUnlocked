@@ -283,6 +283,33 @@ export async function savePassportMapping(
   }
 }
 
+export async function fetchPassportMappings(
+  userId: string
+): Promise<{ category: string; firstMappedAt: Date; totalMappings: number }[]> {
+  try {
+    const passportRef = collection(db, "participants", userId, "skillPassport");
+    const snapshot = await getDocs(passportRef);
+    const mappings: { category: string; firstMappedAt: Date; totalMappings: number }[] = [];
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const category = data.category as string | undefined;
+      if (!category) return;
+
+      mappings.push({
+        category,
+        firstMappedAt: data.firstMappedAt?.toDate?.() ?? new Date(),
+        totalMappings: (data.totalMappings as number) ?? 1,
+      });
+    });
+
+    return mappings;
+  } catch (err) {
+    console.error("[Firestore] Failed to fetch passport mappings:", err);
+    return [];
+  }
+}
+
 //
 // Identified skill writes
 //
