@@ -541,7 +541,8 @@ Rules:
 5. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
 6. Keep the justification short and factual, with at most 30 words.
 7. Generate a thoughtful follow-up question that directly follows from the user's answer and helps identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.
-8. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.${contextBlock}`;
+8. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.
+9. Also pick the single most specific stamp name from the "Available Stamps" list for the chosen category. Set specificStamp to the exact stamp name. If the answer does not clearly point to any specific stamp, set specificStamp to the first available stamp.${contextBlock}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
@@ -562,6 +563,7 @@ Rules:
                 nextQuestion: { type: "string" },
                 suggestArtifactUpload: { type: "boolean" },
                 artifactUploadReason: { type: "string" },
+                specificStamp: { type: "string" },
               },
               required: ["category", "justification", "suggestArtifactUpload"],
             },
@@ -685,6 +687,7 @@ Rules:
       category,
       justification,
       nextQuestion: null,
+      specificStamp: category,
     };
   }
 
