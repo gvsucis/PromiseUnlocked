@@ -12,6 +12,8 @@ export interface StampFamily {
 
 export type StampTaxonomy = Record<string, StampFamily[]>;
 
+export type DerivedSkillsTaxonomy = Record<string, string[]>;
+
 export const STAMP_TAXONOMY: StampTaxonomy = {
   "Human Skills (Durable)": [
     {
@@ -431,3 +433,25 @@ export const STAMP_TAXONOMY: StampTaxonomy = {
     },
   ],
 };
+
+/**
+ * Derive SKILLS_TAXONOMY from STAMP_TAXONOMY
+ * stampCategories with detailedStamps → "stampCategory: DetailName" items
+ * stampCategories without detailedStamps → bare-name items
+ */
+export function computeDerivedSkills(): DerivedSkillsTaxonomy {
+  const derived: DerivedSkillsTaxonomy = {};
+  for (const [category, families] of Object.entries(STAMP_TAXONOMY)) {
+    derived[category] = [];
+    for (const family of families) {
+      if (family.detailedStamps?.length) {
+        for (const detail of family.detailedStamps) {
+          derived[category].push(`${family.stampCategory}: ${detail.name}`);
+        }
+      } else {
+        derived[category].push(family.stampCategory);
+      }
+    }
+  }
+  return derived;
+}

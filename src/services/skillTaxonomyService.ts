@@ -7,23 +7,8 @@
 import { SKILLS_TAXONOMY, SKILL_SYNONYMS } from "../config/skillsTaxonomy";
 export { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 
-const CATEGORY_ALIASES: Record<string, string> = {
-  // Map stampTaxonomy formal names to SKILLS_TAXONOMY category names
-  "Human Skills (Durable)": "Human Skills",
-  "Meta-Learning & Self-Awareness": "Meta-Learning & Self-Awareness",
-  "Maker & Builder Skills": "Maker & Builder",
-  "Civic & Community Impact": "Civic & Community",
-  "Creative Expression & Communication": "Creative Expression",
-  "Problem-Solving & Systems Thinking": "Problem-Solving",
-  "Work & Entrepreneurial Experience": "Work Experience",
-  "Future Self & Directionality": "Future Self & Direction",
-  "Digital & Tech Fluency": "Technological Fluency",
-  "Wellbeing & Personal Resilience": "Wellbeing & Personal Resilience",
-  "Faith, Culture & Identity": "Faith, Culture & Identity",
-};
-
 export function normalizeTaxonomyCategoryName(category: string): string {
-  return CATEGORY_ALIASES[category.trim()] ?? category.trim();
+  return category.trim();
 }
 
 type SkillMatch = {
