@@ -513,7 +513,7 @@ export default function DialogueDashboardScreen() {
   const handleCardClick = (categoryName: string) => {
     const mapped = mappedCategories.find((c) => c.category === categoryName);
     if (mapped) {
-      Alert.alert(categoryName, `Why you have this trait:\n\n"${mapped.justification}"`, [
+      Alert.alert(categoryName, `Why you have this trait:\n"${mapped.justification}"`, [
         { text: "OK" },
       ]);
     } else if (mappedCategories.length === 0) {

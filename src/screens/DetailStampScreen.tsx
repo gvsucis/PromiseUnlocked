@@ -1,16 +1,19 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MaterialIcons } from "@expo/vector-icons";
 
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 
 import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
-import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { computeDerivedSkills } from "../config/stampTaxonomy";
+import { getUnlockedStampsForCategory } from "../services/categoryStorageService";
+
+const DERIVED_SKILLS = computeDerivedSkills();
 
 // ============================================================================
 // RETROACTIVE PROOF UPLOAD (FOR FUTURE IMPLEMENTATION)
@@ -18,33 +21,16 @@ import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
 // When the stamp system is fully completed, users should be able to upload
 // proof for already-mapped categories from this screen.
 //
-// Flow:
-// 1. User taps "Add Proof" on a completed stamp.
-// 2. App opens image picker (camera/gallery).
-// 3. Image is compressed and sent to the existing `/api/chat/proof/upload` endpoint.
-// 4. Background worker verifies the image and upgrades the stamp tier (T2 -> T3/T4).
-//
 // TODO: Integrate with `useProofUpload` hook or `uploadProofImage` service
 // when the backend interaction-to-stamp mapping is fully wired.
 // ============================================================================
 
 function handleAddProofRetroactively(stampName: string, region: string) {
-  // Placeholder for future implementation
   Alert.alert(
     "Add Proof (Coming Soon)",
     `You will soon be able to upload a photo or artifact to upgrade your "${stampName}" stamp to a higher tier.`,
     [{ text: "OK" }]
   );
-
-  /* 
-  FUTURE IMPLEMENTATION EXAMPLE:
-  const imageUri = await launchImageLibraryAsync({ ... });
-  if (imageUri) {
-    await uploadProofImage({ 
-      // ... params including the specific interactionId linked to this stamp
-    });
-  }
-  */
 }
 
 type StampDetailRouteProp = RouteProp<RootStackParamList, "StampDetails">;
@@ -55,10 +41,26 @@ export default function StampDetailScreen() {
   const navigation = useNavigation<StampDetailNavigationProp>();
   const route = useRoute<StampDetailRouteProp>();
   const { stamp, region } = route.params;
-  const stamps = SKILLS_TAXONOMY[region];
+  const stamps = DERIVED_SKILLS[region] ?? [];
   const currentIndex = stamps.indexOf(stamp);
   const previousStamp = currentIndex > 0 ? stamps[currentIndex - 1] : null;
   const nextStamp = currentIndex < stamps.length - 1 ? stamps[currentIndex + 1] : null;
+
+  const [unlockInfo, setUnlockInfo] = useState<{ name: string; timesUnlocked: number } | null>(
+    null
+  );
+
+  const loadUnlockInfo = useCallback(async () => {
+    const unlocks = await getUnlockedStampsForCategory(region);
+    const found = unlocks.find((u) => u.name === stamp);
+    setUnlockInfo(found ?? null);
+  }, [region, stamp]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUnlockInfo();
+    }, [loadUnlockInfo])
+  );
 
   function goToPreviousStamp() {
     if (!previousStamp) return;
@@ -104,13 +106,24 @@ export default function StampDetailScreen() {
         </View>
 
         <View style={styles.badgeContainer}>
-          <View style={styles.badgeCircle}>
-            <MaterialIcons name="school" size={42} color="#2E6EE6" />
+          <View style={[styles.badgeCircle, unlockInfo && styles.badgeCircleUnlocked]}>
+            <MaterialIcons
+              name={unlockInfo ? "check-circle" : "school"}
+              size={42}
+              color={unlockInfo ? "#FFFFFF" : "#2E6EE6"}
+            />
           </View>
 
           <Text style={styles.title}>{stamp}</Text>
 
           <Text style={styles.subtitle}>{region}</Text>
+
+          {unlockInfo && (
+            <View style={styles.unlockedBadge}>
+              <MaterialIcons name="lock-open" size={16} color="#FFFFFF" />
+              <Text style={styles.unlockedBadgeText}>Unlocked ×{unlockInfo.timesUnlocked}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -196,6 +209,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  badgeCircleUnlocked: {
+    backgroundColor: "#2E6EE6",
+    borderColor: "#1B3A72",
+  },
+
   title: {
     fontSize: 22,
     fontWeight: "bold",
@@ -207,6 +225,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6B7A99",
     marginTop: 4,
+  },
+
+  unlockedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2E6EE6",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginTop: 8,
+  },
+
+  unlockedBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    marginLeft: 4,
   },
 
   card: {
