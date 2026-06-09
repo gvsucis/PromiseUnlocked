@@ -20,6 +20,7 @@ import {
   isCategoryMapped,
   getMappedCategory,
   updateMappedCategoryCounter,
+  addStampUnlock,
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { searchPdfContext } from "../services/profileEmbeddingService";
@@ -292,7 +293,7 @@ export function useDialogueState(): DialogueState {
         controller.signal
       );
 
-      const { category: rawCategory, justification, nextQuestion } = result;
+      const { category: rawCategory, justification, nextQuestion, specificStamp } = result;
       const validCategory = findValidCategory(rawCategory);
       const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
 
@@ -326,6 +327,10 @@ export function useDialogueState(): DialogueState {
         console.log(
           `NEW ${categoryNameToCheck} category added: counter = ${newMappedCategory.timesMapped}`
         );
+
+        if (specificStamp) {
+          await addStampUnlock(categoryNameToCheck, specificStamp);
+        }
 
         const interaction: ConversationInteraction = {
           question,
@@ -368,6 +373,10 @@ export function useDialogueState(): DialogueState {
         console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
         const mappedCategory = await getMappedCategory(categoryNameToCheck);
         const updatedMappedCategory = await updateMappedCategoryCounter(mappedCategory);
+
+        if (specificStamp) {
+          await addStampUnlock(categoryNameToCheck, specificStamp);
+        }
 
         // ensures no duplicate categories are added to array of mapped categories
         const dedupedMappedCategories = mappedCategories.map((c) =>
