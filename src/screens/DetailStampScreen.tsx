@@ -11,7 +11,8 @@ import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { computeDerivedSkills } from "../config/stampTaxonomy";
-import { TIER_CONFIG, DEFAULT_TIER } from "../config/stampConstants";
+import { DEFAULT_TIER } from "../config/stampConstants";
+import StampBadge from "../components/stamps/StampBadge";
 import {
   getUnlockedStampsForCategory,
   getMappedCategory,
@@ -36,7 +37,6 @@ export default function StampDetailScreen() {
   } | null>(null);
   const [justification, setJustification] = useState<string | null>(null);
   const [unlockedNames, setUnlockedNames] = useState<Set<string>>(new Set());
-
   const unlockedStamps = allStamps.filter((s) => {
     if (unlockedNames.has(s)) return true;
     const bare = s.split(": ").pop();
@@ -48,9 +48,6 @@ export default function StampDetailScreen() {
     currentIndex < unlockedStamps.length - 1 ? unlockedStamps[currentIndex + 1] : null;
 
   const tier = unlockInfo?.tier ?? DEFAULT_TIER;
-  const tierCfg =
-    TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ??
-    TIER_CONFIG[DEFAULT_TIER as keyof typeof TIER_CONFIG];
 
   const loadUnlockInfo = useCallback(async () => {
     const unlocks = await getUnlockedStampsForCategory(region);
@@ -88,6 +85,12 @@ export default function StampDetailScreen() {
     });
   }
 
+  const badgeContent = !unlockInfo ? (
+    <MaterialIcons name="school" size={50} color="#2E6EE6" />
+  ) : (
+    <StampBadge stampName={stamp} tier={tier} size="detail" />
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -116,21 +119,7 @@ export default function StampDetailScreen() {
         </View>
 
         <View style={styles.badgeContainer}>
-          <View
-            style={[
-              styles.badgeCircle,
-              unlockInfo && {
-                backgroundColor: tierCfg.color,
-                borderColor: tierCfg.color,
-              },
-            ]}
-          >
-            {unlockInfo ? (
-              <Text style={styles.badgeTierText}>{tierCfg.label}</Text>
-            ) : (
-              <MaterialIcons name="school" size={42} color="#2E6EE6" />
-            )}
-          </View>
+          <View style={styles.badgeCircle}>{badgeContent}</View>
 
           <Text style={styles.title}>{stamp}</Text>
 
@@ -200,20 +189,12 @@ const styles = StyleSheet.create({
   },
 
   badgeCircle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#EEF4FF",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#D6E4FF",
     marginBottom: 12,
-  },
-
-  badgeCircleUnlocked: {
-    backgroundColor: "#2E6EE6",
-    borderColor: "#1B3A72",
   },
 
   title: {
@@ -267,11 +248,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#374151",
     lineHeight: 22,
-  },
-
-  badgeTierText: {
-    color: "#FFFFFF",
-    fontSize: 32,
-    fontWeight: "800",
   },
 });
