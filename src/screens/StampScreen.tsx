@@ -7,6 +7,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { computeDerivedSkills, REGIONS } from "../config/stampTaxonomy";
 import { TIER_CONFIG, DEFAULT_TIER } from "../config/stampConstants";
+import StampBadge from "../components/stamps/StampBadge";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getMappedCategories,
@@ -134,13 +135,8 @@ export default function StampScreen() {
                   style={styles.stampItem}
                   onPress={() => navigation.navigate("StampDetails", { stamp, region })}
                 >
-                  <View
-                    style={[
-                      styles.stampCircle,
-                      { backgroundColor: tierCfg.color, borderColor: tierCfg.color },
-                    ]}
-                  >
-                    <Text style={styles.tierText}>{tierCfg.label}</Text>
+                  <View style={styles.stampCircle}>
+                    <StampBadge stampName={stamp} tier={tier} size="list" />
                     {count > 1 && (
                       <View style={styles.countBadge}>
                         <Text style={styles.countText}>×{count}</Text>
@@ -216,15 +212,13 @@ const styles = StyleSheet.create({
   },
 
   stampCircle: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    width: 94,
+    height: 94,
+    borderRadius: 47,
     backgroundColor: "#EEF4FF",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
-    borderWidth: 2,
-    borderColor: "#D6E4FF",
   },
 
   stampCircleUnlocked: {
@@ -260,12 +254,6 @@ const styles = StyleSheet.create({
   countText: {
     color: "#FFFFFF",
     fontSize: 10,
-    fontWeight: "800",
-  },
-
-  tierText: {
-    color: "#FFFFFF",
-    fontSize: 18,
     fontWeight: "800",
   },
 
