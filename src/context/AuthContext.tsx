@@ -1,15 +1,19 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { AppState } from "react-native";
 import type { AppAuthSession } from "../types/auth";
 import {
   bootstrapAuthSession,
+  clearExpiredGuestDataIfNeeded,
   continueAsGuest,
   getCurrentAuthSession,
   logoutToGuest,
   resetPassword,
+  saveGuestSessionTimestamp,
   signInWithEmail,
   signUpWithEmail,
   subscribeToAuthSession,
 } from "../services/auth/authSessionService";
+import { flushPendingFirestoreWrites } from "../services/firebase/firestoreWriteQueue";
 
 interface AuthContextValue {
   session: AppAuthSession;
@@ -37,7 +41,22 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       setIsReady(true);
     });
 
-    return unsubscribe;
+    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void Promise.all([flushPendingFirestoreWrites(), clearExpiredGuestDataIfNeeded()]).catch(
+          (error) => {
+            console.error("[FirestoreQueue] Failed to flush pending writes:", error);
+          }
+        );
+      } else if (nextState === "background") {
+        saveGuestSessionTimestamp().catch(() => {});
+      }
+    });
+
+    return () => {
+      appStateSubscription.remove();
+      unsubscribe();
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(

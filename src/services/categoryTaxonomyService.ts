@@ -4,6 +4,8 @@
  * Aligned to the 11 top-level skill groups used across the app
  */
 
+import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+
 export interface CategoryDefinition {
   category: string;
   description: string;
@@ -16,6 +18,7 @@ export interface MappedCategory {
   justification: string;
   dateIdentified: string;
   timesMapped: number;
+  unlockedStamps?: Array<{ name: string; timesUnlocked: number }>;
 }
 
 export interface ConversationInteraction {
@@ -125,11 +128,14 @@ export const INITIAL_PROMPT = "What are you doing when you lose track of time?";
 
 /**
  * Get taxonomy as formatted string for prompts
+ * Includes derived stamp list from STAMP_TAXONOMY per category
  */
 export function getTaxonomyString(): string {
-  return ALL_CATEGORIES.map(
-    (t) => `${t.category}: ${t.description} | Sample Experience Stamps: ${t.stamps}`
-  ).join("\n");
+  return ALL_CATEGORIES.map((t) => {
+    const stamps = SKILLS_TAXONOMY[t.category];
+    const stampList = stamps?.length ? stamps.join(", ") : t.stamps;
+    return `${t.category}: ${t.description} | Available Stamps: ${stampList}`;
+  }).join("\n");
 }
 
 /**

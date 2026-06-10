@@ -1,11 +1,12 @@
 import React, { useRef, useState } from "react";
 import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
-import { Text, Card, ActivityIndicator } from "react-native-paper";
+import { Text, Card, ActivityIndicator, Snackbar } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import ConfettiCannon from "react-native-confetti-cannon";
+import { useNavigation, useIsFocused } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
-import { useNavigation } from "@react-navigation/native";
 import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
 import { GeminiService } from "../services/geminiService";
 import { ImagePickerService } from "../services/imagePickerService";
@@ -26,11 +27,14 @@ import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal"
 import { CategoryCard } from "../components/dialogue/CategoryCard";
 import { useDialogueState } from "../hooks/useDialogueState";
 import { useAuth } from "../context/AuthContext";
+import { fetchProofStatus, uploadProofImage } from "../services/proofService";
+import { getOrStartSession } from "../services/sessionManager";
 
 const { width } = Dimensions.get("window");
 
 export default function DialogueDashboardScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, "DialogueDashboard">>();
+  const isFocused = useIsFocused();
   const { session, logoutToGuest } = useAuth();
   const {
     mappedCategories,
@@ -43,6 +47,7 @@ export default function DialogueDashboardScreen() {
     showConfetti,
     loading,
     prefetchedQuestion,
+    pendingProofRequest,
     setUserAnswer,
     setUiState,
     setCurrentPrompt,
@@ -55,6 +60,9 @@ export default function DialogueDashboardScreen() {
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
     dismissAnswerModal,
+    clearPendingProofRequest,
+    setLoadingMessage,
+    setError,
   } = useDialogueState();
 
   const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
@@ -78,9 +86,12 @@ export default function DialogueDashboardScreen() {
   const [zoomViewerVisible, setZoomViewerVisible] = React.useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = React.useState(false);
   const [isAnswerFromVoice, setIsAnswerFromVoice] = React.useState(false);
+  const [showProofImageEditor, setShowProofImageEditor] = React.useState(false);
+  const [tempProofImageUri, setTempProofImageUri] = React.useState<string | null>(null);
+  const [isUploadingProof, setIsUploadingProof] = React.useState(false);
 
   React.useLayoutEffect(() => {
-    navigation.setOptions({
+    navigation.getParent()?.setOptions({
       headerRight: () => (
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -108,6 +119,17 @@ export default function DialogueDashboardScreen() {
       ),
     });
   }, [navigation, session.mode, uiState]);
+
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener("blur", () => {
+      setShowProofImageEditor(false);
+      setTempProofImageUri(null);
+      setIsUploadingProof(false);
+      clearPendingProofRequest();
+    });
+
+    return unsubscribe;
+  }, [navigation, clearPendingProofRequest]);
 
   const handleAccountPress = () => {
     navigation.navigate("Login");
@@ -159,7 +181,7 @@ export default function DialogueDashboardScreen() {
     setCurrentPrompt("");
     setQuestionModalText("");
     suppressModalReopenRef.current = false;
-    mapAnswerToCategory(q, text);
+    void mapAnswerToCategory(q, text);
   };
 
   const handleInputTypeSelect = async (method: "voice" | "image") => {
@@ -266,7 +288,7 @@ export default function DialogueDashboardScreen() {
 
       if (err instanceof Error) {
         if (err.message.includes("Rate limit")) {
-          errorMessage = "Rate limit exceeded. Please wait a moment and try again.";
+          errorMessage = "System busy at the moment. Please try again later.";
         } else if (err.message.includes("API key")) {
           errorMessage = "API key issue. Please check your configuration.";
         }
@@ -349,7 +371,8 @@ export default function DialogueDashboardScreen() {
   const handleImageEditorCancel = () => {
     setShowImageEditor(false);
     setTempImageUri(null);
-    setUiState("idle");
+    const shouldReturnToAnswering = Boolean(currentPrompt || selectedImage);
+    setUiState(shouldReturnToAnswering ? "answering" : "idle");
   };
 
   const handleSubmitImage = async () => {
@@ -358,11 +381,23 @@ export default function DialogueDashboardScreen() {
       return;
     }
 
+    // Check if compression can be skipped (image already small enough)
+    const sizeCheck = await GeminiService.validateImageSize(selectedImage);
+    const skipCompression = sizeCheck.valid;
+
     setIsAnalyzingImage(true);
     setUiState("loading");
+    setLoadingMessage("Preparing image for analysis...");
+
+    // Small delay so the loading message renders before compression kicks in
+    await new Promise((r) => setTimeout(r, 100));
 
     try {
-      const analysisResult = await GeminiService.analyzeActionImage(selectedImage);
+      const analysisResult = await GeminiService.analyzeActionImage(
+        selectedImage,
+        currentPrompt,
+        skipCompression
+      );
 
       if (!analysisResult.success || !analysisResult.rawResponse) {
         throw new Error(analysisResult.error || "Failed to analyze image");
@@ -374,11 +409,103 @@ export default function DialogueDashboardScreen() {
       await mapAnswerToCategory(currentPrompt, answer);
     } catch (err) {
       console.error("Error processing image:", err);
-      Alert.alert("Error", "Failed to process image. Please try again.");
-      setUiState("idle");
+      Alert.alert(
+        "Analysis Failed",
+        "The image could not be analyzed. You can try again or choose a different image.",
+        [
+          { text: "Cancel", style: "cancel", onPress: () => setSelectedImage(null) },
+          { text: "Try Again", onPress: () => handleSubmitImage() },
+        ]
+      );
+      setUiState("answering");
     } finally {
       setIsAnalyzingImage(false);
     }
+  };
+
+  const handleProofImageSelection = async (useCamera: boolean) => {
+    try {
+      const hasPermissions = await ImagePickerService.requestPermissions();
+      if (!hasPermissions) {
+        Alert.alert(
+          "Permissions Required",
+          "Camera and photo library permissions are required to upload proof."
+        );
+        return;
+      }
+
+      const result = useCamera
+        ? await ImagePickerService.takePhotoWithCamera()
+        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
+
+      if (result.success && result.imageUri) {
+        setTempProofImageUri(result.imageUri);
+        setShowProofImageEditor(true);
+      } else if (result.error) {
+        Alert.alert("Error", result.error);
+      } else {
+        clearPendingProofRequest();
+      }
+    } catch (err) {
+      console.error("Error selecting proof image:", err);
+      Alert.alert("Error", "An error occurred while selecting proof image");
+      clearPendingProofRequest();
+    }
+  };
+
+  const submitProofImage = async (imageUri: string) => {
+    if (!session.uid || !pendingProofRequest) {
+      Alert.alert("Error", "Missing proof context.");
+      return;
+    }
+
+    setIsUploadingProof(true);
+
+    try {
+      const sessionId = await getOrStartSession();
+      const uploadResult = await uploadProofImage({
+        userId: session.uid,
+        sessionId,
+        interactionId: pendingProofRequest.interactionId,
+        question: pendingProofRequest.question,
+        answer: pendingProofRequest.answer,
+        imageUri,
+      });
+
+      let latestStatus = await fetchProofStatus(uploadResult.jobId);
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        if (latestStatus.status === "completed" || latestStatus.status === "failed") {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        latestStatus = await fetchProofStatus(uploadResult.jobId);
+      }
+
+      const proofStatus = latestStatus.proofStatus ?? latestStatus.status ?? "pending";
+      const feedback = latestStatus.userFeedbackMessage ?? "Proof uploaded and queued for review.";
+
+      Alert.alert(proofStatus === "approved" ? "Proof approved" : "Proof submitted", feedback);
+    } catch (error) {
+      console.error("Error uploading proof image:", error);
+      Alert.alert("Error", "Failed to upload proof image. Please try again.");
+    } finally {
+      setIsUploadingProof(false);
+      setShowProofImageEditor(false);
+      setTempProofImageUri(null);
+      clearPendingProofRequest();
+    }
+  };
+
+  const handleProofImageEditorSave = (editedImageUri: string) => {
+    setShowProofImageEditor(false);
+    setTempProofImageUri(null);
+    void submitProofImage(editedImageUri);
+  };
+
+  const handleProofImageEditorCancel = () => {
+    setShowProofImageEditor(false);
+    setTempProofImageUri(null);
+    clearPendingProofRequest();
   };
 
   // --- UI helpers ---
@@ -386,7 +513,7 @@ export default function DialogueDashboardScreen() {
   const handleCardClick = (categoryName: string) => {
     const mapped = mappedCategories.find((c) => c.category === categoryName);
     if (mapped) {
-      Alert.alert(categoryName, `Why you have this trait:\n\n"${mapped.justification}"`, [
+      Alert.alert(categoryName, `Why you have this trait:\n"${mapped.justification}"`, [
         { text: "OK" },
       ]);
     } else if (mappedCategories.length === 0) {
@@ -413,7 +540,7 @@ export default function DialogueDashboardScreen() {
         category={{
           ...item,
           example: "",
-          icon: (item.icon as any) || ("category" as any),
+          icon: (item.icon ?? "category") as keyof typeof MaterialIcons.glyphMap,
         }}
         isMapped={mappedNames.has(item.category)}
         mappedData={mappedNames.get(item.category)}
@@ -424,13 +551,50 @@ export default function DialogueDashboardScreen() {
 
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
 
+  // ── Guest: force sign-in after first mapped category ──
+  // Uses useIsFocused so it fires on both focus changes AND dep changes
+  // (e.g. when loadData finishes and mappedCategories flips from 0 to 1).
+  React.useEffect(() => {
+    if (!isFocused || session.mode !== "guest" || mappedCategories.length < 1) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      Alert.alert(
+        "Great start!",
+        "Sign in to save your progress and keep building your skills passport.",
+        [
+          {
+            text: "Sign In",
+            onPress: () => {
+              setPendingQuestion(null);
+              setShowQuestionInputModal(false);
+              clearPendingProofRequest();
+              navigation.navigate("Login");
+            },
+          },
+          {
+            text: "Create Account",
+            onPress: () => {
+              setPendingQuestion(null);
+              setShowQuestionInputModal(false);
+              clearPendingProofRequest();
+              navigation.navigate("Register");
+            },
+          },
+        ]
+      );
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isFocused, session.mode, mappedCategories.length, navigation]);
+
   React.useEffect(() => {
     if (
       uiState === "idle" &&
       currentPrompt &&
       !showQuestionInputModal &&
       !suppressModalReopenRef.current &&
-      !modalDismissedByBackdropRef.current
+      !modalDismissedByBackdropRef.current &&
+      !(session.mode === "guest" && mappedCategories.length >= 1)
     ) {
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
@@ -438,11 +602,62 @@ export default function DialogueDashboardScreen() {
   }, [uiState, currentPrompt, showQuestionInputModal]);
 
   React.useEffect(() => {
-    if (prefetchedQuestion && uiState === "idle") {
+    if (
+      prefetchedQuestion &&
+      uiState === "idle" &&
+      !pendingProofRequest &&
+      !(session.mode === "guest" && mappedCategories.length >= 1)
+    ) {
       setPendingQuestion(prefetchedQuestion);
       setShowQuestionInputModal(true);
     }
-  }, [prefetchedQuestion, uiState]);
+  }, [prefetchedQuestion, uiState, pendingProofRequest]);
+
+  React.useEffect(() => {
+    if (!pendingProofRequest) {
+      return;
+    }
+
+    // Guest users can't upload artifacts — silently skip.
+    if (session.mode === "guest") {
+      clearPendingProofRequest();
+      return;
+    }
+
+    const naturalPrompt = pendingProofRequest.artifactUploadReason
+      ? pendingProofRequest.artifactUploadReason
+      : `Do you have a photo or artifact related to ${pendingProofRequest.category} you'd like to share?`;
+
+    Alert.alert("Share an artifact?", naturalPrompt, [
+      {
+        text: "Skip for now",
+        style: "cancel",
+        onPress: () => clearPendingProofRequest(),
+      },
+      {
+        text: "Share image",
+        onPress: () => {
+          Alert.alert(
+            "Choose image source",
+            "Select the image you'd like to share.",
+            [
+              { text: "Take Photo", onPress: () => void handleProofImageSelection(true) },
+              {
+                text: "Choose from Gallery",
+                onPress: () => void handleProofImageSelection(false),
+              },
+              {
+                text: "Cancel",
+                style: "cancel",
+                onPress: () => clearPendingProofRequest(),
+              },
+            ],
+            { cancelable: true }
+          );
+        },
+      },
+    ]);
+  }, [pendingProofRequest]);
 
   if (loading) {
     return (
@@ -507,7 +722,9 @@ export default function DialogueDashboardScreen() {
                     handleStartButtonPress();
                   }
                 }}
-                disabled={uiState !== "idle"}
+                disabled={
+                  uiState !== "idle" || (session.mode === "guest" && mappedCategories.length >= 1)
+                }
                 activeOpacity={0.8}
               >
                 <MaterialIcons
@@ -526,16 +743,17 @@ export default function DialogueDashboardScreen() {
 
         {/* TopTabBar row removed — navigation now handled by bottom tab bar */}
 
-        {error ? (
-          <Card style={styles.errorCard}>
-            <Card.Content>
-              <Text style={styles.errorText}>🚨 {error}</Text>
-            </Card.Content>
-          </Card>
-        ) : null}
-
         <View style={styles.categoryGrid}>{renderCategoryCards()}</View>
       </ScrollView>
+
+      <Snackbar
+        visible={!!error}
+        onDismiss={() => setError("")}
+        duration={3000}
+        style={styles.snackbar}
+      >
+        {error}
+      </Snackbar>
 
       <LoadingModal visible={uiState === "loading"} message={loadingMessage} />
 
@@ -558,7 +776,6 @@ export default function DialogueDashboardScreen() {
         onDismiss={dismissAnswerModal}
         onZoomImage={() => setZoomViewerVisible(true)}
         onChangeImage={() => {
-          setSelectedImage(null);
           showImageSourceDialog();
         }}
         onSubmitImage={handleSubmitImage}
@@ -615,12 +832,26 @@ export default function DialogueDashboardScreen() {
         />
       )}
 
+      {showProofImageEditor && tempProofImageUri && (
+        <ImageEditor
+          imageUri={tempProofImageUri}
+          onSave={handleProofImageEditorSave}
+          onCancel={handleProofImageEditorCancel}
+        />
+      )}
+
       {zoomViewerVisible && selectedImage && (
         <ZoomableImageView
           imageUri={selectedImage}
           visible={zoomViewerVisible}
           onClose={() => setZoomViewerVisible(false)}
         />
+      )}
+
+      {isUploadingProof && (
+        <View style={styles.proofUploadOverlay} pointerEvents="none">
+          <Text style={styles.proofUploadText}>Uploading proof...</Text>
+        </View>
       )}
 
       {showConfetti && (
@@ -637,6 +868,71 @@ export default function DialogueDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  questionInputModalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  proofUploadOverlay: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    bottom: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 0, 0, 0.72)",
+    alignItems: "center",
+  },
+  proofUploadText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  questionInputModalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "85%",
+    alignItems: "center",
+  },
+  questionInputModalQuestion: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  questionInputModalSubtitle: {
+    fontSize: 15,
+    marginBottom: 18,
+    color: "#555",
+    textAlign: "center",
+  },
+  questionInputModalInputRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    width: "100%",
+  },
+  questionInputModalInputButton: {
+    alignItems: "center",
+    marginHorizontal: 12,
+  },
+  questionInputModalInputLabel: {
+    marginTop: 6,
+  },
+  questionInputModalCancelButton: {
+    marginTop: 24,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#eee",
+  },
+  questionInputModalCancelText: {
+    color: "#667eea",
+    fontWeight: "bold",
+  },
+
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -669,7 +965,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     marginBottom: 20,
-    paddingTop: 80,
+    paddingTop: 20,
   },
   title: {
     fontSize: 28,
@@ -749,14 +1045,8 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 0.5,
   },
-  errorCard: {
-    marginBottom: 20,
-    backgroundColor: "#ffebee",
-    elevation: 4,
-  },
-  errorText: {
-    fontSize: 14,
-    color: "#c62828",
+  snackbar: {
+    marginBottom: 80,
   },
   categoryGrid: {
     flexDirection: "row",

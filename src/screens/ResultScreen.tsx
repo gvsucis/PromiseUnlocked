@@ -7,7 +7,10 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../types/navigation";
 import { TranscriptAnalysis, Course } from "../types";
-import { mapSkillsToTaxonomy, normalizeTaxonomyCategoryName } from "../services/skillTaxonomyService";
+import {
+  mapSkillsToTaxonomy,
+  normalizeTaxonomyCategoryName,
+} from "../services/skillTaxonomyService";
 import { saveIdentifiedSkills } from "../services/userSkillsService";
 
 interface ActionAnalysisResult {
@@ -208,6 +211,12 @@ export default function ResultScreen({ navigation, route }: Readonly<Props>) {
     return "#757575";
   };
 
+  const getConfidenceColor = (level?: string): string => {
+    if (level === "High") return "#4CAF50";
+    if (level === "Medium") return "#FF9800";
+    return "#FF5722";
+  };
+
   const renderActionAnalysis = (actionData: ActionAnalysisResult) => (
     <ScrollView style={styles.scrollView}>
       {/* Activity Description Card */}
@@ -300,12 +309,7 @@ export default function ResultScreen({ navigation, route }: Readonly<Props>) {
             style={[
               styles.confidenceChip,
               {
-                backgroundColor:
-                  actionData.confidence_level === "High"
-                    ? "#4CAF50"
-                    : actionData.confidence_level === "Medium"
-                      ? "#FF9800"
-                      : "#FF5722",
+                backgroundColor: getConfidenceColor(actionData.confidence_level),
               },
             ]}
             textStyle={styles.confidenceChipText}

@@ -16,6 +16,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
+import { signInAnonymously } from "firebase/auth";
 import { db, auth } from "../../config/firebase";
 import { setJSONInStorage } from "../../utils/asyncStorage";
 import { waitForAuthReady } from "../auth/authSessionService";
@@ -82,6 +83,36 @@ async function ensureSessionDocument(userId: string, sessionId: string): Promise
   _verifiedSessionDocs.add(key);
 }
 
+async function ensureFirebaseUserForWrites(): Promise<string> {
+  const currentUid = auth.currentUser?.uid;
+  if (currentUid) {
+    return currentUid;
+  }
+
+  try {
+    const credential = await signInAnonymously(auth);
+    if (credential.user?.uid) {
+      return credential.user.uid;
+    }
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "unknown";
+    const writeAuthError = new Error(
+      `No Firebase auth user is available for Firestore writes. (auth code: ${code})`
+    ) as Error & { code?: string; authCode?: string };
+    writeAuthError.code =
+      code === "auth/admin-restricted-operation"
+        ? "app/anonymous-auth-disabled"
+        : "app/firestore-auth-unavailable";
+    writeAuthError.authCode = code;
+    throw writeAuthError;
+  }
+
+  throw new Error("No Firebase auth user is available for Firestore writes.");
+}
+
 export async function getOrCreateUserId(): Promise<string> {
   await waitForAuthReady();
 
@@ -89,14 +120,9 @@ export async function getOrCreateUserId(): Promise<string> {
     return _cachedUserId;
   }
 
-  const currentUid = auth.currentUser?.uid;
-  if (currentUid) {
-    await cacheUserId(currentUid);
-    return currentUid;
-  }
-
-  _cachedUserId = null;
-  throw new Error("No Firebase auth user is available for Firestore writes.");
+  const resolvedUid = await ensureFirebaseUserForWrites();
+  await cacheUserId(resolvedUid);
+  return resolvedUid;
 }
 
 //
@@ -145,6 +171,7 @@ export async function closeSession(
 export async function saveInteraction(
   userId: string,
   sessionId: string,
+  interactionId: string | null,
   interaction: {
     sequenceIndex: number;
     question: string;
@@ -159,7 +186,7 @@ export async function saveInteraction(
     matchedToSequenceIndex: number | null;
   }
 ): Promise<string> {
-  const interactionId = generateId();
+  const resolvedInteractionId = interactionId ?? generateId();
   try {
     await ensureSessionDocument(userId, sessionId);
 
@@ -170,7 +197,7 @@ export async function saveInteraction(
       "sessions",
       sessionId,
       "interactions",
-      interactionId
+      resolvedInteractionId
     );
     const interactionDoc: InteractionDocument = {
       ...interaction,
@@ -190,11 +217,18 @@ export async function saveInteraction(
       sessionUpdate.alreadyMappedCount = increment(1);
     }
     await setDoc(sessionRef, sessionUpdate, { merge: true });
+
+    console.log("[Firestore] Interaction saved", {
+      userId,
+      sessionId,
+      interactionId: resolvedInteractionId,
+      sequenceIndex: interaction.sequenceIndex,
+    });
   } catch (err) {
     console.error("[Firestore] Failed to save interaction:", err);
     throw err;
   }
-  return interactionId;
+  return resolvedInteractionId;
 }
 
 //
@@ -246,6 +280,84 @@ export async function savePassportMapping(
   } catch (err) {
     console.error("[Firestore] Failed to save passport mapping:", err);
     throw err;
+  }
+}
+
+/**
+ * Save a stamp unlock to the passport document
+ * Uses increment for atomic counter update
+ */
+export async function saveStampUnlock(
+  userId: string,
+  category: string,
+  stampName: string
+): Promise<void> {
+  try {
+    const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+    const passportRef = doc(db, "participants", userId, "skillPassport", categoryId);
+
+    const stampKey = `unlockedStamps.${stampName.replaceAll(/[.[\]/]/g, "_")}`;
+    const existing = await getDoc(passportRef);
+    const data = existing.data();
+    const hasStamp =
+      data?.unlockedStamps &&
+      typeof data.unlockedStamps === "object" &&
+      stampName in data.unlockedStamps;
+
+    if (hasStamp) {
+      await setDoc(
+        passportRef,
+        {
+          [stampKey]: {
+            timesUnlocked: increment(1),
+            lastUnlockedAt: serverTimestamp(),
+          },
+        },
+        { merge: true }
+      );
+    } else {
+      await setDoc(
+        passportRef,
+        {
+          [stampKey]: {
+            timesUnlocked: 1,
+            firstUnlockedAt: serverTimestamp(),
+            lastUnlockedAt: serverTimestamp(),
+          },
+        },
+        { merge: true }
+      );
+    }
+  } catch (err) {
+    console.error("[Firestore] Failed to save stamp unlock:", err);
+    throw err;
+  }
+}
+
+export async function fetchPassportMappings(
+  userId: string
+): Promise<{ category: string; firstMappedAt: Date; totalMappings: number }[]> {
+  try {
+    const passportRef = collection(db, "participants", userId, "skillPassport");
+    const snapshot = await getDocs(passportRef);
+    const mappings: { category: string; firstMappedAt: Date; totalMappings: number }[] = [];
+
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const category = data.category as string | undefined;
+      if (!category) return;
+
+      mappings.push({
+        category,
+        firstMappedAt: data.firstMappedAt?.toDate?.() ?? new Date(),
+        totalMappings: (data.totalMappings as number) ?? 1,
+      });
+    });
+
+    return mappings;
+  } catch (err) {
+    console.error("[Firestore] Failed to fetch passport mappings:", err);
+    return [];
   }
 }
 

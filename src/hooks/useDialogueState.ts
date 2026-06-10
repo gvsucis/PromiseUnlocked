@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { waitForAuthReady } from "../services/auth/authSessionService";
+import { Alert } from "react-native";
 import {
   MappedCategory,
   ConversationInteraction,
@@ -18,10 +20,16 @@ import {
   isCategoryMapped,
   getMappedCategory,
   updateMappedCategoryCounter,
+  addStampUnlock,
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
-import { Alert } from "react-native";
+import { searchPdfContext } from "../services/profileEmbeddingService";
 import { endSession } from "../services/sessionManager";
+import {
+  saveDialogueState,
+  loadDialogueState,
+  clearDialogueState,
+} from "../services/dialogueStateStorage";
 
 export type UIState =
   | "idle"
@@ -47,17 +55,25 @@ export interface DialogueState {
   savedQuestion: string;
   savedAnswer: string;
   showConfetti: boolean;
+  pendingProofRequest: {
+    question: string;
+    answer: string;
+    interactionId: string;
+    category: string;
+    artifactUploadReason?: string;
+  } | null;
 
   // Setters needed by screen for controlled inputs and UI transitions
   setUserAnswer: React.Dispatch<React.SetStateAction<string>>;
   setUiState: React.Dispatch<React.SetStateAction<UIState>>;
   setCurrentPrompt: React.Dispatch<React.SetStateAction<string>>;
   setError: React.Dispatch<React.SetStateAction<string>>;
+  setLoadingMessage: React.Dispatch<React.SetStateAction<string>>;
 
   // Business logic
   loadData: () => Promise<void>;
   resetData: () => Promise<void>;
-  mapAnswerToCategory: (question: string, answer: string) => Promise<void>;
+  mapAnswerToCategory: (question: string, answer: string) => Promise<DialogueMapResult>;
   handleStartButtonPress: () => Promise<void>;
   handleTextInputPress: () => void;
   handleVoiceInputPress: () => void;
@@ -66,7 +82,12 @@ export interface DialogueState {
   handleWeakFitTryAgain: () => void;
   handleWeakFitNewQuestion: () => Promise<void>;
   dismissAnswerModal: () => void;
+  clearPendingProofRequest: () => void;
 }
+
+export type DialogueMapResult =
+  | { mapped: true; category: string; interactionId: string }
+  | { mapped: false; category: string | null; interactionId: string };
 
 export function useDialogueState(): DialogueState {
   const [mappedCategories, setMappedCategories] = useState<MappedCategory[]>([]);
@@ -83,10 +104,68 @@ export function useDialogueState(): DialogueState {
   const [savedQuestion, setSavedQuestion] = useState("");
   const [savedAnswer, setSavedAnswer] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
+  const [pendingProofRequest, setPendingProofRequest] =
+    useState<DialogueState["pendingProofRequest"]>(null);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancelPendingOperation = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  const persistState = useCallback(
+    async (prompt: string, savedQ: string, answer: string, savedA: string, state: UIState) => {
+      if (state === "complete" || state === "idle") {
+        await clearDialogueState();
+        return;
+      }
+      await saveDialogueState({
+        currentPrompt: prompt,
+        savedQuestion: savedQ,
+        userAnswer: answer,
+        savedAnswer: savedA,
+        uiState: state,
+      });
+    },
+    []
+  );
+
+  const getFriendlyDialogueErrorMessage = (error: unknown): string => {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : undefined;
+    const message = error instanceof Error ? error.message : "";
+
+    if (
+      code === "app/anonymous-auth-disabled" ||
+      code === "app/firestore-auth-unavailable" ||
+      message.includes("auth/admin-restricted-operation") ||
+      message.includes("No Firebase auth user is available for Firestore writes")
+    ) {
+      return "Your response was saved on this device. Cloud sync is temporarily unavailable.";
+    }
+
+    if (
+      message.includes("System busy at the moment") ||
+      message.includes("Failed to generate next question")
+    ) {
+      return "System busy. Please try again.";
+    }
+
+    return "Failed to process your answer. Please try again.";
+  };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    void persistState(currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState);
+  }, [currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState]);
 
   useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
@@ -99,12 +178,33 @@ export function useDialogueState(): DialogueState {
 
   const loadData = async () => {
     try {
-      const [mapped, history] = await Promise.all([
+      // Resolve auth once so the three storage reads below don't each
+      // independently trip through waitForAuthReady() → AsyncStorage.
+      await waitForAuthReady();
+      const [mapped, history, persisted] = await Promise.all([
         getMappedCategories(),
         getConversationHistory(),
+        loadDialogueState(),
       ]);
       setMappedCategories(mapped);
       setInteractions(history);
+
+      if (persisted && mapped.length < TOTAL_CATEGORIES) {
+        setCurrentPrompt(persisted.currentPrompt);
+        setSavedQuestion(persisted.savedQuestion);
+        setUserAnswer(persisted.userAnswer);
+        setSavedAnswer(persisted.savedAnswer);
+
+        if (persisted.uiState === "answering") {
+          setUiState("idle");
+          setPrefetchedQuestion(persisted.currentPrompt);
+        } else if (persisted.uiState === "loading" || persisted.uiState === "voice-recording") {
+          setUiState("idle");
+          setCurrentPrompt(persisted.currentPrompt);
+          setSavedQuestion(persisted.savedQuestion);
+          setSavedAnswer(persisted.savedAnswer);
+        }
+      }
     } catch (err) {
       console.error("Error loading data:", err);
       setError("Failed to load your progress. Please try again.");
@@ -114,7 +214,8 @@ export function useDialogueState(): DialogueState {
   };
 
   const resetData = async () => {
-    await clearAllData();
+    cancelPendingOperation();
+    await Promise.all([clearAllData(), clearDialogueState()]);
     setMappedCategories([]);
     setInteractions([]);
     setCurrentPrompt("");
@@ -129,7 +230,10 @@ export function useDialogueState(): DialogueState {
     setUiState("idle");
   };
 
-  const mapAnswerToCategory = async (question: string, answer: string) => {
+  const mapAnswerToCategory = async (
+    question: string,
+    answer: string
+  ): Promise<DialogueMapResult> => {
     setUiState("loading");
     setLoadingMessage("Analyzing your response...");
     setError("");
@@ -138,22 +242,60 @@ export function useDialogueState(): DialogueState {
     setPrefetchedQuestion(null);
     setIsPrefetching(false);
 
+    cancelPendingOperation();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const advanceToNextQuestion = async (presetQuestion?: string | null) => {
+      setUserAnswer("");
+      setLoadingMessage("Generating next question...");
+      try {
+        const newQuestion =
+          presetQuestion ||
+          (await GeminiService.synthesizeNextQuestion(
+            interactions,
+            mappedCategories,
+            getTaxonomyString(),
+            { latestQuestion: question, latestAnswer: answer },
+            controller.signal
+          ));
+
+        setPrefetchedQuestion(newQuestion);
+        setIsPrefetching(false);
+        setLoadingMessage("");
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        setUiState("idle");
+      } catch (err) {
+        console.error("Error generating next question:", err);
+        setError(getFriendlyDialogueErrorMessage(err));
+        setUiState("idle");
+      }
+    };
+
     try {
       const taxonomyString = getTaxonomyString();
+
+      let pdfContextText = "";
+      try {
+        pdfContextText = await searchPdfContext(`${question} ${answer}`);
+      } catch {
+        pdfContextText = "";
+      }
 
       const result = await GeminiService.mapAnswerAndGenerateNextQuestion(
         question,
         answer,
         interactions,
         mappedCategories,
-        taxonomyString
+        taxonomyString,
+        pdfContextText,
+        controller.signal
       );
 
-      const { category: rawCategory, justification, nextQuestion } = result;
+      const { category: rawCategory, justification, nextQuestion, specificStamp } = result;
       const validCategory = findValidCategory(rawCategory);
       const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
-
-      let shouldProceedToNextQuestion = false;
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
         const interaction: ConversationInteraction = {
@@ -165,11 +307,11 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        await addConversationInteraction(interaction);
+        const interactionId = await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
         setWeakFitJustification(justification ?? "");
         setUiState("weak-fit");
-        return;
+        return { mapped: false as const, category: null, interactionId };
       } else if (validCategory && !(await isCategoryMapped(categoryNameToCheck))) {
         const newMappedCategory: MappedCategory = {
           category: categoryNameToCheck,
@@ -186,6 +328,10 @@ export function useDialogueState(): DialogueState {
           `NEW ${categoryNameToCheck} category added: counter = ${newMappedCategory.timesMapped}`
         );
 
+        if (specificStamp) {
+          await addStampUnlock(categoryNameToCheck, specificStamp);
+        }
+
         const interaction: ConversationInteraction = {
           question,
           answer,
@@ -195,7 +341,10 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        await addConversationInteractionWithMapping(interaction, justification ?? "");
+        const interactionId = await addConversationInteractionWithMapping(
+          interaction,
+          justification ?? ""
+        );
         setInteractions((prev) => [...prev, interaction]);
 
         setShowConfetti(true);
@@ -205,14 +354,29 @@ export function useDialogueState(): DialogueState {
           await endSession("completed");
           setUserAnswer("");
           setUiState("complete");
-          return;
+          return { mapped: true as const, category: categoryNameToCheck, interactionId };
         }
 
-        shouldProceedToNextQuestion = true;
+        if (result.suggestArtifactUpload) {
+          setPendingProofRequest({
+            question,
+            answer,
+            interactionId,
+            category: categoryNameToCheck,
+            artifactUploadReason: result.artifactUploadReason,
+          });
+        }
+        await advanceToNextQuestion(nextQuestion);
+
+        return { mapped: true as const, category: categoryNameToCheck, interactionId };
       } else if (await isCategoryMapped(categoryNameToCheck)) {
         console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
         const mappedCategory = await getMappedCategory(categoryNameToCheck);
         const updatedMappedCategory = await updateMappedCategoryCounter(mappedCategory);
+
+        if (specificStamp) {
+          await addStampUnlock(categoryNameToCheck, specificStamp);
+        }
 
         // ensures no duplicate categories are added to array of mapped categories
         const dedupedMappedCategories = mappedCategories.map((c) =>
@@ -234,9 +398,10 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: categoryNameToCheck,
           matchedToSequenceIndex: null,
         };
-        await addConversationInteraction(interaction);
+        const interactionId = await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
-        shouldProceedToNextQuestion = true;
+        await advanceToNextQuestion(nextQuestion);
+        return { mapped: false as const, category: categoryNameToCheck, interactionId };
       } else {
         console.log(`Unexpected category "${rawCategory}", generating new question`);
         const interaction: ConversationInteraction = {
@@ -248,50 +413,19 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        await addConversationInteraction(interaction);
+        const interactionId = await addConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
-        shouldProceedToNextQuestion = true;
+        await advanceToNextQuestion(nextQuestion);
+        return { mapped: false as const, category: null, interactionId };
       }
-
-      setUserAnswer("");
-
-      if (shouldProceedToNextQuestion) {
-        setLoadingMessage("Generating next question...");
-
-        try {
-          const newQuestion =
-            nextQuestion ||
-            (await GeminiService.synthesizeNextQuestion(
-              interactions,
-              mappedCategories,
-              getTaxonomyString(),
-              { latestQuestion: question, latestAnswer: answer }
-            ));
-
-          setPrefetchedQuestion(newQuestion);
-          setIsPrefetching(false);
-          setLoadingMessage("");
-
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          setUiState("idle");
-          return;
-        } catch (err) {
-          console.error("Error generating next question:", err);
-          setError("Failed to generate next question. Please try again.");
-          setUiState("idle");
-          return;
-        }
-      }
-
-      setUiState("idle");
     } catch (err) {
       console.error("Error mapping answer:", err);
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to process your answer. Please try again.";
+      const errorMessage = getFriendlyDialogueErrorMessage(err);
       setError(errorMessage);
       setUserAnswer("");
       setCurrentPrompt("");
       setUiState("idle");
+      return { mapped: false as const, category: null, interactionId: "" };
     }
   };
 
@@ -316,12 +450,16 @@ export function useDialogueState(): DialogueState {
 
     setUiState("loading");
     setLoadingMessage("Synthesizing a new question...");
+    cancelPendingOperation();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     try {
       const newQuestion = await GeminiService.synthesizeNextQuestion(
         interactions,
         mappedCategories,
         getTaxonomyString(),
-        { latestQuestion: savedQuestion, latestAnswer: savedAnswer }
+        { latestQuestion: savedQuestion, latestAnswer: savedAnswer },
+        controller.signal
       );
       setCurrentPrompt(newQuestion);
       setUiState("idle");
@@ -436,12 +574,17 @@ export function useDialogueState(): DialogueState {
 
     setUiState("loading");
     setLoadingMessage("Synthesizing a new question...");
+    cancelPendingOperation();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const newQuestion = await GeminiService.synthesizeNextQuestion(
         interactions,
         mappedCategories,
-        getTaxonomyString()
+        getTaxonomyString(),
+        undefined,
+        controller.signal
       );
 
       setPrefetchedQuestion(newQuestion);
@@ -466,6 +609,10 @@ export function useDialogueState(): DialogueState {
     setUiState("idle");
   };
 
+  const clearPendingProofRequest = () => {
+    setPendingProofRequest(null);
+  };
+
   return {
     mappedCategories,
     interactions,
@@ -481,8 +628,10 @@ export function useDialogueState(): DialogueState {
     savedQuestion,
     savedAnswer,
     showConfetti,
+    pendingProofRequest,
     setUserAnswer,
     setUiState,
+    setLoadingMessage,
     setCurrentPrompt,
     setError,
     loadData,
@@ -496,5 +645,6 @@ export function useDialogueState(): DialogueState {
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
     dismissAnswerModal,
+    clearPendingProofRequest,
   };
 }

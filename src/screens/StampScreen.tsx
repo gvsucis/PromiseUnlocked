@@ -1,12 +1,27 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
-import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { computeDerivedSkills, STAMP_TAXONOMY } from "../config/stampTaxonomy";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getMappedCategories } from "../services/categoryStorageService";
+
+const DERIVED_SKILLS = computeDerivedSkills();
+
+function findNearestWithUnlocks(
+  list: string[],
+  start: number,
+  step: number,
+  hasUnlocks: Set<string>
+): string | null {
+  for (let i = start + step; i >= 0 && i < list.length; i += step) {
+    if (hasUnlocks.has(list[i])) return list[i];
+  }
+  return null;
+}
 
 type StampRouteProp = RouteProp<RootStackParamList, "Stamps">;
 type StampNavigationProp = StackNavigationProp<RootStackParamList, "Stamps">;
@@ -16,27 +31,55 @@ export default function StampScreen() {
 
   const route = useRoute<StampRouteProp>();
   const { region } = route.params;
-  const regions = Object.keys(SKILLS_TAXONOMY);
+  const regions = Object.keys(STAMP_TAXONOMY);
   const currentIndex = regions.indexOf(region);
 
-  const previousRegion = currentIndex > 0 ? regions[currentIndex - 1] : null;
+  const [unlockedStamps, setUnlockedStamps] = useState<Set<string>>(new Set());
+  const [stampCounts, setStampCounts] = useState<Record<string, number>>({});
+  const [prevRegion, setPrevRegion] = useState<string | null>(null);
+  const [nextRegion, setNextRegion] = useState<string | null>(null);
 
-  const nextRegion = currentIndex < regions.length - 1 ? regions[currentIndex + 1] : null;
+  const loadUnlocked = useCallback(async () => {
+    const mappedCategories = await getMappedCategories();
 
-  const stamps = SKILLS_TAXONOMY[region];
+    const regionsWithUnlocks = new Set<string>();
+    const names = new Set<string>();
+
+    const counts: Record<string, number> = {};
+    for (const mc of mappedCategories) {
+      if (!mc.unlockedStamps?.length) continue;
+      regionsWithUnlocks.add(mc.category);
+      if (mc.category !== region) continue;
+      for (const s of mc.unlockedStamps) {
+        names.add(s.name);
+        counts[s.name] = s.timesUnlocked;
+      }
+    }
+
+    setUnlockedStamps(names);
+    setStampCounts(counts);
+    setPrevRegion(findNearestWithUnlocks(regions, currentIndex, -1, regionsWithUnlocks));
+    setNextRegion(findNearestWithUnlocks(regions, currentIndex, 1, regionsWithUnlocks));
+  }, [region, currentIndex, regions]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUnlocked();
+    }, [loadUnlocked])
+  );
 
   function goToPreviousRegion() {
-    if (!previousRegion) return;
-    navigation.replace("Stamps", {
-      region: previousRegion,
-    });
+    if (!prevRegion) return;
+    navigation.replace("Stamps", { region: prevRegion });
   }
+
   function goToNextRegion() {
     if (!nextRegion) return;
-    navigation.replace("Stamps", {
-      region: nextRegion,
-    });
+    navigation.replace("Stamps", { region: nextRegion });
   }
+
+  const allStamps = DERIVED_SKILLS[region] ?? [];
+  const unlockedList = allStamps.filter((s) => unlockedStamps.has(s));
 
   return (
     <SafeAreaView style={styles.container}>
@@ -47,7 +90,7 @@ export default function StampScreen() {
 
         <View style={styles.headerRow}>
           <View style={styles.arrowContainer}>
-            {previousRegion && (
+            {prevRegion && (
               <TouchableOpacity onPress={goToPreviousRegion}>
                 <MaterialIcons name="chevron-left" size={36} color="#1B3A72" />
               </TouchableOpacity>
@@ -65,26 +108,38 @@ export default function StampScreen() {
           </View>
         </View>
 
-        <View style={styles.grid}>
-          {stamps.map((stamp) => (
-            <TouchableOpacity
-              key={stamp}
-              style={styles.stampItem}
-              onPress={() =>
-                navigation.navigate("StampDetails", {
-                  stamp,
-                  region,
-                })
-              }
-            >
-              <View style={styles.stampCircle}>
-                <MaterialIcons name="school" size={34} color="#2E6EE6" />
-              </View>
-
-              <Text style={styles.stampText}>{stamp}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {unlockedList.length > 0 ? (
+          <View style={styles.grid}>
+            {unlockedList.map((stamp) => {
+              const count = stampCounts[stamp] ?? 1;
+              return (
+                <TouchableOpacity
+                  key={stamp}
+                  style={styles.stampItem}
+                  onPress={() => navigation.navigate("StampDetails", { stamp, region })}
+                >
+                  <View style={[styles.stampCircle, styles.stampCircleUnlocked]}>
+                    <MaterialIcons name="check-circle" size={34} color="#FFFFFF" />
+                    {count > 1 && (
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countText}>×{count}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.stampText, styles.stampTextUnlocked]}>{stamp}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="lock-outline" size={64} color="#9BABCF" />
+            <Text style={styles.emptyTitle}>No stamps unlocked yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Complete the dialogue to unlock stamps in this region.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -151,11 +206,59 @@ const styles = StyleSheet.create({
     borderColor: "#D6E4FF",
   },
 
+  stampCircleUnlocked: {
+    backgroundColor: "#2E6EE6",
+    borderColor: "#1B3A72",
+  },
+
   stampText: {
     fontSize: 12,
     fontWeight: "600",
     color: "#1B3A72",
     textAlign: "center",
     paddingHorizontal: 4,
+  },
+
+  stampTextUnlocked: {
+    color: "#1B3A72",
+    fontWeight: "700",
+  },
+
+  countBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#FF6B35",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  countText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#6B7A99",
+    marginTop: 16,
+  },
+
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#9BABCF",
+    textAlign: "center",
+    marginTop: 8,
+    paddingHorizontal: 40,
   },
 });

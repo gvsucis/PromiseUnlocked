@@ -70,7 +70,6 @@ const TAB_CONFIG = [
   },
 ] as const;
 
-
 function CustomTabBar({ state, descriptors, navigation }: any) {
   return (
     <View style={styles.tabBar}>
@@ -106,15 +105,13 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               <MaterialIcons
                 name={config.icon as any}
                 size={config.size ?? 32}
-                color={
-                  isDisabled ? "#d1cde8" : isFocused ? "#6d5efc" : "#8e89a8"
-                }
+                color={isDisabled ? "#d1cde8" : isFocused ? "#6d5efc" : "#8e89a8"}
               />
               {isDisabled && (
                 <View style={styles.comingSoonBadge}>
-                    <Text style={styles.comingSoonText}>Soon</Text>
+                  <Text style={styles.comingSoonText}>Soon</Text>
                 </View>
-                )}
+              )}
             </View>
           </TouchableOpacity>
         );

@@ -10,10 +10,16 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "developmentClient": false,
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "distribution": "store",
+      "developmentClient": false
     }
   },
   "submit": {

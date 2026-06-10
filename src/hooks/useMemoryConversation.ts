@@ -1,30 +1,8 @@
-/**
- * React Native Hook: Memory-Enabled Conversation
- *
- * This hook provides a stateful interface to the RAG-based long-term memory system.
- * It handles:
- * - Fact extraction and storage
- * - Conflict detection and resolution
- * - Taxonomy-driven question generation
- * - Memory context management
- */
-
 import { useState, useCallback, useRef, useEffect } from "react";
+import { auth } from "../config/firebase";
+import { CONFIG } from "../config/env";
+import { useAuth } from "../context/AuthContext";
 
-type AuthContextValue = {
-  user: Record<string, unknown> | null;
-  getAuthToken: () => Promise<string | null>;
-};
-
-const useAuth = (): AuthContextValue => ({
-  user: null,
-  getAuthToken: async () => null,
-});
-
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL || process.env.REACT_NATIVE_API_BASE_URL || "";
-
-// Types matching the backend API
 export interface UserFact {
   id: string;
   factType: string;
@@ -77,13 +55,11 @@ export interface ConversationTurnResult {
 }
 
 export interface UseMemoryConversationReturn {
-  // State
   isProcessing: boolean;
   error: string | null;
   memoryContext: MemoryContext | null;
   pendingConflicts: FactConflict[];
 
-  // Actions
   processTurn: (params: {
     sessionId: string;
     interactionId: string;
@@ -103,19 +79,21 @@ export interface UseMemoryConversationReturn {
   fetchPendingConflicts: () => Promise<FactConflict[]>;
   fetchMemoryContext: (sessionId: string) => Promise<MemoryContext | null>;
 
-  // Helpers
   clearError: () => void;
   resetMemory: () => void;
 }
 
+async function getAuthToken(): Promise<string | null> {
+  return auth.currentUser?.getIdToken() ?? null;
+}
+
 export function useMemoryConversation(): UseMemoryConversationReturn {
-  const { user, getAuthToken } = useAuth();
+  const { session } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [memoryContext, setMemoryContext] = useState<MemoryContext | null>(null);
   const [pendingConflicts, setPendingConflicts] = useState<FactConflict[]>([]);
 
-  // Cache for previous questions to avoid repetition
   const previousQuestionsRef = useRef<string[]>([]);
 
   const getAuthHeaders = useCallback(async () => {
@@ -124,11 +102,10 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     };
-  }, [getAuthToken]);
+  }, []);
 
-  /**
-   * Process a conversation turn with memory
-   */
+  const isAuthenticated = session.mode === "authenticated" || session.mode === "guest";
+
   const processTurn = useCallback(
     async ({
       sessionId,
@@ -145,7 +122,7 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
       inputMethod?: "text" | "voice" | "image";
       categoriesMapped: string[];
     }): Promise<ConversationTurnResult> => {
-      if (!user) {
+      if (!isAuthenticated) {
         throw new Error("User not authenticated");
       }
 
@@ -155,7 +132,7 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
       try {
         const headers = await getAuthHeaders();
 
-        const response = await fetch(`${API_BASE_URL}/api/memory/conversation-turn`, {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/memory/conversation-turn`, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -176,15 +153,12 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
 
         const result: ConversationTurnResult = await response.json();
 
-        // Update memory context
         setMemoryContext(result.memoryContext);
 
-        // Cache the question if it's a new one
         if (result.nextQuestion) {
           previousQuestionsRef.current.push(result.nextQuestion);
         }
 
-        // Update pending conflicts if any
         if (result.conflicts) {
           setPendingConflicts(result.conflicts);
         }
@@ -198,12 +172,9 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
         setIsProcessing(false);
       }
     },
-    [user, getAuthHeaders]
+    [isAuthenticated, getAuthHeaders]
   );
 
-  /**
-   * Resolve a conflict with user input
-   */
   const resolveConflict = useCallback(
     async ({
       conflictId,
@@ -216,7 +187,7 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
       correctedValue?: string;
       note?: string;
     }): Promise<boolean> => {
-      if (!user) {
+      if (!isAuthenticated) {
         throw new Error("User not authenticated");
       }
 
@@ -226,15 +197,18 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
       try {
         const headers = await getAuthHeaders();
 
-        const response = await fetch(`${API_BASE_URL}/api/memory/conflicts/${conflictId}/resolve`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            resolution,
-            correctedValue,
-            note,
-          }),
-        });
+        const response = await fetch(
+          `${CONFIG.API_BASE_URL}/api/memory/conflicts/${conflictId}/resolve`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              resolution,
+              correctedValue,
+              note,
+            }),
+          }
+        );
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -243,7 +217,6 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
 
         const result = await response.json();
 
-        // Remove resolved conflict from pending list
         if (result.success) {
           setPendingConflicts((prev) => prev.filter((c) => c.id !== conflictId));
         }
@@ -257,21 +230,18 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
         setIsProcessing(false);
       }
     },
-    [user, getAuthHeaders]
+    [isAuthenticated, getAuthHeaders]
   );
 
-  /**
-   * Fetch pending conflicts for the user
-   */
   const fetchPendingConflicts = useCallback(async (): Promise<FactConflict[]> => {
-    if (!user) {
+    if (!isAuthenticated) {
       throw new Error("User not authenticated");
     }
 
     try {
       const headers = await getAuthHeaders();
 
-      const response = await fetch(`${API_BASE_URL}/api/memory/conflicts`, {
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/memory/conflicts`, {
         headers,
       });
 
@@ -288,21 +258,18 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
       setError(errorMessage);
       throw err;
     }
-  }, [user, getAuthHeaders]);
+  }, [isAuthenticated, getAuthHeaders]);
 
-  /**
-   * Fetch complete memory context for a session
-   */
   const fetchMemoryContext = useCallback(
     async (sessionId: string): Promise<MemoryContext | null> => {
-      if (!user) {
+      if (!isAuthenticated) {
         throw new Error("User not authenticated");
       }
 
       try {
         const headers = await getAuthHeaders();
 
-        const response = await fetch(`${API_BASE_URL}/api/memory/context/${sessionId}`, {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/memory/context/${sessionId}`, {
           headers,
         });
 
@@ -334,7 +301,7 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
         throw err;
       }
     },
-    [user, getAuthHeaders]
+    [isAuthenticated, getAuthHeaders]
   );
 
   const clearError = useCallback(() => {
@@ -347,12 +314,11 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
     previousQuestionsRef.current = [];
   }, []);
 
-  // Fetch pending conflicts on mount
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated) {
       fetchPendingConflicts().catch(console.error);
     }
-  }, [user, fetchPendingConflicts]);
+  }, [isAuthenticated, fetchPendingConflicts]);
 
   return {
     isProcessing,

@@ -7,6 +7,9 @@ import { Provider as PaperProvider } from "react-native-paper";
 import { StatusBar } from "expo-status-bar";
 
 import WelcomeScreen from "./src/screens/WelcomeScreen";
+import LoginScreen from "./src/screens/LoginScreen";
+import RegisterScreen from "./src/screens/RegisterScreen";
+import OnboardingScreen from "./src/screens/OnboardingScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import ResultScreen from "./src/screens/ResultScreen";
 import BlueScreen from "./src/screens/BlueScreen";
@@ -22,21 +25,22 @@ import StampScreen from "./src/screens/StampScreen";
 import DetailStampScreen from "./src/screens/DetailStampScreen";
 import EditProfileScreen from "./src/screens/EditProfileScreen";
 import { RootStackParamList } from "./src/types/navigation";
-import LoginScreen from "./src/screens/LoginScreen";
-import RegisterScreen from "./src/screens/RegisterScreen";
-import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
-import OnboardingScreen from "./src/screens/OnboardingScreen";
 import MainTabNavigator from "./src/navigation/MainTabNavigator";
-
+import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
+import { checkBackendHealth } from "./src/services/backendHealth";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 function AppNavigator() {
-  const { isReady, session } = useAuth();
-  const [hasSeenOnboarding, setHasSeenOnboarding] = React.useState<boolean | null>(null);
+  const { session } = useAuth();
+  // Default to `false` (show Welcome) while the AsyncStorage read is in flight,
+  // so the navigator mounts immediately without a full-screen spinner.
+  const [hasSeenOnboarding, setHasSeenOnboarding] = React.useState<boolean>(false);
 
   useEffect(() => {
+    // Kick off background probes — neither blocks the UI.
+    void checkBackendHealth(3000);
     void flushPendingFirestoreWrites();
 
     const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
@@ -47,20 +51,12 @@ function AppNavigator() {
 
     AsyncStorage.getItem("hasSeenOnboarding")
       .then((val: string | null) => setHasSeenOnboarding(val === "true"))
-      .catch(() => setHasSeenOnboarding(true));
+      .catch(() => setHasSeenOnboarding(false));
 
     return () => {
       subscription.remove();
     };
   }, []);
-
-  if (!isReady || hasSeenOnboarding === null) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
 
   const getInitialRoute = () => {
     if (session.mode === "authenticated") return "MainTabs" as const;
@@ -111,11 +107,7 @@ function AppNavigator() {
         />
 
         {/* ── Authenticated shell ── */}
-        <Stack.Screen
-          name="MainTabs"
-          component={MainTabNavigator}
-          options={{ headerShown: false }}
-        />
+        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
 
         {/* ── Stack screens pushed on top of MainTabs ── */}
         <Stack.Screen
@@ -141,15 +133,47 @@ function AppNavigator() {
 
         {/* ── Legacy screens (kept until formally removed) ── */}
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: "Activity Analyzer" }} />
-        <Stack.Screen name="Result" component={ResultScreen} options={{ title: "Analysis Results" }} />
-        <Stack.Screen name="Blue" component={BlueScreen} options={{ title: "Voice Transcription" }} />
-        <Stack.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Achievement Dashboard" }} />
-        <Stack.Screen name="SkillsDashboard" component={SkillsDashboardScreen} options={{ title: "Skills Dashboard" }} />
-        <Stack.Screen name="DialogueDashboard" component={DialogueDashboardScreen} options={{ title: "Skills Passport" }} />
+        <Stack.Screen
+          name="Result"
+          component={ResultScreen}
+          options={{ title: "Analysis Results" }}
+        />
+        <Stack.Screen
+          name="Blue"
+          component={BlueScreen}
+          options={{ title: "Voice Transcription" }}
+        />
+        <Stack.Screen
+          name="Dashboard"
+          component={DashboardScreen}
+          options={{ title: "Achievement Dashboard" }}
+        />
+        <Stack.Screen
+          name="SkillsDashboard"
+          component={SkillsDashboardScreen}
+          options={{ title: "Skills Dashboard" }}
+        />
+        <Stack.Screen
+          name="DialogueDashboard"
+          component={DialogueDashboardScreen}
+          options={{ title: "Skills Passport" }}
+        />
         <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
-        <Stack.Screen name="VoiceAnalysis" component={VoiceAnalysisScreen} options={{ title: "Voice Analysis" }} />
-        <Stack.Screen name="TextAnalysis" component={TextAnalysisScreen} options={{ title: "Text Analysis" }} />
-        <Stack.Screen name="FollowUpQuestion" component={FollowUpQuestionScreen} options={{ title: "Answer Follow-up Question" }} />
+        <Stack.Screen
+          name="VoiceAnalysis"
+          component={VoiceAnalysisScreen}
+          options={{ title: "Voice Analysis" }}
+        />
+        <Stack.Screen
+          name="TextAnalysis"
+          component={TextAnalysisScreen}
+          options={{ title: "Text Analysis" }}
+        />
+        <Stack.Screen
+          name="FollowUpQuestion"
+          component={FollowUpQuestionScreen}
+          options={{ title: "Answer Follow-up Question" }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

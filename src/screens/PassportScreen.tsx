@@ -1,39 +1,63 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
-import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { STAMP_TAXONOMY } from "../config/stampTaxonomy";
 import { RadarChart } from "react-native-gifted-charts";
+import { getMappedCategories } from "../services/categoryStorageService";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
+
+const radarLabelMap: Record<string, string> = {
+  "Human Skills (Durable)": "Human Skills",
+  "Creative Expression & Communication": "Creative",
+  "Problem-Solving & Systems Thinking": "Problem-Solving",
+  "Work & Entrepreneurial Experience": "Work & Entrepreneurship",
+  "Future Self & Directionality": "Future Self",
+  "Meta-Learning & Self-Awareness": "Meta-Learning",
+  "Maker & Builder Skills": "Maker & Builder",
+  "Civic & Community Impact": "Civic & Community",
+  "Digital & Tech Fluency": "Tech Fluency",
+  "Wellbeing & Personal Resilience": "Wellbeing",
+  "Faith, Culture & Identity": "Faith & Culture",
+};
 
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
 
-  const regions = Object.keys(SKILLS_TAXONOMY);
+  const regions = Object.keys(STAMP_TAXONOMY);
+  const [radarData, setRadarData] = useState<number[]>(regions.map(() => 0));
+  const [regionUnlocks, setRegionUnlocks] = useState<Record<string, string[]>>({});
 
-  const radarLabelMap: Record<string, string> = {
-    "Human Skills (Durable)": "Human Skills",
-    "Creative Expression & Communication": "Creative",
-    "Problem-Solving & Systems Thinking": "Problem-Solving",
-    "Work & Entrepreneurial Experience": "Work & Entrepreneurship",
-    "Future Self & Directionality": "Future Self",
-    "Meta-Learning & Self-Awareness": "Meta-Learning",
-    "Maker & Builder Skills": "Maker & Builder",
-    "Civic & Community Impact": "Civic & Community",
-    "Digital & Tech Fluency": "Tech Fluency",
-    "Wellbeing & Personal Resilience": "Wellbeing",
-    "Faith, Culture & Identity": "Faith & Culture",
-  };
+  const loadData = useCallback(async () => {
+    try {
+      const mappedCategories = await getMappedCategories();
+      const mappedNames = new Set(mappedCategories.map((c) => c.category));
+      setRadarData(regions.map((region) => (mappedNames.has(region) ? 100 : 0)));
+
+      const unlocks: Record<string, string[]> = {};
+      for (const mc of mappedCategories) {
+        if (mc.unlockedStamps?.length) {
+          unlocks[mc.category] = mc.unlockedStamps.map((s) => s.name);
+        }
+      }
+      setRegionUnlocks(unlocks);
+    } catch {
+      // silently keep zeros
+    }
+  }, [regions]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const radarLabels: string[] = regions.map((region) => radarLabelMap[region] ?? region);
-
-  // data must be number[] — swap 0s for real scores (0–100) when ready
-  const radarData: number[] = regions.map(() => 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -81,18 +105,39 @@ export default function PassportScreen() {
         <View style={styles.regionsCard}>
           <Text style={styles.sectionTitle}>Explore Regions</Text>
           <View style={styles.grid}>
-            {regions.map((region) => (
-              <TouchableOpacity
-                key={region}
-                style={styles.regionItem}
-                onPress={() => navigation.navigate("Stamps", { region })}
-              >
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="explore" size={32} color="#2E6EE6" />
-                </View>
-                <Text style={styles.regionText}>{region}</Text>
-              </TouchableOpacity>
-            ))}
+            {regions.map((region) => {
+              const unlocked = regionUnlocks[region] ?? [];
+              return (
+                <TouchableOpacity
+                  key={region}
+                  style={styles.regionItem}
+                  onPress={() => navigation.navigate("Stamps", { region })}
+                >
+                  <View style={styles.iconContainer}>
+                    <MaterialIcons
+                      name={unlocked.length > 0 ? "check-circle" : "explore"}
+                      size={32}
+                      color={unlocked.length > 0 ? "#2E6EE6" : "#9BABCF"}
+                    />
+                  </View>
+                  <Text style={styles.regionText}>{region}</Text>
+                  {unlocked.length > 0 && (
+                    <View style={styles.chipRow}>
+                      {unlocked.slice(0, 2).map((name) => (
+                        <View key={name} style={styles.chip}>
+                          <Text style={styles.chipText} numberOfLines={1}>
+                            {name.length > 18 ? name.slice(0, 16) + "…" : name}
+                          </Text>
+                        </View>
+                      ))}
+                      {unlocked.length > 2 && (
+                        <Text style={styles.moreChip}>+{unlocked.length - 2}</Text>
+                      )}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </ScrollView>
@@ -192,5 +237,33 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1B3A72",
     textAlign: "center",
+  },
+
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginTop: 6,
+    gap: 4,
+  },
+
+  chip: {
+    backgroundColor: "#D6E4FF",
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+
+  chipText: {
+    fontSize: 10,
+    color: "#1B3A72",
+    fontWeight: "600",
+  },
+
+  moreChip: {
+    fontSize: 10,
+    color: "#6B7A99",
+    fontWeight: "600",
+    lineHeight: 20,
   },
 });

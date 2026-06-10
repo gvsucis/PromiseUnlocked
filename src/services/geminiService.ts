@@ -1,61 +1,24 @@
 import axios from "axios";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ImageManipulator from "expo-image-manipulator";
 import { AnalysisResult, TranscriptAnalysis } from "../types";
 import { CONFIG, getGeminiApiKey } from "../config/env";
 import extractJson from "../utils/JsonExtract";
-
-type GeminiErrorCode = "RATE_LIMIT" | "AUTH" | "NETWORK" | "API" | "UNKNOWN";
-
-interface GeminiError {
-  code: GeminiErrorCode;
-  message: string;
-  retryable: boolean;
-  retryAfterMs?: number;
-}
-
-interface GeminiResult<T> {
-  ok: boolean;
-  data?: T;
-  error?: GeminiError;
-}
-
-interface GeminiApiResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
-    };
-    finishReason?: string;
-  }>;
-}
-
-interface DialogueInteraction {
-  question: string;
-  answer: string;
-  mappedCategory: string;
-}
-
-interface QuestionSynthesisContext {
-  latestQuestion?: string;
-  latestAnswer?: string;
-  embeddingHistorySummary?: string;
-}
-
-interface MappedCategory {
-  category: string;
-  timesMapped?: number;
-}
-
-interface MapAnswerResponse {
-  category: string;
-  justification?: string;
-  nextQuestion?: string | null;
-  [key: string]: unknown;
-}
+import {
+  DialogueInteraction,
+  GeminiApiResponse,
+  GeminiError,
+  GeminiResult,
+  MapAnswerResponse,
+  MappedCategory,
+  QuestionSynthesisContext,
+} from "../types/gemini";
 
 export class GeminiService {
   private static readonly MODEL_NAME = CONFIG.TEXT_MODEL;
+  private static readonly MAX_VISION_IMAGE_BYTES = 450 * 1024;
+  private static readonly VISION_WIDTH_STEPS = [900, 768, 640, 512] as const;
+  private static readonly VISION_QUALITY_STEPS = [0.65, 0.55, 0.45, 0.35] as const;
 
   private static buildApiUrl(): string {
     const baseUrl = CONFIG.GEMINI_API_URL.replaceAll(/\/+$/g, "");
@@ -72,37 +35,52 @@ export class GeminiService {
    */
   private static async retryWithBackoff<T>(
     fn: () => Promise<T>,
-    maxRetries: number = 4,
-    initialDelay: number = 2000
+    maxRetries: number = 2,
+    initialDelay: number = 2000,
+    signal?: AbortSignal
   ): Promise<T> {
     let lastError: unknown;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      if (signal?.aborted) {
+        throw new Error("Request cancelled");
+      }
       try {
         return await fn();
       } catch (error) {
         lastError = error;
-        if (
-          axios.isAxiosError(error) &&
-          (error.response?.status === 429 || error.response?.status === 503)
-        ) {
-          const retryAfterHeader = error.response?.headers?.["retry-after"];
-          const retryAfterSeconds = Number(retryAfterHeader);
-          const baseDelay =
-            Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-              ? retryAfterSeconds * 1000
-              : initialDelay * Math.pow(2, attempt);
-          const jitter = Math.floor(Math.random() * 500);
-          const delay = baseDelay + jitter;
-          console.log(
-            `Rate limit/service busy. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`
-          );
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          continue;
-        }
-        throw error;
+        if (this.isCancellation(error)) throw error;
+        const delay = this.computeRetryDelay(error, attempt, initialDelay);
+        if (delay < 0) throw error;
+        console.log(
+          `Rate limit/service busy. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
     throw lastError;
+  }
+
+  private static isCancellation(error: unknown): boolean {
+    return (
+      axios.isCancel(error) || (error instanceof Error && error.message === "Request cancelled")
+    );
+  }
+
+  private static computeRetryDelay(error: unknown, attempt: number, initialDelay: number): number {
+    if (!axios.isAxiosError(error)) return -1;
+
+    const status = error.response?.status;
+    const isRetryable = status === 429 || status === 503;
+    if (!isRetryable) return -1;
+
+    const retryAfterHeader = error.response?.headers?.["retry-after"];
+    const retryAfterSeconds = Number(retryAfterHeader);
+    const baseDelay =
+      Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? retryAfterSeconds * 1000
+        : initialDelay * Math.pow(2, attempt);
+    const jitter = Math.floor(Math.random() * 500);
+    return baseDelay + jitter;
   }
 
   private static isRateLimitError(error: unknown): boolean {
@@ -137,7 +115,7 @@ export class GeminiService {
       if (this.isRateLimitError(error) || status === 429 || status === 503) {
         return {
           code: "RATE_LIMIT",
-          message: "Rate limit exceeded. Please wait a moment and try again.",
+          message: "System busy at the moment. Please try again later.",
           retryable: true,
           retryAfterMs,
         };
@@ -177,15 +155,28 @@ export class GeminiService {
 
   private static async requestGemini(
     requestBody: Record<string, unknown>,
-    timeout: number = CONFIG.REQUEST_TIMEOUT
+    timeout: number = CONFIG.REQUEST_TIMEOUT,
+    signal?: AbortSignal
   ): Promise<GeminiResult<GeminiApiResponse>> {
+    if (signal?.aborted) {
+      return {
+        ok: false,
+        error: { code: "NETWORK", message: "Request cancelled", retryable: false },
+      };
+    }
+
     try {
       const apiUrl = this.buildApiUrl();
-      const response = await this.retryWithBackoff(() =>
-        axios.post<GeminiApiResponse>(apiUrl, requestBody, {
-          headers: { "Content-Type": "application/json" },
-          timeout,
-        })
+      const response = await this.retryWithBackoff(
+        () =>
+          axios.post<GeminiApiResponse>(apiUrl, requestBody, {
+            headers: { "Content-Type": "application/json" },
+            timeout,
+            signal,
+          }),
+        2,
+        2000,
+        signal
       );
 
       return { ok: true, data: response.data };
@@ -347,7 +338,7 @@ export class GeminiService {
       };
     } catch (error) {
       const errorMessage = this.isRateLimitError(error)
-        ? "Rate limit exceeded. Please wait a moment and try again."
+        ? "System busy at the moment. Please try again later."
         : "Analysis failed";
 
       return {
@@ -359,33 +350,53 @@ export class GeminiService {
   }
 
   /**
+   * PUBLIC API: Check if an image is within the acceptable size limit for vision analysis.
+   * Returns { valid: boolean; message?: string } — if invalid, message explains why.
+   */
+  public static async validateImageSize(imageUri: string): Promise<{ valid: boolean }> {
+    const size = await this.getFileSizeBytes(imageUri);
+    if (size === null) return { valid: true };
+    return { valid: size <= this.MAX_VISION_IMAGE_BYTES };
+  }
+
+  /**
    * PUBLIC API: ANALYZE ACTION IMAGE
    * Analyzes an image of an activity/action and returns a description
    */
   public static async analyzeActionImage(
-    imageUri: string
+    imageUri: string,
+    questionContext?: string,
+    skipCompression?: boolean
   ): Promise<{ success: boolean; rawResponse?: string; error?: string }> {
     try {
-      const base64Image = await this.encodeImageToBase64(imageUri);
+      const optimizedImageUri = skipCompression
+        ? imageUri
+        : await this.compressImageForVision(imageUri);
+      const base64Image = await this.encodeImageToBase64(optimizedImageUri);
 
       const requestBody = {
         contents: [
           {
             parts: [
               {
-                text: `Analyze this image and describe what activity or action is being shown. Focus on:
-1. What specific activity or action is depicted
-2. What skills or competencies are being demonstrated
-3. Why this activity might help someone lose track of time
-4. What this reveals about their interests and strengths
+                text: `You are helping a user answer a reflection question using an uploaded image.
 
-Provide a thoughtful, specific description (2-3 sentences) that could serve as a response to the question: "What are you typically doing when you lose track of time?"`,
+Question to answer: "${questionContext ?? "What are you typically doing when you lose track of time?"}"
+
+Instructions:
+1. Infer the likely activity shown in the image.
+2. Write a concise first-person answer the user can submit (2-3 sentences).
+3. Keep it specific, natural, and grounded in what is visible.
+4. Mention concrete skills/strengths implied by the activity.
+5. Do not include disclaimers, markdown, bullet points, or references to "the image".
+
+Return only the final answer text.`,
               },
               { inline_data: { mime_type: "image/jpeg", data: base64Image } },
             ],
           },
         ],
-        generationConfig: { temperature: 0.5, maxOutputTokens: 512 },
+        generationConfig: { temperature: 0.35, maxOutputTokens: 400 },
       };
 
       const result = await this.requestGemini(requestBody);
@@ -414,19 +425,7 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
         rawResponse: text.trim(),
       };
     } catch (error) {
-      let errorMessage = "Failed to analyze image";
-
-      if (this.isRateLimitError(error)) {
-        errorMessage = "Rate limit exceeded. Please wait a moment and try again.";
-      } else if (axios.isAxiosError(error)) {
-        if (error.response?.status === 429) {
-          errorMessage = "Rate limit exceeded. Please wait a moment and try again.";
-        } else if (error.response?.status === 413) {
-          errorMessage = "Image is too large. Please try with a smaller image.";
-        } else if (error.response?.status === 401 || error.response?.status === 403) {
-          errorMessage = "API key error. Please check your configuration.";
-        }
-      }
+      const errorMessage = this.getActionImageErrorMessage(error);
 
       return {
         success: false,
@@ -474,7 +473,7 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
       return { success: true, transcript: transcript?.trim() };
     } catch (error) {
       const errorMessage = this.isRateLimitError(error)
-        ? "Rate limit exceeded. Please wait a moment and try again."
+        ? "System busy at the moment. Please try again later."
         : "Transcription failed";
       return { success: false, error: errorMessage };
     }
@@ -513,7 +512,9 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
     answer: string,
     interactions: DialogueInteraction[],
     mappedCategories: MappedCategory[],
-    taxonomyString: string
+    taxonomyString: string,
+    pdfContextText?: string,
+    signal?: AbortSignal
   ): Promise<MapAnswerResponse> {
     // Limit history to last 5 interactions to reduce prompt size and prevent token overflow
     const recentInteractions = interactions.slice(-5);
@@ -526,6 +527,10 @@ Provide a thoughtful, specific description (2-3 sentences) that could serve as a
 
     console.log("🔵 Using model:", this.MODEL_NAME);
 
+    const contextBlock = pdfContextText
+      ? `\n\n=== USER BACKGROUND CONTEXT ===\n${pdfContextText}\n\nUse this as secondary background to personalize questions and follow-ups. Never mention it directly or imply you have access to private files.`
+      : "";
+
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
 Your task is to map the answer to exactly one taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
 Rules:
@@ -536,29 +541,37 @@ Rules:
 5. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
 6. Keep the justification short and factual, with at most 30 words.
 7. Generate a thoughtful follow-up question that directly follows from the user's answer and helps identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.
-8. If future embedding response history is provided, treat it as secondary background only; never let it override the latest answer or pull the conversation to an unrelated topic.`;
+8. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.
+9. Also pick the single most specific stamp name from the "Available Stamps" list for the chosen category. Set specificStamp to the exact stamp name. If the answer does not clearly point to any specific stamp, set specificStamp to the first available stamp.${contextBlock}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
     try {
-      const result = await this.requestGemini({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          temperature: 0.5,
-          maxOutputTokens: 1200,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              category: { type: "string" },
-              justification: { type: "string" },
-              nextQuestion: { type: "string" },
+      const result = await this.requestGemini(
+        {
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ parts: [{ text: userPrompt }] }],
+          generationConfig: {
+            temperature: 0.5,
+            maxOutputTokens: 1200,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "object",
+              properties: {
+                category: { type: "string" },
+                justification: { type: "string" },
+                nextQuestion: { type: "string" },
+                suggestArtifactUpload: { type: "boolean" },
+                artifactUploadReason: { type: "string" },
+                specificStamp: { type: "string" },
+              },
+              required: ["category", "justification", "suggestArtifactUpload"],
             },
-            required: ["category", "justification"],
           },
         },
-      });
+        undefined,
+        signal
+      );
 
       if (!result.ok) {
         throw new Error(result.error?.message ?? "Failed to generate response");
@@ -577,6 +590,11 @@ Rules:
       // Extract JSON from response (handles incomplete/truncated JSON)
       const jsonString = extractJson(rawText);
       if (!jsonString) {
+        const salvaged = this.salvageTruncatedMapAnswerResponse(rawText);
+        if (salvaged) {
+          return salvaged;
+        }
+
         console.error("❌ Could not extract JSON from response:", rawText);
         throw new Error("Failed to extract JSON from API response");
       }
@@ -601,7 +619,7 @@ Rules:
         });
 
         if (this.isRateLimitError(error)) {
-          throw new Error("Rate limit exceeded. Please wait a moment and try again.");
+          throw new Error("System busy at the moment. Please try again later.");
         }
       }
       throw error;
@@ -620,6 +638,11 @@ Rules:
     try {
       parsed = JSON.parse(jsonString);
     } catch (parseError) {
+      const salvaged = this.salvageTruncatedMapAnswerResponse(rawText);
+      if (salvaged) {
+        return salvaged;
+      }
+
       console.error("❌ JSON parse error. Raw:", rawText.substring(0, 200));
       throw new Error(
         `JSON parse failed: ${parseError instanceof Error ? parseError.message : "unknown"}`
@@ -649,10 +672,110 @@ Rules:
     return parsed;
   }
 
+  private static salvageTruncatedMapAnswerResponse(rawText: string): MapAnswerResponse | null {
+    const categoryMatch = /"category"\s*:\s*"([^"]+)"/.exec(rawText);
+    const justificationMatch = /"justification"\s*:\s*"([^"]+)"/.exec(rawText);
+
+    const category = categoryMatch?.[1]?.trim();
+    const justification = justificationMatch?.[1]?.trim();
+
+    if (!category || !justification) {
+      return null;
+    }
+
+    return {
+      category,
+      justification,
+      nextQuestion: null,
+      specificStamp: category,
+    };
+  }
+
   private static async encodeImageToBase64(imageUri: string): Promise<string> {
     return await FileSystem.readAsStringAsync(imageUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
+  }
+
+  private static async getFileSizeBytes(imageUri: string): Promise<number | null> {
+    try {
+      const info = await FileSystem.getInfoAsync(imageUri);
+      if (!info.exists) {
+        return null;
+      }
+
+      return "size" in info && typeof info.size === "number" ? info.size : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private static async compressImageForVision(imageUri: string): Promise<string> {
+    const originalSize = await this.getFileSizeBytes(imageUri);
+    if (originalSize !== null && originalSize <= this.MAX_VISION_IMAGE_BYTES) {
+      return imageUri;
+    }
+
+    let smallestCandidateUri = imageUri;
+    let smallestCandidateSize = Number.MAX_SAFE_INTEGER;
+
+    for (let index = 0; index < this.VISION_WIDTH_STEPS.length; index += 1) {
+      const width = this.VISION_WIDTH_STEPS[index];
+      const quality = this.VISION_QUALITY_STEPS[index];
+
+      try {
+        const manipulated = await ImageManipulator.manipulateAsync(
+          imageUri,
+          [{ resize: { width } }],
+          {
+            compress: quality,
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
+        );
+
+        const size = await this.getFileSizeBytes(manipulated.uri);
+        if (size !== null && size < smallestCandidateSize) {
+          smallestCandidateUri = manipulated.uri;
+          smallestCandidateSize = size;
+        }
+
+        if (size !== null && size <= this.MAX_VISION_IMAGE_BYTES) {
+          return manipulated.uri;
+        }
+      } catch {
+        // Continue trying smaller variants.
+      }
+    }
+
+    if (smallestCandidateSize <= this.MAX_VISION_IMAGE_BYTES) {
+      return smallestCandidateUri;
+    }
+
+    throw new Error("IMAGE_TOO_LARGE_FOR_VISION");
+  }
+
+  private static getActionImageErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message === "IMAGE_TOO_LARGE_FOR_VISION") {
+      return "Image is too large to analyze. Please choose a smaller image or use the Small size option.";
+    }
+
+    if (this.isRateLimitError(error)) {
+      return "System busy at the moment. Please try again later.";
+    }
+
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 429) {
+        return "System busy at the moment. Please try again later.";
+      }
+      if (error.response?.status === 413) {
+        return "Image is too large. Please try with a smaller image.";
+      }
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        return "API key error. Please check your configuration.";
+      }
+    }
+
+    return "Failed to analyze image";
   }
 
   private static normalizeQuestion(question: string): string {
@@ -708,7 +831,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
 
   private static async fetchSynthesizedQuestion(
     prompt: string,
-    strict: boolean
+    strict: boolean,
+    signal?: AbortSignal
   ): Promise<GeminiResult<GeminiApiResponse>> {
     const requestBody = {
       contents: [
@@ -722,7 +846,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
       },
     };
 
-    return await this.requestGemini(requestBody, 40000);
+    return await this.requestGemini(requestBody, 15000, signal);
   }
 
   private static readQuestionResponse(response: GeminiResult<GeminiApiResponse>): {
@@ -755,7 +879,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
   private static throwSynthesisError(error: unknown): never {
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 429) {
-        throw new Error("Rate limit exceeded. Please wait a moment and try again.");
+        throw new Error("System busy at the moment. Please try again later.");
       }
       if (error.response?.status === 403) {
         throw new Error("API key invalid or missing. Check your .env file.");
@@ -782,7 +906,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
     }>,
     mappedCategories: Array<{ category: string }>,
     taxonomyString: string,
-    context?: QuestionSynthesisContext
+    context?: QuestionSynthesisContext,
+    signal?: AbortSignal
   ): Promise<string> {
     try {
       const history = interactions
@@ -802,7 +927,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
       // log the actual prompt sent to the model for debugging
       console.log("Synthesizing next question with prompt:");
 
-      const response = await this.fetchSynthesizedQuestion(prompt, false);
+      const response = await this.fetchSynthesizedQuestion(prompt, false, signal);
       const { text, finishReason } = this.readQuestionResponse(response);
 
       // if the model stopped because it hit our maxOutputTokens limit, log a warning
@@ -825,7 +950,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
           true,
           context
         );
-        const strictResponse = await this.fetchSynthesizedQuestion(strictPrompt, true);
+        const strictResponse = await this.fetchSynthesizedQuestion(strictPrompt, true, signal);
         const { text: strictText } = this.readQuestionResponse(strictResponse);
 
         if (strictText && strictText.length < 250) {
