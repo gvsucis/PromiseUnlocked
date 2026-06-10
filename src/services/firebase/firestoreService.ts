@@ -325,7 +325,8 @@ export async function savePassportMapping(
 export async function saveStampUnlock(
   userId: string,
   category: string,
-  stampName: string
+  stampName: string,
+  tier: number = 1
 ): Promise<void> {
   try {
     const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
@@ -339,30 +340,21 @@ export async function saveStampUnlock(
       typeof data.unlockedStamps === "object" &&
       stampName in data.unlockedStamps;
 
-    if (hasStamp) {
-      await setDoc(
-        passportRef,
-        {
-          [stampKey]: {
-            timesUnlocked: increment(1),
-            lastUnlockedAt: serverTimestamp(),
-          },
-        },
-        { merge: true }
-      );
-    } else {
-      await setDoc(
-        passportRef,
-        {
-          [stampKey]: {
-            timesUnlocked: 1,
-            firstUnlockedAt: serverTimestamp(),
-            lastUnlockedAt: serverTimestamp(),
-          },
-        },
-        { merge: true }
-      );
-    }
+    await setDoc(
+      passportRef,
+      {
+        category,
+        [stampKey]: hasStamp
+          ? { timesUnlocked: increment(1), lastUnlockedAt: serverTimestamp(), tier }
+          : {
+              timesUnlocked: 1,
+              firstUnlockedAt: serverTimestamp(),
+              lastUnlockedAt: serverTimestamp(),
+              tier,
+            },
+      },
+      { merge: true }
+    );
   } catch (err) {
     console.error("[Firestore] Failed to save stamp unlock:", err);
     throw err;
