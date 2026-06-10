@@ -13,7 +13,12 @@ interface SearchResponse {
 }
 
 export async function searchPdfContext(query: string, limit = 3): Promise<string> {
-  const token = await auth.currentUser?.getIdToken();
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) {
+    return "";
+  }
+
+  const token = await user.getIdToken();
   if (!token) {
     console.info("[PandoraData] Pandora Data not ready — no auth token");
     return "";
