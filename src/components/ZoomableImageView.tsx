@@ -10,7 +10,11 @@ interface ZoomableImageViewProps {
   onClose: () => void;
 }
 
-export default function ZoomableImageView({ imageUri, visible, onClose }: ZoomableImageViewProps) {
+export default function ZoomableImageView({
+  imageUri,
+  visible,
+  onClose,
+}: Readonly<ZoomableImageViewProps>) {
   const [scale, setScale] = useState(1);
 
   const resetZoom = () => {

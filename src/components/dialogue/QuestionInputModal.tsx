@@ -6,6 +6,7 @@ import {
   TouchableWithoutFeedback,
   StyleSheet,
   TextInput,
+  Image,
 } from "react-native";
 import { Text } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +32,10 @@ interface Props {
   onTextChange?: (text: string) => void;
   onSelectInputType: (method: Exclude<InputMethod, "text">) => void;
   onSubmitText: (text: string) => void;
+  onSubmitTextAndImage?: (text: string, imageUri: string) => void;
+  attachedImageUri?: string | null;
+  onAttachImage?: () => void;
+  onRemoveAttachedImage?: () => void;
   onClose: () => void;
   onBackdropDismiss?: () => void;
 }
@@ -42,6 +47,10 @@ export function QuestionInputModal({
   onTextChange,
   onSelectInputType,
   onSubmitText,
+  onSubmitTextAndImage,
+  attachedImageUri,
+  onAttachImage,
+  onRemoveAttachedImage,
   onClose,
   onBackdropDismiss,
 }: Readonly<Props>) {
@@ -49,7 +58,9 @@ export function QuestionInputModal({
   const textValue = controlledText ?? internalText;
   const setTextValue = onTextChange ?? setInternalText;
 
-  const resetText = () => setTextValue("");
+  const resetText = () => {
+    setTextValue("");
+  };
 
   const handleClose = () => {
     resetText();
@@ -61,15 +72,27 @@ export function QuestionInputModal({
   };
 
   const handleAltInput = (method: Exclude<InputMethod, "text">) => {
+    if (method === "image" && onSubmitTextAndImage && onAttachImage) {
+      onAttachImage();
+      return;
+    }
     resetText();
     onSelectInputType(method);
   };
 
   const handleSubmit = () => {
+    if (!textValue.trim() && !attachedImageUri) return;
+    if (attachedImageUri && textValue.trim() && onSubmitTextAndImage) {
+      onSubmitTextAndImage(textValue.trim(), attachedImageUri);
+      resetText();
+      return;
+    }
     if (!textValue.trim()) return;
     onSubmitText(textValue.trim());
     resetText();
   };
+
+  const hasContent = textValue.trim().length > 0 || !!attachedImageUri;
 
   return (
     <Modal
@@ -97,6 +120,18 @@ export function QuestionInputModal({
                 textAlignVertical="top"
               />
 
+              {attachedImageUri && (
+                <View style={styles.imagePreviewRow}>
+                  <Image source={{ uri: attachedImageUri }} style={styles.imagePreview} />
+                  <TouchableOpacity
+                    style={styles.removeImageButton}
+                    onPress={() => onRemoveAttachedImage?.()}
+                  >
+                    <Ionicons name="close-circle" size={22} color="#FF6B6B" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Alt input options — right-aligned below text input */}
               <View style={styles.altInputRow}>
                 {ALT_INPUT_OPTIONS.map(({ method, label, icon, color }) => (
@@ -118,9 +153,9 @@ export function QuestionInputModal({
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.submitButton, !textValue.trim() && styles.submitButtonDisabled]}
+                  style={[styles.submitButton, !hasContent && styles.submitButtonDisabled]}
                   onPress={handleSubmit}
-                  disabled={!textValue.trim()}
+                  disabled={!hasContent}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.submitText}>Submit</Text>
@@ -236,5 +271,21 @@ const styles = StyleSheet.create({
   cancelText: {
     color: "#667eea",
     fontWeight: "bold",
+  },
+  imagePreviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    width: "100%",
+  },
+  imagePreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  removeImageButton: {
+    marginLeft: 8,
   },
 });

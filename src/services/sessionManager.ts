@@ -7,7 +7,12 @@
 
 import { getJSONFromStorage, setJSONInStorage, removeFromStorage } from "../utils/asyncStorage";
 import { getScopedStorageKey, waitForAuthReady } from "./auth/authSessionService";
-import { createSession, closeSession, getOrCreateUserId } from "./firebase/firestoreService";
+import {
+  createSession,
+  closeSession,
+  getOrCreateUserId,
+  getSessionStatus,
+} from "./firebase/firestoreService";
 
 const SESSION_ID_KEY = "@active_session_id";
 
@@ -51,8 +56,23 @@ export async function startNewSession(): Promise<string> {
 
 export async function getOrStartSession(): Promise<string> {
   const existing = await getActiveSessionId();
-  if (existing) return existing;
-  return startNewSession();
+  if (!existing) return startNewSession();
+
+  try {
+    const userId = await getUserId();
+    const status = await getSessionStatus(userId, existing);
+    if (status === "completed" || status === "abandoned") {
+      _activeSessionId = null;
+      _activeSessionScope = null;
+      const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
+      await removeFromStorage(sessionStorageKey);
+      return startNewSession();
+    }
+  } catch {
+    // Firestore read failed (e.g. guest user, offline) — reuse existing session
+  }
+
+  return existing;
 }
 
 export async function endSession(status: "completed" | "abandoned"): Promise<void> {
