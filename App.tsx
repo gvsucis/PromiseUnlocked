@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { ActivityIndicator, AppState, AppStateStatus, View } from "react-native";
+import { AppState, AppStateStatus, Image } from "react-native";
+import { getAllPreloadUrls } from "./src/config/stampConstants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -42,6 +43,7 @@ function AppNavigator() {
     // Kick off background probes — neither blocks the UI.
     void checkBackendHealth(3000);
     void flushPendingFirestoreWrites();
+    getAllPreloadUrls().forEach((uri) => Image.prefetch(uri));
 
     const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       if (nextState === "active") {
