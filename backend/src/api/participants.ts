@@ -17,6 +17,12 @@ router.get("/me/sessions", authenticateToken, ParticipantsController.getMeSessio
 
 router.get("/me/sessions/:sessionId", authenticateToken, ParticipantsController.getMeSessionById);
 
+// Admin — get all participants' passport context
+router.get("/passport/all", authenticateToken, ParticipantsController.getAllPassports);
+
+// Get individual participant passport
+router.get("/:uid/passport", authenticateToken, ParticipantsController.getPassport);
+
 // Get individual participant
 router.get("/:uid", authenticateToken, ParticipantsController.getParticipantById);
 

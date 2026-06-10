@@ -363,7 +363,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"interactions\": [\n    {\n      \"id\": \"abc123\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs and isolating the failing service.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem Solving\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"The answer shows structured analysis and resolution of a complex issue.\",\n      \"matchedToCategory\": null,\n      \"matchedToSequenceIndex\": null,\n      \"timestamp\": \"2026-04-03T15:22:11.000Z\"\n    }\n  ]\n}"
+          "body": "{\n  \"interactions\": [\n    {\n      \"id\": \"abc123\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs and isolating the failing service.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"The answer shows structured analysis and resolution of a complex issue.\",\n      \"matchedToCategory\": null,\n      \"matchedToSequenceIndex\": null,\n      \"timestamp\": \"2026-04-03T15:22:11.000Z\"\n    }\n  ]\n}"
         }
       ],
       "event": [
@@ -447,7 +447,7 @@
               "value": "application/json"
             }
           ],
-          "body": "{\n  \"interaction\": {\n    \"id\": \"abc123\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs and isolating the failing service.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem Solving\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"The answer shows structured analysis and resolution of a complex issue.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-04-03T15:22:11.000Z\"\n  }\n}"
+          "body": "{\n  \"interaction\": {\n    \"id\": \"abc123\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs and isolating the failing service.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"The answer shows structured analysis and resolution of a complex issue.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-04-03T15:22:11.000Z\"\n  }\n}"
         }
       ]
     },

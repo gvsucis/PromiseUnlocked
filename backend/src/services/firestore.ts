@@ -203,4 +203,35 @@ export const participantSessionInteractionsCollection = (uid: string, sessionId:
     .collection("interactions")
     .withConverter(interactionConverter);
 
+export const participantPassportCollection = (uid: string) =>
+  participantDoc(uid).collection("skillPassport");
+
+export const participantPassportDoc = (uid: string, categoryId: string) =>
+  participantPassportCollection(uid).doc(categoryId);
+
+export function normalizePassport(
+  doc: FirebaseFirestore.DocumentSnapshot
+): Record<string, unknown> {
+  const data = doc.data();
+  if (!data) return {};
+  const toIso = (ts: unknown) => {
+    if (!ts) return null;
+    if (typeof ts === "string") return ts;
+    if (typeof ts === "number") return new Date(ts).toISOString();
+    if (ts && typeof ts === "object") {
+      const t = ts as { toDate?: unknown; _seconds?: unknown };
+      if (typeof t.toDate === "function") return (t.toDate as () => Date)().toISOString();
+      if (typeof t._seconds === "number") return new Date(t._seconds * 1000).toISOString();
+    }
+    return null;
+  };
+  return {
+    category: data.category ?? null,
+    firstMappedAt: toIso(data.firstMappedAt),
+    lastMappedAt: toIso(data.lastMappedAt),
+    totalMappings: data.totalMappings ?? 0,
+    unlockedStamps: data.unlockedStamps ?? {},
+  };
+}
+
 export { admin, db };
