@@ -64,6 +64,7 @@ export default function DialogueDashboardScreen() {
     clearPendingProofRequest,
     setLoadingMessage,
     setError,
+    loadData,
   } = useDialogueState();
 
   const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
@@ -133,6 +134,11 @@ export default function DialogueDashboardScreen() {
 
     return unsubscribe;
   }, [navigation, clearPendingProofRequest]);
+
+  // Reload mapped data when auth session changes (e.g. guest→authenticated after login)
+  React.useEffect(() => {
+    loadData();
+  }, [session.uid]);
 
   const handleAccountPress = () => {
     navigation.navigate("Login");
@@ -527,9 +533,8 @@ export default function DialogueDashboardScreen() {
         setShowProofImageEditor(true);
       } else if (result.error) {
         Alert.alert("Error", result.error);
-      } else {
-        clearPendingProofRequest();
       }
+      // User cancelled — keep pendingProofRequest so it re-prompts later
     } catch (err) {
       console.error("Error selecting proof image:", err);
       Alert.alert("Error", "An error occurred while selecting proof image");
@@ -573,7 +578,12 @@ export default function DialogueDashboardScreen() {
         pendingProofRequest.stampName &&
         pendingProofRequest.category
       ) {
-        await upgradeStampTier(pendingProofRequest.category, pendingProofRequest.stampName, 3);
+        const targetTier = Math.min(parseInt(latestStatus.proofTier ?? "2", 10) || 2, 4);
+        await upgradeStampTier(
+          pendingProofRequest.category,
+          pendingProofRequest.stampName,
+          targetTier
+        );
       }
 
       Alert.alert(proofStatus === "approved" ? "Proof approved" : "Proof submitted", feedback);
@@ -716,37 +726,16 @@ export default function DialogueDashboardScreen() {
       return;
     }
 
-    const naturalPrompt = pendingProofRequest.artifactUploadReason
-      ? pendingProofRequest.artifactUploadReason
-      : `Do you have a photo or artifact related to ${pendingProofRequest.category} you'd like to share?`;
+    const promptTitle =
+      pendingProofRequest.artifactUploadReason ?? "Select the image you'd like to share.";
 
-    Alert.alert("Share an artifact?", naturalPrompt, [
+    Alert.alert("Share an image", promptTitle, [
+      { text: "Take Photo", onPress: () => void handleProofImageSelection(true) },
+      { text: "Choose from Gallery", onPress: () => void handleProofImageSelection(false) },
       {
-        text: "Skip for now",
+        text: "Not now",
         style: "cancel",
         onPress: () => clearPendingProofRequest(),
-      },
-      {
-        text: "Share image",
-        onPress: () => {
-          Alert.alert(
-            "Choose image source",
-            "Select the image you'd like to share.",
-            [
-              { text: "Take Photo", onPress: () => void handleProofImageSelection(true) },
-              {
-                text: "Choose from Gallery",
-                onPress: () => void handleProofImageSelection(false),
-              },
-              {
-                text: "Cancel",
-                style: "cancel",
-                onPress: () => clearPendingProofRequest(),
-              },
-            ],
-            { cancelable: true }
-          );
-        },
       },
     ]);
   }, [pendingProofRequest]);
