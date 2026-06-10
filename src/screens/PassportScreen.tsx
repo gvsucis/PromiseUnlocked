@@ -1,14 +1,16 @@
 import React, { useState, useCallback } from "react";
-
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
-import { STAMP_TAXONOMY } from "../config/stampTaxonomy";
+import { REGIONS } from "../config/stampTaxonomy";
 import { RadarChart } from "react-native-gifted-charts";
-import { getMappedCategories } from "../services/categoryStorageService";
+import {
+  getMappedCategories,
+  ensureAllMappedCategoriesHaveStamps,
+} from "../services/categoryStorageService";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
@@ -26,18 +28,18 @@ const radarLabelMap: Record<string, string> = {
   "Faith, Culture & Identity": "Faith & Culture",
 };
 
+const radarLabels: string[] = REGIONS.map((region) => radarLabelMap[region] ?? region);
+
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
 
-  const regions = Object.keys(STAMP_TAXONOMY);
-  const [radarData, setRadarData] = useState<number[]>(regions.map(() => 0));
+  const [radarData, setRadarData] = useState<number[]>(REGIONS.map(() => 0));
   const [regionUnlocks, setRegionUnlocks] = useState<Record<string, string[]>>({});
 
   const loadData = useCallback(async () => {
     try {
+      await ensureAllMappedCategoriesHaveStamps();
       const mappedCategories = await getMappedCategories();
-      const mappedNames = new Set(mappedCategories.map((c) => c.category));
-      setRadarData(regions.map((region) => (mappedNames.has(region) ? 100 : 0)));
 
       const unlocks: Record<string, string[]> = {};
       for (const mc of mappedCategories) {
@@ -46,18 +48,18 @@ export default function PassportScreen() {
         }
       }
       setRegionUnlocks(unlocks);
+
+      setRadarData(REGIONS.map((region) => (unlocks[region]?.length ? 100 : 0)));
     } catch {
       // silently keep zeros
     }
-  }, [regions]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
     }, [loadData])
   );
-
-  const radarLabels: string[] = regions.map((region) => radarLabelMap[region] ?? region);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -105,7 +107,7 @@ export default function PassportScreen() {
         <View style={styles.regionsCard}>
           <Text style={styles.sectionTitle}>Explore Regions</Text>
           <View style={styles.grid}>
-            {regions.map((region) => {
+            {REGIONS.map((region) => {
               const unlocked = regionUnlocks[region] ?? [];
               return (
                 <TouchableOpacity

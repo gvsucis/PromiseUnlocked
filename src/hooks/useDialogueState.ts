@@ -14,8 +14,8 @@ import {
   getMappedCategories,
   saveMappedCategory,
   getConversationHistory,
-  addConversationInteraction,
-  addConversationInteractionWithMapping,
+  saveConversationInteraction,
+  syncFromFirestore,
   clearAllData,
   isCategoryMapped,
   getMappedCategory,
@@ -60,6 +60,7 @@ export interface DialogueState {
     answer: string;
     interactionId: string;
     category: string;
+    stampName?: string;
     artifactUploadReason?: string;
   } | null;
 
@@ -116,6 +117,7 @@ export function useDialogueState(): DialogueState {
     }
   }, []);
 
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistState = useCallback(
     async (prompt: string, savedQ: string, answer: string, savedA: string, state: UIState) => {
       if (state === "complete" || state === "idle") {
@@ -132,6 +134,24 @@ export function useDialogueState(): DialogueState {
     },
     []
   );
+
+  useEffect(() => {
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+    }
+    persistTimerRef.current = setTimeout(() => {
+      void persistState(currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState);
+    }, 500);
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+    };
+  }, [currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const getFriendlyDialogueErrorMessage = (error: unknown): string => {
     const code =
@@ -160,14 +180,6 @@ export function useDialogueState(): DialogueState {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    void persistState(currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState);
-  }, [currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState]);
-
-  useEffect(() => {
     if (mappedCategories.length === TOTAL_CATEGORIES) {
       void endSession("completed");
       setUiState("complete");
@@ -181,6 +193,7 @@ export function useDialogueState(): DialogueState {
       // Resolve auth once so the three storage reads below don't each
       // independently trip through waitForAuthReady() → AsyncStorage.
       await waitForAuthReady();
+      await syncFromFirestore();
       const [mapped, history, persisted] = await Promise.all([
         getMappedCategories(),
         getConversationHistory(),
@@ -307,7 +320,7 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        const interactionId = await addConversationInteraction(interaction);
+        const interactionId = await saveConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
         setWeakFitJustification(justification ?? "");
         setUiState("weak-fit");
@@ -324,12 +337,13 @@ export function useDialogueState(): DialogueState {
         const newMappedCategories = [...mappedCategories, newMappedCategory];
         setMappedCategories(newMappedCategories);
 
-        console.log(
-          `NEW ${categoryNameToCheck} category added: counter = ${newMappedCategory.timesMapped}`
-        );
+        if (__DEV__)
+          console.log(
+            `NEW ${categoryNameToCheck} category added: counter = ${newMappedCategory.timesMapped}`
+          );
 
         if (specificStamp) {
-          await addStampUnlock(categoryNameToCheck, specificStamp);
+          await addStampUnlock(categoryNameToCheck, specificStamp, 2);
         }
 
         const interaction: ConversationInteraction = {
@@ -341,10 +355,7 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        const interactionId = await addConversationInteractionWithMapping(
-          interaction,
-          justification ?? ""
-        );
+        const interactionId = await saveConversationInteraction(interaction, justification ?? "");
         setInteractions((prev) => [...prev, interaction]);
 
         setShowConfetti(true);
@@ -363,6 +374,7 @@ export function useDialogueState(): DialogueState {
             answer,
             interactionId,
             category: categoryNameToCheck,
+            stampName: specificStamp ?? undefined,
             artifactUploadReason: result.artifactUploadReason,
           });
         }
@@ -370,12 +382,16 @@ export function useDialogueState(): DialogueState {
 
         return { mapped: true as const, category: categoryNameToCheck, interactionId };
       } else if (await isCategoryMapped(categoryNameToCheck)) {
-        console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
+        if (__DEV__)
+          console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
         const mappedCategory = await getMappedCategory(categoryNameToCheck);
-        const updatedMappedCategory = await updateMappedCategoryCounter(mappedCategory);
+        const updatedMappedCategory = await updateMappedCategoryCounter({
+          ...mappedCategory,
+          justification: justification || mappedCategory.justification,
+        });
 
         if (specificStamp) {
-          await addStampUnlock(categoryNameToCheck, specificStamp);
+          await addStampUnlock(categoryNameToCheck, specificStamp, 2);
         }
 
         // ensures no duplicate categories are added to array of mapped categories
@@ -385,9 +401,10 @@ export function useDialogueState(): DialogueState {
 
         setMappedCategories(dedupedMappedCategories);
 
-        console.log(
-          `${updatedMappedCategory.category} category counter updated: counter = ${updatedMappedCategory.timesMapped}`
-        );
+        if (__DEV__)
+          console.log(
+            `${updatedMappedCategory.category} category counter updated: counter = ${updatedMappedCategory.timesMapped}`
+          );
 
         const interaction: ConversationInteraction = {
           question,
@@ -398,12 +415,12 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: categoryNameToCheck,
           matchedToSequenceIndex: null,
         };
-        const interactionId = await addConversationInteraction(interaction);
+        const interactionId = await saveConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
         await advanceToNextQuestion(nextQuestion);
         return { mapped: false as const, category: categoryNameToCheck, interactionId };
       } else {
-        console.log(`Unexpected category "${rawCategory}", generating new question`);
+        if (__DEV__) console.log(`Unexpected category "${rawCategory}", generating new question`);
         const interaction: ConversationInteraction = {
           question,
           answer,
@@ -413,7 +430,7 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        const interactionId = await addConversationInteraction(interaction);
+        const interactionId = await saveConversationInteraction(interaction);
         setInteractions((prev) => [...prev, interaction]);
         await advanceToNextQuestion(nextQuestion);
         return { mapped: false as const, category: null, interactionId };
@@ -533,13 +550,7 @@ export function useDialogueState(): DialogueState {
     if (!userAnswer.trim()) {
       Alert.alert(
         "Empty Text Error",
-        "Cannot evaluate an empty text field. Please provide a valid response.",
-        [
-          {
-            text: "OK",
-            onPress: () => console.log("Empty Text Error - OK pressed"),
-          },
-        ]
+        "Cannot evaluate an empty text field. Please provide a valid response."
       );
       setError("Answer cannot be empty. Please provide a substantive response.");
       return;
@@ -592,8 +603,6 @@ export function useDialogueState(): DialogueState {
 
       await new Promise((resolve) => setTimeout(resolve, 100));
       setUiState("idle");
-
-      setTimeout(() => {}, 100);
     } catch (err) {
       console.error("Error synthesizing question after weak-fit:", err);
       setError("Failed to generate question. Please try again.");

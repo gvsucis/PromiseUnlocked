@@ -97,7 +97,7 @@ async function handleAuthenticatedUser(
   return nextSession;
 }
 
-async function hydratePassportMappings(uid: string): Promise<void> {
+export async function hydratePassportMappings(uid: string): Promise<void> {
   try {
     const passportRef = collection(db, "participants", uid, "skillPassport");
     const snapshot = await getDocs(passportRef);
@@ -106,43 +106,67 @@ async function hydratePassportMappings(uid: string): Promise<void> {
     const mappedCategoriesKey = `@mappedCategories:${uid}`;
     const existing = await getJSONFromStorage<unknown[]>(mappedCategoriesKey, []);
 
-    if (existing.length >= snapshot.size) return;
+    const existingMap = new Map(
+      (existing as Array<Record<string, unknown>>).map((e) => [e.category, e])
+    );
 
-    const mappedCategories: {
-      category: string;
-      justification: string;
-      dateIdentified: string;
-      timesMapped: number;
-      unlockedStamps?: Array<{ name: string; timesUnlocked: number }>;
-    }[] = [];
-    snapshot.docs.forEach((doc) => {
+    const merged = snapshot.docs.map((doc) => {
       const data = doc.data();
       const category = data.category as string | undefined;
-      if (!category) return;
+      if (!category) return null;
 
-      const unlockedStamps: { name: string; timesUnlocked: number }[] = [];
+      const existingEntry = existingMap.get(category) as Record<string, unknown> | undefined;
+
+      const firestoreStamps: { name: string; timesUnlocked: number }[] = [];
       const rawStamps = data.unlockedStamps as
         | Record<string, { timesUnlocked?: number }>
         | undefined;
       if (rawStamps) {
         for (const [name, entry] of Object.entries(rawStamps)) {
-          unlockedStamps.push({ name, timesUnlocked: entry.timesUnlocked ?? 1 });
+          firestoreStamps.push({ name, timesUnlocked: entry.timesUnlocked ?? 1 });
         }
       }
 
-      mappedCategories.push({
+      const existingLocalStamps = existingEntry?.unlockedStamps as
+        | Array<{ name: string; timesUnlocked: number }>
+        | undefined;
+
+      const mergedStamps: Array<{ name: string; timesUnlocked: number }> = [];
+
+      const localByName = new Map(
+        (existingLocalStamps ?? []).map((s) => [s.name, s.timesUnlocked])
+      );
+      const firestoreByName = new Map(firestoreStamps.map((s) => [s.name, s.timesUnlocked]));
+
+      const allNames = new Set([...localByName.keys(), ...firestoreByName.keys()]);
+      for (const name of allNames) {
+        mergedStamps.push({
+          name,
+          timesUnlocked: Math.max(localByName.get(name) ?? 0, firestoreByName.get(name) ?? 1),
+        });
+      }
+
+      const firestoreMappings = data.mappings as Array<{ justification?: string }> | undefined;
+      const firestoreJustification = firestoreMappings?.at(-1)?.justification;
+
+      return {
         category,
-        justification: "",
-        dateIdentified: (data.firstMappedAt?.toDate?.() ?? new Date()).toISOString(),
-        timesMapped: (data.totalMappings as number) ?? 1,
-        unlockedStamps: unlockedStamps.length > 0 ? unlockedStamps : undefined,
-      });
+        justification: (existingEntry?.justification as string) || (firestoreJustification ?? ""),
+        dateIdentified:
+          (existingEntry?.dateIdentified as string) ??
+          (data.firstMappedAt?.toDate?.() ?? new Date()).toISOString(),
+        timesMapped: Math.max(
+          (existingEntry?.timesMapped as number) ?? 0,
+          (data.totalMappings as number) ?? 1
+        ),
+        unlockedStamps: mergedStamps.length > 0 ? mergedStamps : undefined,
+      };
     });
 
-    await setJSONInStorage(mappedCategoriesKey, mappedCategories);
-    console.log(
-      `[AuthSession] Hydrated ${mappedCategories.length} passport mappings from Firestore`
-    );
+    const filtered = merged.filter(Boolean) as Record<string, unknown>[];
+    await setJSONInStorage(mappedCategoriesKey, filtered);
+    if (__DEV__)
+      console.log(`[AuthSession] Hydrated ${filtered.length} passport mappings from Firestore`);
   } catch (error) {
     console.warn("[AuthSession] Failed to hydrate passport mappings:", error);
   }

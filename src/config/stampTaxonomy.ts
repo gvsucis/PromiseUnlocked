@@ -434,6 +434,8 @@ export const STAMP_TAXONOMY: StampTaxonomy = {
   ],
 };
 
+export const REGIONS = Object.keys(STAMP_TAXONOMY);
+
 /**
  * Derive SKILLS_TAXONOMY from STAMP_TAXONOMY
  * stampCategories with detailedStamps → "stampCategory: DetailName" items

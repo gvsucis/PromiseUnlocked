@@ -28,6 +28,7 @@ import { CategoryCard } from "../components/dialogue/CategoryCard";
 import { useDialogueState } from "../hooks/useDialogueState";
 import { useAuth } from "../context/AuthContext";
 import { fetchProofStatus, uploadProofImage } from "../services/proofService";
+import { upgradeStampTier } from "../services/categoryStorageService";
 import { getOrStartSession } from "../services/sessionManager";
 
 const { width } = Dimensions.get("window");
@@ -70,6 +71,7 @@ export default function DialogueDashboardScreen() {
   const [questionModalText, setQuestionModalText] = useState("");
   const suppressModalReopenRef = useRef(false);
   const modalDismissedByBackdropRef = useRef(false);
+  const isCombinedImageRef = useRef(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = React.useState(false);
@@ -89,6 +91,7 @@ export default function DialogueDashboardScreen() {
   const [showProofImageEditor, setShowProofImageEditor] = React.useState(false);
   const [tempProofImageUri, setTempProofImageUri] = React.useState<string | null>(null);
   const [isUploadingProof, setIsUploadingProof] = React.useState(false);
+  const [combinedImageUri, setCombinedImageUri] = React.useState<string | null>(null);
 
   React.useLayoutEffect(() => {
     navigation.getParent()?.setOptions({
@@ -196,6 +199,76 @@ export default function DialogueDashboardScreen() {
     } else if (method === "image") {
       const ready = prepareImageQuestion();
       if (ready) showImageSourceDialog();
+    }
+  };
+
+  // --- Combined image+text ---
+
+  const handleAttachImage = () => {
+    Alert.alert(
+      "Choose Image Source",
+      "Select an image to attach for your answer.",
+      [
+        { text: "Take Photo", onPress: () => handleCombinedImageSelection(true) },
+        { text: "Choose from Gallery", onPress: () => handleCombinedImageSelection(false) },
+        { text: "Cancel", style: "cancel" },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleCombinedImageSelection = async (useCamera: boolean) => {
+    try {
+      const hasPermissions = await ImagePickerService.requestPermissions();
+      if (!hasPermissions) {
+        Alert.alert("Permissions Required", "Camera and photo library permissions are required.");
+        return;
+      }
+
+      const result = useCamera
+        ? await ImagePickerService.takePhotoWithCamera()
+        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
+
+      if (result.success && result.imageUri) {
+        isCombinedImageRef.current = true;
+        setTempImageUri(result.imageUri);
+        setShowImageEditor(true);
+      }
+    } catch (err) {
+      console.error("Error selecting combined image:", err);
+    }
+  };
+
+  const handleSubmitTextAndImage = async (text: string, imageUri: string) => {
+    if (!text.trim() && !imageUri) return;
+    suppressModalReopenRef.current = true;
+    setShowQuestionInputModal(false);
+    const q = pendingQuestion || currentPrompt;
+    setPendingQuestion(null);
+    setCurrentPrompt("");
+    setQuestionModalText("");
+    setCombinedImageUri(null);
+    suppressModalReopenRef.current = false;
+
+    setIsAnalyzingImage(true);
+    setUiState("loading");
+    setLoadingMessage("Analyzing your response...");
+
+    try {
+      const sizeCheck = await GeminiService.validateImageSize(imageUri);
+      const skipCompression = sizeCheck.valid;
+      const analysisResult = await GeminiService.analyzeActionImage(imageUri, q, skipCompression);
+      const imageContext =
+        analysisResult.success && analysisResult.rawResponse ? analysisResult.rawResponse : "";
+
+      const mergedAnswer = text + (imageContext ? `\n\n[Image context: ${imageContext}]` : "");
+      setIsAnalyzingImage(false);
+      await mapAnswerToCategory(q, mergedAnswer);
+    } catch (err) {
+      console.error("Error processing combined submission:", err);
+      setIsAnalyzingImage(false);
+      setUiState("idle");
+      Alert.alert("Error", "Failed to process your answer. Please try again.");
     }
   };
 
@@ -362,6 +435,13 @@ export default function DialogueDashboardScreen() {
   };
 
   const handleImageEditorSave = (editedImageUri: string) => {
+    if (isCombinedImageRef.current) {
+      setCombinedImageUri(editedImageUri);
+      setShowImageEditor(false);
+      setTempImageUri(null);
+      isCombinedImageRef.current = false;
+      return;
+    }
     setSelectedImage(editedImageUri);
     setShowImageEditor(false);
     setTempImageUri(null);
@@ -371,6 +451,10 @@ export default function DialogueDashboardScreen() {
   const handleImageEditorCancel = () => {
     setShowImageEditor(false);
     setTempImageUri(null);
+    if (isCombinedImageRef.current) {
+      isCombinedImageRef.current = false;
+      return;
+    }
     const shouldReturnToAnswering = Boolean(currentPrompt || selectedImage);
     setUiState(shouldReturnToAnswering ? "answering" : "idle");
   };
@@ -483,6 +567,14 @@ export default function DialogueDashboardScreen() {
 
       const proofStatus = latestStatus.proofStatus ?? latestStatus.status ?? "pending";
       const feedback = latestStatus.userFeedbackMessage ?? "Proof uploaded and queued for review.";
+
+      if (
+        proofStatus === "approved" &&
+        pendingProofRequest.stampName &&
+        pendingProofRequest.category
+      ) {
+        await upgradeStampTier(pendingProofRequest.category, pendingProofRequest.stampName, 3);
+      }
 
       Alert.alert(proofStatus === "approved" ? "Proof approved" : "Proof submitted", feedback);
     } catch (error) {
@@ -741,8 +833,6 @@ export default function DialogueDashboardScreen() {
           </Card.Content>
         </Card>
 
-        {/* TopTabBar row removed — navigation now handled by bottom tab bar */}
-
         <View style={styles.categoryGrid}>{renderCategoryCards()}</View>
       </ScrollView>
 
@@ -812,11 +902,16 @@ export default function DialogueDashboardScreen() {
         onTextChange={setQuestionModalText}
         onSelectInputType={handleInputTypeSelect}
         onSubmitText={handleSubmitTextFromModal}
+        onSubmitTextAndImage={handleSubmitTextAndImage}
+        attachedImageUri={combinedImageUri}
+        onAttachImage={handleAttachImage}
+        onRemoveAttachedImage={() => setCombinedImageUri(null)}
         onClose={() => {
           setShowQuestionInputModal(false);
           setPendingQuestion(null);
           setCurrentPrompt("");
           setQuestionModalText("");
+          setCombinedImageUri(null);
         }}
         onBackdropDismiss={() => {
           modalDismissedByBackdropRef.current = true;
@@ -868,13 +963,6 @@ export default function DialogueDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  questionInputModalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
   proofUploadOverlay: {
     position: "absolute",
     left: 20,
@@ -890,47 +978,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
-  },
-  questionInputModalContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 24,
-    width: "85%",
-    alignItems: "center",
-  },
-  questionInputModalQuestion: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  questionInputModalSubtitle: {
-    fontSize: 15,
-    marginBottom: 18,
-    color: "#555",
-    textAlign: "center",
-  },
-  questionInputModalInputRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-  },
-  questionInputModalInputButton: {
-    alignItems: "center",
-    marginHorizontal: 12,
-  },
-  questionInputModalInputLabel: {
-    marginTop: 6,
-  },
-  questionInputModalCancelButton: {
-    marginTop: 24,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#eee",
-  },
-  questionInputModalCancelText: {
-    color: "#667eea",
-    fontWeight: "bold",
   },
 
   headerActions: {

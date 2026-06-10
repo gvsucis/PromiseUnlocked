@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MaterialIcons } from "@expo/vector-icons";
@@ -11,27 +11,13 @@ import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { computeDerivedSkills } from "../config/stampTaxonomy";
-import { getUnlockedStampsForCategory } from "../services/categoryStorageService";
+import { TIER_CONFIG, DEFAULT_TIER } from "../config/stampConstants";
+import {
+  getUnlockedStampsForCategory,
+  getMappedCategory,
+} from "../services/categoryStorageService";
 
 const DERIVED_SKILLS = computeDerivedSkills();
-
-// ============================================================================
-// RETROACTIVE PROOF UPLOAD (FOR FUTURE IMPLEMENTATION)
-// ============================================================================
-// When the stamp system is fully completed, users should be able to upload
-// proof for already-mapped categories from this screen.
-//
-// TODO: Integrate with `useProofUpload` hook or `uploadProofImage` service
-// when the backend interaction-to-stamp mapping is fully wired.
-// ============================================================================
-
-function handleAddProofRetroactively(stampName: string, region: string) {
-  Alert.alert(
-    "Add Proof (Coming Soon)",
-    `You will soon be able to upload a photo or artifact to upgrade your "${stampName}" stamp to a higher tier.`,
-    [{ text: "OK" }]
-  );
-}
 
 type StampDetailRouteProp = RouteProp<RootStackParamList, "StampDetails">;
 
@@ -41,19 +27,43 @@ export default function StampDetailScreen() {
   const navigation = useNavigation<StampDetailNavigationProp>();
   const route = useRoute<StampDetailRouteProp>();
   const { stamp, region } = route.params;
-  const stamps = DERIVED_SKILLS[region] ?? [];
-  const currentIndex = stamps.indexOf(stamp);
-  const previousStamp = currentIndex > 0 ? stamps[currentIndex - 1] : null;
-  const nextStamp = currentIndex < stamps.length - 1 ? stamps[currentIndex + 1] : null;
+  const allStamps = DERIVED_SKILLS[region] ?? [];
 
-  const [unlockInfo, setUnlockInfo] = useState<{ name: string; timesUnlocked: number } | null>(
-    null
-  );
+  const [unlockInfo, setUnlockInfo] = useState<{
+    name: string;
+    timesUnlocked: number;
+    tier?: number;
+  } | null>(null);
+  const [justification, setJustification] = useState<string | null>(null);
+  const [unlockedNames, setUnlockedNames] = useState<Set<string>>(new Set());
+
+  const unlockedStamps = allStamps.filter((s) => {
+    if (unlockedNames.has(s)) return true;
+    const bare = s.split(": ").pop();
+    return bare ? unlockedNames.has(bare) : false;
+  });
+  const currentIndex = unlockedStamps.indexOf(stamp);
+  const previousStamp = currentIndex > 0 ? unlockedStamps[currentIndex - 1] : null;
+  const nextStamp =
+    currentIndex < unlockedStamps.length - 1 ? unlockedStamps[currentIndex + 1] : null;
+
+  const tier = unlockInfo?.tier ?? DEFAULT_TIER;
+  const tierCfg =
+    TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ??
+    TIER_CONFIG[DEFAULT_TIER as keyof typeof TIER_CONFIG];
 
   const loadUnlockInfo = useCallback(async () => {
     const unlocks = await getUnlockedStampsForCategory(region);
     const found = unlocks.find((u) => u.name === stamp);
     setUnlockInfo(found ?? null);
+    setUnlockedNames(new Set(unlocks.map((u) => u.name)));
+
+    try {
+      const mc = await getMappedCategory(region);
+      setJustification(mc?.justification ?? null);
+    } catch {
+      setJustification(null);
+    }
   }, [region, stamp]);
 
   useFocusEffect(
@@ -106,12 +116,20 @@ export default function StampDetailScreen() {
         </View>
 
         <View style={styles.badgeContainer}>
-          <View style={[styles.badgeCircle, unlockInfo && styles.badgeCircleUnlocked]}>
-            <MaterialIcons
-              name={unlockInfo ? "check-circle" : "school"}
-              size={42}
-              color={unlockInfo ? "#FFFFFF" : "#2E6EE6"}
-            />
+          <View
+            style={[
+              styles.badgeCircle,
+              unlockInfo && {
+                backgroundColor: tierCfg.color,
+                borderColor: tierCfg.color,
+              },
+            ]}
+          >
+            {unlockInfo ? (
+              <Text style={styles.badgeTierText}>{tierCfg.label}</Text>
+            ) : (
+              <MaterialIcons name="school" size={42} color="#2E6EE6" />
+            )}
           </View>
 
           <Text style={styles.title}>{stamp}</Text>
@@ -127,27 +145,11 @@ export default function StampDetailScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Evidence</Text>
+          <Text style={styles.sectionTitle}>Justification</Text>
 
-          <View style={styles.bulletItem}>
-            <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>Demonstrated skill in chat</Text>
-          </View>
-
-          <View style={styles.bulletItem}>
-            <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>Provided evidence for skill</Text>
-          </View>
-
-          <View style={styles.bulletItem}>
-            <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>Shared an experience pertaining to skill</Text>
-          </View>
-
-          <View style={styles.bulletItem}>
-            <Text style={styles.bullet}>•</Text>
-            <Text style={styles.bulletText}>Skill verified by instructor</Text>
-          </View>
+          <Text style={styles.justificationText}>
+            {justification || "No justification recorded for this stamp."}
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -261,23 +263,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  bulletItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 10,
-  },
-
-  bullet: {
-    fontSize: 18,
-    color: "#2E6EE6",
-    marginRight: 8,
-    lineHeight: 20,
-  },
-
-  bulletText: {
-    flex: 1,
+  justificationText: {
     fontSize: 14,
     color: "#374151",
-    lineHeight: 20,
+    lineHeight: 22,
+  },
+
+  badgeTierText: {
+    color: "#FFFFFF",
+    fontSize: 32,
+    fontWeight: "800",
   },
 });

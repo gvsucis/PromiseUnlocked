@@ -44,7 +44,7 @@ export function AnswerModal({
   onRecordAgain,
   onDismiss,
   onAnswerChange,
-}: AnswerModalProps) {
+}: Readonly<AnswerModalProps>) {
   return (
     <Modal
       visible={visible}
