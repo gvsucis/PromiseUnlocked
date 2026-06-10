@@ -7,10 +7,14 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { REGIONS } from "../config/stampTaxonomy";
 import { RadarChart } from "react-native-gifted-charts";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../config/firebase";
 import {
   getMappedCategories,
   ensureAllMappedCategoriesHaveStamps,
 } from "../services/categoryStorageService";
+import { getCurrentAuthSession } from "../services/auth/authSessionService";
+import type { MappedCategory } from "../services/categoryTaxonomyService";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
@@ -39,7 +43,44 @@ export default function PassportScreen() {
   const loadData = useCallback(async () => {
     try {
       await ensureAllMappedCategoriesHaveStamps();
-      const mappedCategories = await getMappedCategories();
+      let mappedCategories: MappedCategory[] = await getMappedCategories();
+
+      // Fallback: if AsyncStorage is empty, try direct Firestore read
+      if (mappedCategories.length === 0) {
+        const session = getCurrentAuthSession();
+        if (session.mode === "authenticated" && session.uid) {
+          try {
+            const snapshot = await getDocs(
+              collection(db, "participants", session.uid, "skillPassport")
+            );
+            if (!snapshot.empty) {
+              mappedCategories = snapshot.docs.map((doc) => {
+                const data = doc.data();
+                const stamps = data.unlockedStamps as
+                  | Record<string, { timesUnlocked?: number }>
+                  | undefined;
+                return {
+                  category: (data.category as string) ?? doc.id,
+                  justification:
+                    (data.mappings as Array<{ justification?: string }> | undefined)?.at(-1)
+                      ?.justification ?? "",
+                  dateIdentified:
+                    data.firstMappedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+                  timesMapped: (data.totalMappings as number) ?? 1,
+                  unlockedStamps: stamps
+                    ? Object.entries(stamps).map(([name, s]) => ({
+                        name,
+                        timesUnlocked: s.timesUnlocked ?? 1,
+                      }))
+                    : [],
+                };
+              });
+            }
+          } catch (fsError) {
+            console.warn("[PassportScreen] Firestore fallback read failed:", fsError);
+          }
+        }
+      }
 
       const unlocks: Record<string, string[]> = {};
       for (const mc of mappedCategories) {
