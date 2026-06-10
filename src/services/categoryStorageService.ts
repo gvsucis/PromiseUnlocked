@@ -125,6 +125,28 @@ export async function upgradeStampTier(
     current[idx] = { ...entry, unlockedStamps: stamps };
     const storageKey = await getMappedCategoriesStorageKey();
     await setJSONInStorage(storageKey, current);
+
+    // Mirror tier upgrade to Firestore
+    try {
+      const writeContext = await getFirestoreWriteContext();
+      await enqueueFirestoreWrite(
+        async () => {
+          await saveStampUnlock(
+            writeContext.userId,
+            categoryName,
+            stampName,
+            stamps[existingIdx].tier
+          );
+        },
+        { rethrowOnFailure: true }
+      );
+    } catch (error) {
+      if (shouldSkipFirestoreMirror(error)) {
+        console.warn("[CategoryStorage] Skipping tier upgrade Firestore mirror:", error);
+      } else {
+        throw error;
+      }
+    }
   } catch (error) {
     logErrorToFile("Error upgrading stamp tier:", error);
     throw error;
@@ -166,7 +188,7 @@ export async function addStampUnlock(
       const writeContext = await getFirestoreWriteContext();
       await enqueueFirestoreWrite(
         async () => {
-          await saveStampUnlock(writeContext.userId, categoryName, stampName);
+          await saveStampUnlock(writeContext.userId, categoryName, stampName, tier);
         },
         { rethrowOnFailure: true }
       );
