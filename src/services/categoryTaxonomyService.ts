@@ -18,7 +18,7 @@ export interface MappedCategory {
   justification: string;
   dateIdentified: string;
   timesMapped: number;
-  unlockedStamps?: Array<{ name: string; timesUnlocked: number }>;
+  unlockedStamps?: Array<{ name: string; timesUnlocked: number; tier?: number }>;
 }
 
 export interface ConversationInteraction {

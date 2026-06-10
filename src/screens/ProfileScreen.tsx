@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ScrollView,
   View,
@@ -8,14 +8,16 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
+import { useAuth } from "../context/AuthContext";
 import {
   fetchProfile,
   updateProfile,
@@ -49,28 +51,53 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [savingBio, setSavingBio] = useState(false);
 
-  useEffect(() => {
-    fetchProfile()
-      .then((nextProfile) => {
-        setProfile(nextProfile);
-        const bioValue = nextProfile.metadata.bio;
-        setBio(typeof bioValue === "string" ? bioValue : "");
-      })
-      .catch((error) => {
-        console.warn(
-          "Failed to fetch profile from backend, falling back to local auth data:",
-          error
-        );
-        // Fallback to local Firebase Auth data if backend is unreachable
-        setProfile(buildLocalProfile());
-        setBio("");
-      })
-      .finally(() => undefined);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile()
+        .then((nextProfile) => {
+          setProfile(nextProfile);
+          const bioValue = nextProfile.metadata.bio;
+          setBio(typeof bioValue === "string" ? bioValue : "");
+        })
+        .catch((error) => {
+          console.warn(
+            "Failed to fetch profile from backend, falling back to local auth data:",
+            error
+          );
+          // Fallback to local Firebase Auth data if backend is unreachable
+          setProfile(buildLocalProfile());
+          setBio("");
+        })
+        .finally(() => undefined);
+    }, [])
+  );
 
   const navigation = useNavigation<ProfileNav>();
+  const { session, logoutToGuest } = useAuth();
   const [bio, setBio] = useState("");
   const [editingBio, setEditingBio] = useState(false);
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Switch to Guest",
+      "You will keep this account's saved progress, and the app will continue in guest mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => {
+            void logoutToGuest()
+              .then(() => {
+                navigation.replace("Welcome");
+              })
+              .catch(() => {
+                Alert.alert("Error", "Failed to switch to guest mode.");
+              });
+          },
+        },
+      ]
+    );
+  };
 
   const highSchool = useMemo(() => {
     const value = profile?.metadata.highSchool;
@@ -242,6 +269,15 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {session.mode === "authenticated" && (
+            <TouchableOpacity style={styles.card} onPress={handleLogout}>
+              <View style={styles.row}>
+                <MaterialIcons name="logout" size={20} color="#ef4444" />
+                <Text style={styles.logoutText}>Sign Out</Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -386,4 +422,5 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderColor: "#d8d4fe",
   },
+  logoutText: { fontSize: 15, fontWeight: "600", color: "#ef4444", marginLeft: 10 },
 });

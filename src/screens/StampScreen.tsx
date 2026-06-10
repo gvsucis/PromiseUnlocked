@@ -5,9 +5,14 @@ import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/nativ
 import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
-import { computeDerivedSkills, STAMP_TAXONOMY } from "../config/stampTaxonomy";
+import { computeDerivedSkills, REGIONS } from "../config/stampTaxonomy";
+import { TIER_CONFIG, DEFAULT_TIER } from "../config/stampConstants";
+import StampBadge from "../components/stamps/StampBadge";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getMappedCategories } from "../services/categoryStorageService";
+import {
+  getMappedCategories,
+  ensureAllMappedCategoriesHaveStamps,
+} from "../services/categoryStorageService";
 
 const DERIVED_SKILLS = computeDerivedSkills();
 
@@ -31,21 +36,23 @@ export default function StampScreen() {
 
   const route = useRoute<StampRouteProp>();
   const { region } = route.params;
-  const regions = Object.keys(STAMP_TAXONOMY);
-  const currentIndex = regions.indexOf(region);
+  const currentIndex = REGIONS.indexOf(region);
 
   const [unlockedStamps, setUnlockedStamps] = useState<Set<string>>(new Set());
   const [stampCounts, setStampCounts] = useState<Record<string, number>>({});
+  const [stampTiers, setStampTiers] = useState<Record<string, number>>({});
   const [prevRegion, setPrevRegion] = useState<string | null>(null);
   const [nextRegion, setNextRegion] = useState<string | null>(null);
 
   const loadUnlocked = useCallback(async () => {
+    await ensureAllMappedCategoriesHaveStamps();
     const mappedCategories = await getMappedCategories();
 
     const regionsWithUnlocks = new Set<string>();
     const names = new Set<string>();
 
     const counts: Record<string, number> = {};
+    const tiers: Record<string, number> = {};
     for (const mc of mappedCategories) {
       if (!mc.unlockedStamps?.length) continue;
       regionsWithUnlocks.add(mc.category);
@@ -53,14 +60,16 @@ export default function StampScreen() {
       for (const s of mc.unlockedStamps) {
         names.add(s.name);
         counts[s.name] = s.timesUnlocked;
+        tiers[s.name] = s.tier ?? DEFAULT_TIER;
       }
     }
 
     setUnlockedStamps(names);
     setStampCounts(counts);
-    setPrevRegion(findNearestWithUnlocks(regions, currentIndex, -1, regionsWithUnlocks));
-    setNextRegion(findNearestWithUnlocks(regions, currentIndex, 1, regionsWithUnlocks));
-  }, [region, currentIndex, regions]);
+    setStampTiers(tiers);
+    setPrevRegion(findNearestWithUnlocks(REGIONS, currentIndex, -1, regionsWithUnlocks));
+    setNextRegion(findNearestWithUnlocks(REGIONS, currentIndex, 1, regionsWithUnlocks));
+  }, [region, currentIndex]);
 
   useFocusEffect(
     useCallback(() => {
@@ -79,7 +88,11 @@ export default function StampScreen() {
   }
 
   const allStamps = DERIVED_SKILLS[region] ?? [];
-  const unlockedList = allStamps.filter((s) => unlockedStamps.has(s));
+  const unlockedList = allStamps.filter((s) => {
+    if (unlockedStamps.has(s)) return true;
+    const bare = s.split(": ").pop();
+    return bare ? unlockedStamps.has(bare) : false;
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -112,14 +125,18 @@ export default function StampScreen() {
           <View style={styles.grid}>
             {unlockedList.map((stamp) => {
               const count = stampCounts[stamp] ?? 1;
+              const tier = stampTiers[stamp] ?? DEFAULT_TIER;
+              const tierCfg =
+                TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ??
+                TIER_CONFIG[DEFAULT_TIER as keyof typeof TIER_CONFIG];
               return (
                 <TouchableOpacity
                   key={stamp}
                   style={styles.stampItem}
                   onPress={() => navigation.navigate("StampDetails", { stamp, region })}
                 >
-                  <View style={[styles.stampCircle, styles.stampCircleUnlocked]}>
-                    <MaterialIcons name="check-circle" size={34} color="#FFFFFF" />
+                  <View style={styles.stampCircle}>
+                    <StampBadge stampName={stamp} tier={tier} size="list" />
                     {count > 1 && (
                       <View style={styles.countBadge}>
                         <Text style={styles.countText}>×{count}</Text>
@@ -195,15 +212,13 @@ const styles = StyleSheet.create({
   },
 
   stampCircle: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    width: 94,
+    height: 94,
+    borderRadius: 47,
     backgroundColor: "#EEF4FF",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
-    borderWidth: 2,
-    borderColor: "#D6E4FF",
   },
 
   stampCircleUnlocked: {

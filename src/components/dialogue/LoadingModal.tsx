@@ -6,7 +6,7 @@ interface LoadingModalProps {
   message: string;
 }
 
-export function LoadingModal({ visible, message }: LoadingModalProps) {
+export function LoadingModal({ visible, message }: Readonly<LoadingModalProps>) {
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={styles.modalOverlay}>

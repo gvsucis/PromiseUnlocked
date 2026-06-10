@@ -18,7 +18,9 @@ import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 import { getMappingStats } from "../services/categoryStorageService";
 import { getCurrentAuthSession, subscribeToAuthSession } from "../services/auth/authSessionService";
+import { getJSONFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 import type { GuestUpgradeDecision } from "../services/firebase/googleAuthService";
+import type { MappedCategory } from "../services/categoryTaxonomyService";
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, "Register">;
 type Props = Readonly<{
@@ -47,6 +49,16 @@ export default function RegisterScreen({ navigation }: Props) {
       return "move";
     }
 
+    // Save old data to a non-scoped key before the auth switch,
+    // so migrateOrClearGuestData can find it even if AsyncStorage is cleared.
+    if (session.uid) {
+      const key = `@mappedCategories:${session.uid}`;
+      const oldData = await getJSONFromStorage<MappedCategory[]>(key, []);
+      if (oldData.length > 0) {
+        await setJSONInStorage("@_pending_migration", { oldUid: session.uid, data: oldData });
+      }
+    }
+
     return await new Promise<GuestUpgradeDecision | "cancel">((resolve) => {
       Alert.alert(
         "Move guest passport?",
@@ -71,9 +83,7 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
-    // onSuccess: () => navigation.replace("MainTabs"),
-
-    onSuccess: () => navigation.replace("DialogueDashboard"),
+    onSuccess: () => navigation.replace("MainTabs"),
     getGuestUpgradeDecision,
   });
 
@@ -89,12 +99,6 @@ export default function RegisterScreen({ navigation }: Props) {
   const hasConfirmError = confirmPassword.length > 0 && !passwordsMatch;
   const formValid = emailValid && passwordLongEnough && passwordsMatch && agreed;
   const isAnyLoading = loading || googleLoading;
-
-  React.useEffect(() => {
-    if (session.mode === "authenticated") {
-      navigation.replace("MainTabs");
-    }
-  }, [navigation, session.mode]);
 
   const getErrorDetails = (error: unknown) => {
     if (error instanceof Error) {

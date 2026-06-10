@@ -17,7 +17,9 @@ import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 import { getMappingStats } from "../services/categoryStorageService";
 import { getCurrentAuthSession, subscribeToAuthSession } from "../services/auth/authSessionService";
+import { getJSONFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 import type { GuestUpgradeDecision } from "../services/firebase/googleAuthService";
+import type { MappedCategory } from "../services/categoryTaxonomyService";
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
 interface Props {
@@ -35,6 +37,17 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
     const stats = await getMappingStats();
     const hasGuestPassportData = stats.totalMapped > 0 || stats.totalInteractions > 0;
     if (!hasGuestPassportData) return "move";
+
+    // Save old data to a non-scoped key before the auth switch,
+    // so migrateOrClearGuestData can find it even if AsyncStorage is cleared.
+    if (session.uid) {
+      const key = `@mappedCategories:${session.uid}`;
+      const oldData = await getJSONFromStorage<MappedCategory[]>(key, []);
+      if (oldData.length > 0) {
+        await setJSONInStorage("@_pending_migration", { oldUid: session.uid, data: oldData });
+      }
+    }
+
     return new Promise<GuestUpgradeDecision | "cancel">((resolve) => {
       Alert.alert(
         "Move guest passport?",
@@ -48,7 +61,7 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
     });
   };
   const { handleGoogleSignIn, googleLoading, googleReady } = useGoogleSignIn({
-    onSuccess: () => navigation.replace("DialogueDashboard"),
+    onSuccess: () => navigation.replace("MainTabs"),
     getGuestUpgradeDecision,
   });
   const emailValid = /.+@.+\..+/.test(email.trim());
@@ -57,12 +70,6 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
   const hasPasswordError = password.length > 0 && !passwordValid;
   const formValid = emailValid && passwordValid;
   const isAnyLoading = emailLoading || guestLoading || googleLoading;
-
-  React.useEffect(() => {
-    if (session.mode === "authenticated") {
-      navigation.replace("MainTabs");
-    }
-  }, [navigation, session.mode]);
 
   const getErrorDetails = (error: unknown) => {
     if (error instanceof Error) {

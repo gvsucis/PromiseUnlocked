@@ -13,7 +13,7 @@ interface CompletionModalProps {
   readonly onDismiss: () => void;
 }
 
-export function CompletionModal({ visible, onDismiss }: CompletionModalProps) {
+export function CompletionModal({ visible, onDismiss }: Readonly<CompletionModalProps>) {
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <TouchableWithoutFeedback onPress={onDismiss}>

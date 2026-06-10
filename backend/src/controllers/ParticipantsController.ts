@@ -3,13 +3,16 @@ import {
   admin,
   normalizeSession,
   normalizeUser,
+  normalizePassport,
   participantSessionDoc,
   participantSessionsCollection,
+  participantPassportCollection,
   participantsCollection,
 } from "@/services/firestore";
 import type { Address, AuthenticatedRequest, UserProfile } from "@/types/firestore";
 import { canAccessParticipant, isAdminUser } from "@/utils/authz";
 import { profileUpdateSchema } from "@/validation/profileUpdateSchema";
+import { parsePagination } from "@/utils/pagination";
 
 const buildProfileFromRecord = (
   userRecord: admin.auth.UserRecord,
@@ -39,15 +42,6 @@ const fetchOrCreateProfile = async (uid: string): Promise<UserProfile> => {
   const profile = buildProfileFromRecord(userRecord);
   await participantsCollection.doc(uid).set(profile);
   return profile;
-};
-
-const parseLimit = (value?: string | string[]) => {
-  const asString = Array.isArray(value) ? value[0] : value;
-  const parsed = Number.parseInt(asString ?? "", 10);
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    return 20;
-  }
-  return Math.min(parsed, 100);
 };
 
 export class ParticipantsController {
@@ -81,9 +75,14 @@ export class ParticipantsController {
     const requester = (req as AuthenticatedRequest).user;
     try {
       if (isAdminUser(requester)) {
-        const snapshot = await participantsCollection.get();
+        const { page, pageSize } = parsePagination(req.query, 20, 100);
+        const snapshot = await participantsCollection
+          .orderBy("createdAt", "desc")
+          .offset((page - 1) * pageSize)
+          .limit(pageSize)
+          .get();
         const participants = snapshot.docs.map((doc) => normalizeUser(doc));
-        return res.json({ participants });
+        return res.json({ participants, page, pageSize });
       }
       const profile = await fetchOrCreateProfile(requester.uid);
       const participants = [normalizeUser(profile)];
@@ -189,15 +188,16 @@ export class ParticipantsController {
 
   static async getMeSessions(req: Request, res: Response) {
     const requester = (req as AuthenticatedRequest).user;
-    const { status, limit } = req.query;
+    const { status } = req.query;
+    const { page, pageSize, offset } = parsePagination(req.query, 20, 100);
     let query = participantSessionsCollection(requester.uid).orderBy("startedAt", "desc");
     if (typeof status === "string" && ["active", "completed", "cancelled"].includes(status)) {
       query = query.where("status", "==", status);
     }
     try {
-      const snapshot = await query.limit(parseLimit(limit as string | undefined)).get();
+      const snapshot = await query.offset(offset).limit(pageSize).get();
       const sessions = snapshot.docs.map((doc) => normalizeSession(doc));
-      return res.json({ sessions });
+      return res.json({ sessions, page, pageSize });
     } catch (error) {
       console.error("Error fetching authenticated participant sessions:", error);
       return res.status(500).json({ error: "Failed to fetch participant sessions" });
@@ -252,6 +252,85 @@ export class ParticipantsController {
     } catch (error) {
       console.error("Error deleting participant:", error);
       return res.status(500).json({ error: "Failed to delete participant" });
+    }
+  }
+
+  static async getPassport(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    const { uid } = req.params as { uid: string };
+    if (!uid) {
+      return res.status(400).json({ error: "Missing participant uid" });
+    }
+    try {
+      if (!(await canAccessParticipant(requester, uid))) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      const snapshot = await participantPassportCollection(uid).get();
+      const passport = snapshot.docs.map((doc) => normalizePassport(doc));
+      return res.json({ passport });
+    } catch (error) {
+      console.error("Error fetching passport:", error);
+      return res.status(500).json({ error: "Failed to fetch passport" });
+    }
+  }
+
+  static async getAllPassports(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    if (!isAdminUser(requester)) {
+      return res.status(403).json({ error: "Forbidden — admin access required" });
+    }
+    try {
+      const { page, pageSize, offset } = parsePagination(req.query, 50, 100);
+      const totalSnapshot = await participantsCollection.count().get();
+      const total = totalSnapshot.data().count;
+
+      const participantsSnapshot = await participantsCollection
+        .orderBy("createdAt", "desc")
+        .offset(offset)
+        .limit(pageSize)
+        .get();
+
+      const result = await Promise.all(
+        participantsSnapshot.docs.map(async (doc) => {
+          const profile = normalizeUser(doc) as Record<string, unknown>;
+          const passportSnapshot = await participantPassportCollection(doc.id).get();
+          const passport = passportSnapshot.docs.map((p) => {
+            const n = normalizePassport(p) as Record<string, unknown>;
+            const stamps = n.unlockedStamps as Record<string, { timesUnlocked?: number }> | undefined;
+            let unlockedStampCount = 0;
+            if (stamps) {
+              unlockedStampCount = Object.keys(stamps).length;
+            }
+            return {
+              category: n.category,
+              totalMappings: n.totalMappings,
+              unlockedStampCount,
+            };
+          });
+          const totalStampsUnlocked = passport.reduce(
+            (sum, c) => sum + (c.unlockedStampCount as number),
+            0
+          );
+          const totalMappings = passport.reduce(
+            (sum, c) => sum + (c.totalMappings as number),
+            0
+          );
+          return {
+            uid: doc.id,
+            displayName: profile.displayName ?? null,
+            email: profile.email ?? null,
+            schoolName: profile.schoolName ?? null,
+            passport,
+            totalStampsUnlocked,
+            totalMappings,
+          };
+        })
+      );
+
+      return res.json({ participants: result, page, pageSize, total });
+    } catch (error) {
+      console.error("Error fetching all passports:", error);
+      return res.status(500).json({ error: "Failed to fetch all passports" });
     }
   }
 }

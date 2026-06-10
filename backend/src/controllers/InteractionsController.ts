@@ -1,21 +1,16 @@
 import type { Request, Response } from "express";
+import { FieldValue } from "firebase-admin/firestore";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 import {
   normalizeInteraction,
   participantSessionDoc,
   participantSessionInteractionsCollection,
+  db,
 } from "@/services/firestore";
 import type { AuthenticatedRequest, InteractionRecord } from "@/types/firestore";
 import { canAccessParticipant } from "@/utils/authz";
-
-const parseLimit = (value?: string | string[]) => {
-  const asString = Array.isArray(value) ? value[0] : value;
-  const parsed = Number.parseInt(asString ?? "", 10);
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    return 50;
-  }
-  return Math.min(parsed, 200);
-};
+import { isValidCategory } from "@/services/stampTaxonomy";
+import { parsePagination } from "@/utils/pagination";
 
 function resolveParticipantAndSessionId(params: Record<string, any>): {
   participantId?: string;
@@ -42,7 +37,7 @@ const ensureSessionOwnership = async (participantId: string, sessionId: string) 
 export class InteractionsController {
   static async listInteractions(req: Request, res: Response) {
     const { participantId, sessionId } = resolveParticipantAndSessionId(req.params);
-    const { limit } = req.query;
+    const { page, pageSize, offset } = parsePagination(req.query, 50, 200);
     const requester = (req as AuthenticatedRequest).user;
     if (!participantId || !sessionId) {
       return res.status(400).json({ error: "Missing participantId or sessionId in route." });
@@ -57,12 +52,13 @@ export class InteractionsController {
       }
       const snapshot = await participantSessionInteractionsCollection(participantId, sessionId)
         .orderBy("timestamp", "asc")
-        .limit(parseLimit(limit as string | undefined))
+        .offset(offset)
+        .limit(pageSize)
         .get();
       const interactions = snapshot.docs.map((doc: QueryDocumentSnapshot<InteractionRecord>) =>
         normalizeInteraction(doc)
       );
-      return res.json({ interactions });
+      return res.json({ interactions, page, pageSize });
     } catch (error) {
       console.error("Error fetching interactions:", error);
       return res.status(500).json({ error: "Failed to fetch interactions" });
@@ -74,7 +70,9 @@ export class InteractionsController {
     const { interactionId } = req.params as { interactionId: string };
     const requester = (req as AuthenticatedRequest).user;
     if (!participantId || !sessionId || !interactionId) {
-      return res.status(400).json({ error: "Missing participantId, sessionId, or interactionId in route." });
+      return res
+        .status(400)
+        .json({ error: "Missing participantId, sessionId, or interactionId in route." });
     }
     try {
       if (!(await canAccessParticipant(requester, participantId))) {
@@ -111,6 +109,70 @@ export class InteractionsController {
     } catch (error) {
       console.error("Error fetching interaction:", error);
       return res.status(500).json({ error: "Failed to fetch interaction" });
+    }
+  }
+
+  static async saveInteraction(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    if (!requester?.uid) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { sessionId, interaction } = req.body ?? {};
+    if (typeof sessionId !== "string" || !interaction || typeof interaction !== "object") {
+      return res.status(400).json({ error: "sessionId and interaction are required" });
+    }
+
+    const mappingOutcome = interaction.mappingOutcome as string | undefined;
+    const mappedCategory = interaction.mappedCategory as string | undefined;
+
+    if (mappingOutcome === "mapped" || mappingOutcome === "already_mapped") {
+      if (!mappedCategory || !isValidCategory(mappedCategory)) {
+        return res.status(400).json({
+          error: `Invalid mappedCategory "${mappedCategory}". Must be a valid taxonomy region name.`,
+        });
+      }
+    }
+
+    try {
+      const id = interaction.id ?? db.collection("_").doc().id;
+      const interactionRef = db
+        .collection("participants")
+        .doc(requester.uid)
+        .collection("sessions")
+        .doc(sessionId)
+        .collection("interactions")
+        .doc(id);
+
+      await interactionRef.set({
+        ...interaction,
+        id,
+        timestamp: interaction.timestamp ?? FieldValue.serverTimestamp(),
+      });
+
+      if (mappedCategory && (mappingOutcome === "mapped" || mappingOutcome === "already_mapped")) {
+        const sessionRef = db
+          .collection("participants")
+          .doc(requester.uid)
+          .collection("sessions")
+          .doc(sessionId);
+        await sessionRef.set(
+          {
+            categoriesMapped: FieldValue.arrayUnion(mappedCategory),
+            categoriesMappedCount: FieldValue.increment(1),
+          },
+          { merge: true }
+        );
+      }
+
+      return res.json({
+        success: true,
+        data: { interactionId: id },
+        error: null,
+      });
+    } catch (error) {
+      console.error("[InteractionsController] Failed to save interaction:", error);
+      return res.status(500).json({ error: "Failed to save interaction" });
     }
   }
 }

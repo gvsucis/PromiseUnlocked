@@ -1,4 +1,4 @@
-package com.anonymous.TranscriptAnalyzer
+package com.anonymous.promiseUnlocked
 
 import android.app.Application
 import android.content.res.Configuration

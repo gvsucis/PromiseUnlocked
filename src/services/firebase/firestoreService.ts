@@ -164,6 +164,41 @@ export async function closeSession(
   }
 }
 
+export async function getSessionStatus(
+  userId: string,
+  sessionId: string
+): Promise<"in_progress" | "completed" | "abandoned" | null> {
+  try {
+    const sessionRef = doc(db, "participants", userId, "sessions", sessionId);
+    const snapshot = await getDoc(sessionRef);
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data();
+    return (data?.status as "in_progress" | "completed" | "abandoned") ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchSessionInteractions(
+  userId: string,
+  sessionId: string
+): Promise<InteractionDocument[]> {
+  try {
+    const interactionsRef = collection(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "interactions"
+    );
+    const snapshot = await getDocs(interactionsRef);
+    return snapshot.docs.map((doc) => doc.data() as InteractionDocument);
+  } catch {
+    return [];
+  }
+}
+
 //
 // Interaction writes
 //
@@ -290,7 +325,8 @@ export async function savePassportMapping(
 export async function saveStampUnlock(
   userId: string,
   category: string,
-  stampName: string
+  stampName: string,
+  tier: number = 1
 ): Promise<void> {
   try {
     const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
@@ -304,30 +340,21 @@ export async function saveStampUnlock(
       typeof data.unlockedStamps === "object" &&
       stampName in data.unlockedStamps;
 
-    if (hasStamp) {
-      await setDoc(
-        passportRef,
-        {
-          [stampKey]: {
-            timesUnlocked: increment(1),
-            lastUnlockedAt: serverTimestamp(),
-          },
-        },
-        { merge: true }
-      );
-    } else {
-      await setDoc(
-        passportRef,
-        {
-          [stampKey]: {
-            timesUnlocked: 1,
-            firstUnlockedAt: serverTimestamp(),
-            lastUnlockedAt: serverTimestamp(),
-          },
-        },
-        { merge: true }
-      );
-    }
+    await setDoc(
+      passportRef,
+      {
+        category,
+        [stampKey]: hasStamp
+          ? { timesUnlocked: increment(1), lastUnlockedAt: serverTimestamp(), tier }
+          : {
+              timesUnlocked: 1,
+              firstUnlockedAt: serverTimestamp(),
+              lastUnlockedAt: serverTimestamp(),
+              tier,
+            },
+      },
+      { merge: true }
+    );
   } catch (err) {
     console.error("[Firestore] Failed to save stamp unlock:", err);
     throw err;

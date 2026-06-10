@@ -664,7 +664,7 @@
               "code": 200,
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"interactions\": [\n    {\n      \"id\": \"int001\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem Solving\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"Structured analysis and resolution.\",\n      \"matchedToCategory\": null,\n      \"matchedToSequenceIndex\": null,\n      \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n    }\n  ]\n}"
+              "body": "{\n  \"interactions\": [\n    {\n      \"id\": \"int001\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"Structured analysis and resolution.\",\n      \"matchedToCategory\": null,\n      \"matchedToSequenceIndex\": null,\n      \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n    }\n  ]\n}"
             }
           ],
           "event": [
@@ -716,7 +716,7 @@
               "code": 200,
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem Solving\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
+              "body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
             }
           ],
           "event": [
@@ -767,7 +767,7 @@
               "code": 200,
               "_postman_previewlanguage": "json",
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem Solving\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
+              "body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
             }
           ],
           "event": [

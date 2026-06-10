@@ -6,15 +6,7 @@ import {
 } from "@/services/firestore";
 import type { AuthenticatedRequest } from "@/types/firestore";
 import { canAccessParticipant } from "@/utils/authz";
-
-const parseLimit = (value?: string | string[]) => {
-  const asString = Array.isArray(value) ? value[0] : value;
-  const parsed = Number.parseInt(asString ?? "", 10);
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    return 20;
-  }
-  return Math.min(parsed, 100);
-};
+import { parsePagination } from "@/utils/pagination";
 
 function resolveParticipantId(params: Record<string, any>): string | undefined {
   return params.participantId || params.uid || params.id;
@@ -22,7 +14,8 @@ function resolveParticipantId(params: Record<string, any>): string | undefined {
 
 export class SessionsController {
   static async listSessions(req: Request, res: Response) {
-    const { status, limit } = req.query;
+    const { status } = req.query;
+    const { page, pageSize, offset } = parsePagination(req.query, 20, 100);
     const participantId = resolveParticipantId(req.params);
     const requester = (req as AuthenticatedRequest).user;
     if (!participantId) {
@@ -36,9 +29,9 @@ export class SessionsController {
       query = query.where("status", "==", status);
     }
     try {
-      const snapshot = await query.limit(parseLimit(limit as string | undefined)).get();
+      const snapshot = await query.offset(offset).limit(pageSize).get();
       const sessions = snapshot.docs.map((doc) => normalizeSession(doc));
-      return res.json({ sessions });
+      return res.json({ sessions, page, pageSize });
     } catch (error) {
       console.error("Error listing sessions:", error);
       return res.status(500).json({ error: "Failed to list sessions" });

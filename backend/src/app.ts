@@ -7,10 +7,13 @@ import sessionsRouter from "@/api/sessions";
 import interactionsRouter from "@/api/interactions";
 import chatRoutes from "@/api/chatRoutes";
 import proofRoutes from "@/api/proofRoutes";
+import stampsRouter from "@/api/stamps";
 import authRouter from "@/api/auth";
 import profileEmbeddingsRouter from "@/api/profileEmbeddings";
+import skillsRouter from "@/api/skills";
 import { authenticateToken } from "@/middleware/auth";
 import { createRateLimitMiddleware } from "@/middleware/rateLimit";
+import { InteractionsController } from "@/controllers/InteractionsController";
 import { setupSwagger } from "@/swagger";
 
 dotenv.config();
@@ -44,11 +47,14 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ status: "Server is running" });
 });
 app.use("/auth", publicRateLimit, authRouter);
+app.use("/skills", publicRateLimit, skillsRouter);
 app.use("/profile-embeddings", profileEmbeddingsRouter);
 
 // Protected routes
 app.use("/chat", authenticateToken, protectedRateLimit, chatRoutes, proofRoutes);
 app.use("/participants", authenticateToken, protectedRateLimit, participantsRouter);
+app.use("/participants/me/stamps", authenticateToken, protectedRateLimit, stampsRouter);
+app.post("/participants/me/interactions", authenticateToken, protectedRateLimit, InteractionsController.saveInteraction);
 app.use(
   "/participants/:participantId/sessions",
   authenticateToken,

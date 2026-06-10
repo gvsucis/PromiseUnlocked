@@ -6,11 +6,24 @@
  */
 
 import { MappedCategory, ConversationInteraction } from "./categoryTaxonomyService";
+import { STAMP_TAXONOMY } from "../config/stampTaxonomy";
+import { DEFAULT_TIER } from "../config/stampConstants";
 import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 
 import { getScopedStorageKey } from "./auth/authSessionService";
-import { clearSessionState, endSession, getOrStartSession, getUserId } from "./sessionManager";
-import { saveInteraction, savePassportMapping, saveStampUnlock } from "./firebase/firestoreService";
+import {
+  clearSessionState,
+  endSession,
+  getOrStartSession,
+  getUserId,
+  getActiveSessionId,
+} from "./sessionManager";
+import {
+  saveInteraction,
+  savePassportMapping,
+  saveStampUnlock,
+  fetchSessionInteractions,
+} from "./firebase/firestoreService";
 import { enqueueFirestoreWrite } from "./firebase/firestoreWriteQueue";
 
 // Log errors to a file instead of console.error
@@ -85,153 +98,69 @@ export async function saveMappedCategory(category: MappedCategory): Promise<void
   }
 }
 
-export async function getConversationHistory(): Promise<ConversationInteraction[]> {
-  const storageKey = await getInteractionsStorageKey();
-  return getJSONFromStorage(storageKey, [] as ConversationInteraction[]);
-}
-
-export async function addConversationInteraction(
-  interaction: ConversationInteraction,
-  inputMethod: "text" | "voice" | "image" = "text"
-): Promise<string> {
+/**
+ * Upgrade a stamp's tier without incrementing the unlock count.
+ * Used when proof is uploaded for an already-unlocked stamp.
+ */
+export async function upgradeStampTier(
+  categoryName: string,
+  stampName: string,
+  minTier: number
+): Promise<void> {
   try {
-    const current = await getConversationHistory();
-    const sequenceIndex = current.length;
-    const interactionId = generateInteractionId();
-    const updated = [...current, interaction];
-    const storageKey = await getInteractionsStorageKey();
-    await setJSONInStorage(storageKey, updated);
+    const current = await getMappedCategories();
+    const idx = current.findIndex((c) => c.category === categoryName);
+    if (idx === -1) return;
 
-    let mappingOutcome = interaction.mappingOutcome;
-    if (!mappingOutcome) {
-      if (interaction.mappedCategory === "NO-OP (WEAK FIT)") {
-        mappingOutcome = "weak_fit";
-      } else if (interaction.mappedCategory === "ALREADY MAPPED (IGNORED)") {
-        mappingOutcome = "already_mapped";
-      } else if (interaction.mappedCategory.startsWith("INVALID")) {
-        mappingOutcome = "invalid";
-      } else {
-        mappingOutcome = "mapped";
-      }
-    }
+    const entry = current[idx];
+    const stamps = entry.unlockedStamps ?? [];
+    const existingIdx = stamps.findIndex((s) => s.name === stampName);
+    if (existingIdx < 0) return;
 
-    const isWeakFit = mappingOutcome === "weak_fit";
-    const isAlreadyMapped = mappingOutcome === "already_mapped";
-    const mappedCategory =
-      mappingOutcome === "mapped" || mappingOutcome === "already_mapped"
-        ? interaction.mappedCategory
-        : null;
+    stamps[existingIdx] = {
+      ...stamps[existingIdx],
+      tier: Math.max(stamps[existingIdx].tier ?? DEFAULT_TIER, minTier),
+    };
+
+    current[idx] = { ...entry, unlockedStamps: stamps };
+    const storageKey = await getMappedCategoriesStorageKey();
+    await setJSONInStorage(storageKey, current);
+
+    // Mirror tier upgrade to Firestore
     try {
       const writeContext = await getFirestoreWriteContext();
-
       await enqueueFirestoreWrite(
         async () => {
-          const { sessionId, userId } = writeContext;
-          await saveInteraction(userId, sessionId, interactionId, {
-            sequenceIndex,
-            question: interaction.question,
-            answer: interaction.answer,
-            inputMethod,
-            mappingOutcome,
-            mappedCategory,
-            isWeakFit,
-            isAlreadyMapped,
-            justification: "",
-            matchedToCategory: interaction.matchedToCategory ?? null,
-            matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,
-          });
-        },
-        { rethrowOnFailure: true }
-      );
-    } catch (error) {
-      if (shouldSkipFirestoreMirror(error)) {
-        console.warn("[CategoryStorage] Skipping Firestore mirror write; local save kept:", error);
-      } else {
-        throw error;
-      }
-    }
-
-    return interactionId;
-  } catch (error) {
-    logErrorToFile("Error saving conversation interaction:", error);
-    throw error;
-  }
-}
-
-export async function addConversationInteractionWithMapping(
-  interaction: ConversationInteraction,
-  justification: string,
-  inputMethod: "text" | "voice" | "image" = "text"
-): Promise<string> {
-  try {
-    const current = await getConversationHistory();
-    const sequenceIndex = current.length;
-    const interactionId = generateInteractionId();
-    const updated = [...current, interaction];
-    const storageKey = await getInteractionsStorageKey();
-    await setJSONInStorage(storageKey, updated);
-    try {
-      const writeContext = await getFirestoreWriteContext();
-
-      await enqueueFirestoreWrite(
-        async () => {
-          const { sessionId, userId } = writeContext;
-          const savedInteractionId = await saveInteraction(userId, sessionId, interactionId, {
-            sequenceIndex,
-            question: interaction.question,
-            answer: interaction.answer,
-            inputMethod,
-            mappingOutcome: "mapped",
-            mappedCategory: interaction.mappedCategory,
-            isWeakFit: false,
-            isAlreadyMapped: false,
-            justification,
-            matchedToCategory: null,
-            matchedToSequenceIndex: null,
-          });
-
-          await savePassportMapping(
-            userId,
-            sessionId,
-            savedInteractionId,
-            interaction.mappedCategory,
-            justification
+          await saveStampUnlock(
+            writeContext.userId,
+            categoryName,
+            stampName,
+            stamps[existingIdx].tier
           );
         },
         { rethrowOnFailure: true }
       );
     } catch (error) {
       if (shouldSkipFirestoreMirror(error)) {
-        console.warn(
-          "[CategoryStorage] Skipping Firestore mirror write with mapping; local save kept:",
-          error
-        );
+        console.warn("[CategoryStorage] Skipping tier upgrade Firestore mirror:", error);
       } else {
         throw error;
       }
     }
-
-    return interactionId;
   } catch (error) {
-    logErrorToFile("Error saving conversation interaction with mapping:", error);
+    logErrorToFile("Error upgrading stamp tier:", error);
     throw error;
   }
-}
-
-export async function isCategoryMapped(categoryName: string): Promise<boolean> {
-  const mapped = await getMappedCategories();
-  return mapped.some((c) => c.category === categoryName);
-}
-
-export async function getMappedCategoryNames(): Promise<string[]> {
-  const mapped = await getMappedCategories();
-  return mapped.map((c) => c.category);
 }
 
 /**
  * Add or increment a stamp unlock for a mapped category
  */
-export async function addStampUnlock(categoryName: string, stampName: string): Promise<void> {
+export async function addStampUnlock(
+  categoryName: string,
+  stampName: string,
+  tier: number = DEFAULT_TIER
+): Promise<void> {
   try {
     const current = await getMappedCategories();
     const idx = current.findIndex((c) => c.category === categoryName);
@@ -245,9 +174,10 @@ export async function addStampUnlock(categoryName: string, stampName: string): P
       stamps[existingIdx] = {
         ...stamps[existingIdx],
         timesUnlocked: stamps[existingIdx].timesUnlocked + 1,
+        tier: Math.max(stamps[existingIdx].tier ?? DEFAULT_TIER, tier),
       };
     } else {
-      stamps.push({ name: stampName, timesUnlocked: 1 });
+      stamps.push({ name: stampName, timesUnlocked: 1, tier });
     }
 
     current[idx] = { ...entry, unlockedStamps: stamps };
@@ -258,7 +188,7 @@ export async function addStampUnlock(categoryName: string, stampName: string): P
       const writeContext = await getFirestoreWriteContext();
       await enqueueFirestoreWrite(
         async () => {
-          await saveStampUnlock(writeContext.userId, categoryName, stampName);
+          await saveStampUnlock(writeContext.userId, categoryName, stampName, tier);
         },
         { rethrowOnFailure: true }
       );
@@ -272,6 +202,24 @@ export async function addStampUnlock(categoryName: string, stampName: string): P
   } catch (error) {
     logErrorToFile("Error adding stamp unlock:", error);
     throw error;
+  }
+}
+
+/**
+ * Ensure every mapped category has at least one stamp unlocked.
+ * Used by screens on focus to recover from data loss.
+ */
+export async function ensureAllMappedCategoriesHaveStamps(): Promise<void> {
+  const mappedCategories = await getMappedCategories();
+  for (const mc of mappedCategories) {
+    if (mc.unlockedStamps?.length) continue;
+    const families = STAMP_TAXONOMY[mc.category];
+    if (!families?.length) continue;
+    const first = families[0];
+    const stampName = first.detailedStamps?.length
+      ? `${first.stampCategory}: ${first.detailedStamps[0].name}`
+      : first.stampCategory;
+    await addStampUnlock(mc.category, stampName);
   }
 }
 
@@ -305,6 +253,98 @@ export async function clearAllData(): Promise<void> {
   }
 }
 
+export async function getConversationHistory(): Promise<ConversationInteraction[]> {
+  const storageKey = await getInteractionsStorageKey();
+  return getJSONFromStorage(storageKey, [] as ConversationInteraction[]);
+}
+
+export async function syncFromFirestore(): Promise<void> {
+  try {
+    const sessionId = await getActiveSessionId();
+    if (!sessionId) return;
+    const userId = await getUserId();
+    const remote = await fetchSessionInteractions(userId, sessionId);
+    if (remote.length === 0) return;
+
+    const local = await getConversationHistory();
+    if (remote.length <= local.length) return;
+
+    const merged: ConversationInteraction[] = [];
+    const seen = new Set<string>();
+    for (const i of local) {
+      const key = `${i.question}|${i.answer}|${i.timestamp}`;
+      seen.add(key);
+      merged.push(i);
+    }
+    for (const r of remote) {
+      const key = `${r.question}|${r.answer}|${r.timestamp.toDate().toISOString()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push({
+        question: r.question,
+        answer: r.answer,
+        mappedCategory: r.mappedCategory ?? "",
+        timestamp: r.timestamp.toDate().toISOString(),
+        mappingOutcome: r.mappingOutcome,
+        matchedToCategory: r.matchedToCategory,
+        matchedToSequenceIndex: r.matchedToSequenceIndex,
+      });
+    }
+
+    const storageKey = await getInteractionsStorageKey();
+    await setJSONInStorage(storageKey, merged);
+  } catch {
+    // Firestore read failed — skip sync, rely on local data
+  }
+}
+
+export async function isCategoryMapped(categoryName: string): Promise<boolean> {
+  const mapped = await getMappedCategories();
+  return mapped.some((c) => c.category === categoryName);
+}
+
+export async function saveConversationInteraction(
+  interaction: ConversationInteraction,
+  justification?: string
+): Promise<string> {
+  const interactionId = generateInteractionId();
+  const current = await getConversationHistory();
+  const sequenceIndex = current.length;
+  current.push({ ...interaction });
+  const storageKey = await getInteractionsStorageKey();
+  await setJSONInStorage(storageKey, current);
+
+  try {
+    const { userId, sessionId } = await getFirestoreWriteContext();
+    await enqueueFirestoreWrite(
+      async () => {
+        await saveInteraction(userId, sessionId, null, {
+          sequenceIndex,
+          question: interaction.question,
+          answer: interaction.answer,
+          inputMethod: "text",
+          mappingOutcome: interaction.mappingOutcome ?? "mapped",
+          mappedCategory: interaction.mappedCategory,
+          isWeakFit: interaction.mappingOutcome === "weak_fit",
+          isAlreadyMapped: interaction.mappingOutcome === "already_mapped",
+          justification: justification ?? "",
+          matchedToCategory: interaction.matchedToCategory ?? null,
+          matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,
+        });
+      },
+      { rethrowOnFailure: true }
+    );
+  } catch (error) {
+    if (shouldSkipFirestoreMirror(error)) {
+      console.warn("[CategoryStorage] Skipping interaction Firestore mirror:", error);
+    } else {
+      throw error;
+    }
+  }
+
+  return interactionId;
+}
+
 export async function getMappingStats(): Promise<{
   totalMapped: number;
   totalInteractions: number;
@@ -335,6 +375,7 @@ export async function updateMappedCategoryCounter(
       justification: mappedCategory.justification,
       dateIdentified: mappedCategory.dateIdentified,
       timesMapped: mappedCategory.timesMapped + 1,
+      unlockedStamps: mappedCategory.unlockedStamps,
     };
 
     const newMappedCategories = current.map((c) =>
@@ -345,7 +386,7 @@ export async function updateMappedCategoryCounter(
     await setJSONInStorage(storageKey, newMappedCategories);
     return updatedMappedCategory;
   } catch (error) {
-    console.error("Error updating mapped categories:", error);
+    logErrorToFile("Error updating mapped categories:", error);
     throw error;
   }
 }
