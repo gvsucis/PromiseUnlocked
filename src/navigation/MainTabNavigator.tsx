@@ -4,23 +4,15 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons } from "@expo/vector-icons";
 import DialogueDashboardScreen from "../screens/DialogueDashboardScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import PassportScreen from "../screens/PassportScreen";
 import HelpScreen from "../screens/HelpScreen";
+import { colors } from "../styles/global";
 
 function ChatScreen() {
   return (
     <View style={placeholderStyles.container}>
       <MaterialIcons name="chat-bubble-outline" size={48} color="#c7c2d8" />
       <Text style={placeholderStyles.title}>This will be a modal, not a screen.</Text>
-    </View>
-  );
-}
-
-//Placeholder for Typescript
-function SocialScreen() {
-  return (
-    <View style={placeholderStyles.container}>
-      <MaterialIcons name="people-outline" size={48} color="#c7c2d8" />
-      <Text style={placeholderStyles.title}>Social</Text>
     </View>
   );
 }
@@ -34,7 +26,6 @@ const TAB_CONFIG = [
     icon: "explore",
     label: "Dashboard",
     size: 32,
-    enabled: true,
   },
   {
     name: "Profile",
@@ -42,7 +33,6 @@ const TAB_CONFIG = [
     icon: "person-outline",
     label: "Profile",
     size: 32,
-    enabled: true,
   },
   {
     name: "Chat",
@@ -50,15 +40,13 @@ const TAB_CONFIG = [
     icon: "add-circle-outline",
     label: "Chat",
     size: 48,
-    enabled: true,
   },
   {
-    name: "Social",
-    component: SocialScreen,
-    icon: "people-outline",
-    label: "Social",
+    name: "Passport",
+    component: PassportScreen,
+    icon: "card-travel",
+    label: "Passport",
     size: 32,
-    enabled: false,
   },
   {
     name: "Help",
@@ -66,7 +54,6 @@ const TAB_CONFIG = [
     icon: "error-outline",
     label: "Help",
     size: 32,
-    enabled: true,
   },
 ] as const;
 
@@ -77,10 +64,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         const { options } = descriptors[route.key];
         const config = TAB_CONFIG[index];
         const isFocused = state.index === index;
-        const isDisabled = !config.enabled;
 
         const onPress = () => {
-          if (isDisabled) return;
           const event = navigation.emit({
             type: "tabPress",
             target: route.key,
@@ -98,20 +83,15 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             accessibilityState={isFocused ? { selected: true } : {}}
             accessibilityLabel={options.tabBarAccessibilityLabel}
             onPress={onPress}
-            activeOpacity={isDisabled ? 1 : 0.7}
+            activeOpacity={0.7}
             style={styles.tabItem}
           >
-            <View style={[styles.iconWrap]}>
+            <View style={styles.iconWrap}>
               <MaterialIcons
                 name={config.icon as any}
                 size={config.size ?? 32}
-                color={isDisabled ? "#d1cde8" : isFocused ? "#6d5efc" : "#8e89a8"}
+                color={isFocused ? colors.accent.sky : colors.text.muted}
               />
-              {isDisabled && (
-                <View style={styles.comingSoonBadge}>
-                  <Text style={styles.comingSoonText}>Soon</Text>
-                </View>
-              )}
             </View>
           </TouchableOpacity>
         );
@@ -136,12 +116,12 @@ export default function MainTabNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.background.base,
     borderTopWidth: 1,
-    borderTopColor: "#f0eef8",
+    borderTopColor: colors.border.subtle,
     height: 110,
     paddingHorizontal: 4,
-    shadowColor: "#6d5efc",
+    shadowColor: colors.accent.sky,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -169,12 +149,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 4,
     paddingVertical: 1,
-  },
-  comingSoonText: {
-    fontSize: 8,
-    color: "#8b7fd4",
-    fontWeight: "700",
-    letterSpacing: 0.3,
   },
 });
 

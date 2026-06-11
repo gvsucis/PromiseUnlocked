@@ -105,9 +105,6 @@ export default function PassportScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#1B3A72" />
-        </TouchableOpacity>
         <Text style={styles.title}>My Passport</Text>
 
         <View style={styles.radarCard}>
