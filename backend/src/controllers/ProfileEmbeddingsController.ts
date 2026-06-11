@@ -146,7 +146,7 @@ export class ProfileEmbeddingsController {
       try {
         const uint8 = new Uint8Array(fileBuffer);
         extractedText = await extractTextFromPdfBuffer(uint8, 12);
-        vector = await generatePdfEmbedding(uint8, extractedText || state.filename);
+        vector = await generatePdfEmbedding(extractedText || state.filename);
       } catch (err) {
         console.error("[MemoryUpload] Embedding generation failed:", err);
         return res.status(500).json({ error: "Embedding generation failed" });

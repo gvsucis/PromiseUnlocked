@@ -11,6 +11,7 @@ import stampsRouter from "@/api/stamps";
 import authRouter from "@/api/auth";
 import profileEmbeddingsRouter from "@/api/profileEmbeddings";
 import skillsRouter from "@/api/skills";
+import usersRouter from "@/api/users";
 import { authenticateToken } from "@/middleware/auth";
 import { createRateLimitMiddleware } from "@/middleware/rateLimit";
 import { InteractionsController } from "@/controllers/InteractionsController";
@@ -49,6 +50,7 @@ app.get("/health", (_req, res) => {
 app.use("/auth", publicRateLimit, authRouter);
 app.use("/skills", publicRateLimit, skillsRouter);
 app.use("/profile-embeddings", profileEmbeddingsRouter);
+app.use("/users", publicRateLimit, usersRouter);
 
 // Protected routes
 app.use("/chat", authenticateToken, protectedRateLimit, chatRoutes, proofRoutes);
