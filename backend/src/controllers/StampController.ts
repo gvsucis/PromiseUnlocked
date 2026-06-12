@@ -16,11 +16,13 @@ export class StampController {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { category, stampName } = req.body ?? {};
+    const { category, stampName, tier } = req.body ?? {};
 
     if (typeof category !== "string" || typeof stampName !== "string") {
       return res.status(400).json({ error: "category and stampName are required" });
     }
+
+    const targetTier = typeof tier === "number" ? Math.min(Math.max(1, tier), 4) : 1;
 
     if (!isValidCategory(category)) {
       return res.status(400).json({
@@ -50,12 +52,20 @@ export class StampController {
         typeof data.unlockedStamps === "object" &&
         stampName in data.unlockedStamps;
 
+      const existingTier =
+        hasStamp && data?.unlockedStamps
+          ? (data.unlockedStamps as Record<string, { tier?: number }>)[stampName]?.tier ?? 1
+          : 1;
+
+      const mergedTier = Math.max(existingTier, targetTier);
+
       if (hasStamp) {
         await passportRef.set(
           {
             [stampKey]: {
               timesUnlocked: FieldValue.increment(1),
               lastUnlockedAt: FieldValue.serverTimestamp(),
+              tier: mergedTier,
             },
           },
           { merge: true }
@@ -67,6 +77,7 @@ export class StampController {
               timesUnlocked: 1,
               firstUnlockedAt: FieldValue.serverTimestamp(),
               lastUnlockedAt: FieldValue.serverTimestamp(),
+              tier: mergedTier,
             },
           },
           { merge: true }
