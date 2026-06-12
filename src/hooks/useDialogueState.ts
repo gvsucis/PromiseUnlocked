@@ -54,6 +54,7 @@ export interface DialogueState {
   isPrefetching: boolean;
   loading: boolean;
   weakFitJustification: string;
+  contentWarning: boolean;
   savedQuestion: string;
   savedAnswer: string;
   showConfetti: boolean;
@@ -104,6 +105,7 @@ export function useDialogueState(): DialogueState {
   const [isPrefetching, setIsPrefetching] = useState(false);
   const [loading, setLoading] = useState(true);
   const [weakFitJustification, setWeakFitJustification] = useState("");
+  const [contentWarning, setContentWarning] = useState(false);
   const [savedQuestion, setSavedQuestion] = useState("");
   const [savedAnswer, setSavedAnswer] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
@@ -122,7 +124,11 @@ export function useDialogueState(): DialogueState {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistState = useCallback(
     async (prompt: string, savedQ: string, answer: string, savedA: string, state: UIState) => {
-      if (state === "complete" || state === "idle") {
+      if (state === "complete") {
+        await clearDialogueState();
+        return;
+      }
+      if (state === "idle" && !prompt) {
         await clearDialogueState();
         return;
       }
@@ -210,14 +216,12 @@ export function useDialogueState(): DialogueState {
         setUserAnswer(persisted.userAnswer);
         setSavedAnswer(persisted.savedAnswer);
 
-        if (persisted.uiState === "answering") {
+        if (
+          persisted.uiState === "answering" ||
+          persisted.uiState === "loading" ||
+          persisted.uiState === "voice-recording"
+        ) {
           setUiState("idle");
-          setPrefetchedQuestion(persisted.currentPrompt);
-        } else if (persisted.uiState === "loading" || persisted.uiState === "voice-recording") {
-          setUiState("idle");
-          setCurrentPrompt(persisted.currentPrompt);
-          setSavedQuestion(persisted.savedQuestion);
-          setSavedAnswer(persisted.savedAnswer);
         }
       }
     } catch (err) {
@@ -313,6 +317,16 @@ export function useDialogueState(): DialogueState {
       const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
+        const isInappropriate = justification?.startsWith("INAPPROPRIATE_CONTENT:");
+        if (isInappropriate) {
+          setWeakFitJustification(
+            justification?.replace("INAPPROPRIATE_CONTENT:", "").trim() ?? ""
+          );
+          setContentWarning(true);
+          setUiState("weak-fit");
+          return { mapped: false as const, category: null, interactionId: "" };
+        }
+
         const interaction: ConversationInteraction = {
           question,
           answer,
@@ -562,6 +576,12 @@ export function useDialogueState(): DialogueState {
 
   const matcherRef = useRef(new RegExpMatcher(englishDataset.build()));
 
+  const REGEX_BYPASS_PATTERNS = [
+    /\bf\s*[\W_]*u\s*[\W_]*c\s*[\W_]*k\b/i,
+    /\bs\s*[\W_]*h\s*[\W_]*i\s*[\W_]*t\b/i,
+    /\bb\s*[\W_]*i\s*[\W_]*t\s*[\W_]*c\s*[\W_]*h\b/i,
+  ];
+
   const handleSubmitAnswer = () => {
     if (!userAnswer.trim()) {
       Alert.alert(
@@ -572,7 +592,11 @@ export function useDialogueState(): DialogueState {
       return;
     }
 
-    if (matcherRef.current.hasMatch(userAnswer.trim())) {
+    const trimmed = userAnswer.trim();
+    if (
+      matcherRef.current.hasMatch(trimmed) ||
+      REGEX_BYPASS_PATTERNS.some((r) => r.test(trimmed))
+    ) {
       Alert.alert(
         "Inappropriate Content",
         "Please keep your response respectful and appropriate so I can help you identify your skills."
@@ -596,11 +620,17 @@ export function useDialogueState(): DialogueState {
     setUserAnswer(savedAnswer);
     setError("");
     setWeakFitJustification("");
-    setUiState("answering");
+    setContentWarning(false);
+    if (contentWarning) {
+      setUiState("idle");
+    } else {
+      setUiState("answering");
+    }
   };
 
   const handleWeakFitNewQuestion = async () => {
     setWeakFitJustification("");
+    setContentWarning(false);
     setSavedAnswer("");
     setSavedQuestion("");
     setError("");
@@ -659,6 +689,7 @@ export function useDialogueState(): DialogueState {
     isPrefetching,
     loading,
     weakFitJustification,
+    contentWarning,
     savedQuestion,
     savedAnswer,
     showConfetti,
