@@ -1,23 +1,15 @@
 import { StyleSheet, TextStyle, ViewStyle } from "react-native";
 
 export const palette = {
-  purple: {
-    50: "#f5f3ff",
-    100: "#ede9fe",
-    200: "#ddd6fe",
-    300: "#c4b5fd",
-    400: "#a78bfa",
-    500: "#6d5efc",
-    600: "#5b4ee0",
-    700: "#4338ca",
-    900: "#1e1b4b",
-  },
-
   PU_Yellow: "#FEDB00",
   PU_Magenta: "#A52C87",
   PU_Brown: "#603D20",
   PU_Coral: "#FF8674",
   PU_Sky: "#5BC2E7",
+  PU_Sky_Light: "#a8dff3",
+  PU_Sky_Lighter: "#d6f0fa",
+  PU_Sky_Dark: "#2a9bc7",
+  PU_Sky_Darker: "#1a6e8e",
   PU_Teal: "#44B59D",
 
   white: "#ffffff",
@@ -37,7 +29,7 @@ export const colors = {
   background: {
     base: palette.white,
     subtle: palette.gray[50],
-    tinted: palette.purple[50],
+    tinted: palette.PU_Sky_Lighter,
     card: palette.white,
   },
 
@@ -46,19 +38,19 @@ export const colors = {
     secondary: palette.gray[500],
     muted: palette.gray[400],
     inverse: palette.white,
-    accent: palette.purple[500],
+    accent: palette.PU_Sky_Darker,
   },
 
   border: {
     subtle: palette.gray[200],
     medium: palette.gray[300],
-    accent: palette.purple[200],
+    accent: palette.PU_Sky_Light,
   },
 
   brand: {
-    primary: palette.purple[500],
-    light: palette.purple[100],
-    dark: palette.purple[700],
+    primary: palette.PU_Sky,
+    light: palette.PU_Sky_Light,
+    dark: palette.PU_Sky_Dark,
   },
 
   accent: {
@@ -67,10 +59,13 @@ export const colors = {
     sky: palette.PU_Sky,
     teal: palette.PU_Teal,
     magenta: palette.PU_Magenta,
+    skyLight: palette.PU_Sky_Light,
+    skyLighter: palette.PU_Sky_Lighter,
+    skyDark: palette.PU_Sky_Dark,
   },
 
   status: {
-    error: "#ef4444",
+    error: "#ff381a",
     success: palette.PU_Teal,
     warning: palette.PU_Yellow,
   },
@@ -154,12 +149,12 @@ export const radius = {
 export const globalStyles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background.base,
+    backgroundColor: colors.background.subtle,
   } as ViewStyle,
 
   screenPadded: {
     flex: 1,
-    backgroundColor: colors.background.base,
+    backgroundColor: colors.background.subtle,
     paddingTop: 80,
   } as ViewStyle,
 

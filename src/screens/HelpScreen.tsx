@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -11,9 +10,45 @@ import {
   Platform,
 } from "react-native";
 
+import { useAuth } from "../context/AuthContext";
+
+import { MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { Text } from "@/components/ui/text";
+import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
+import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+
 export default function HelpScreen() {
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
+  const insets = useSafeAreaInsets();
+
+  const handleReset = () => {
+    dialogueBridgeRef.current?.handleReset?.();
+  };
+
+  const { session, logoutToGuest } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Switch to Guest",
+      "You will keep this account's saved progress, and the app will continue in guest mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => {
+            logoutToGuest()
+              .then(() => {
+                /* no navigation needed from Help */
+              })
+              .catch(() => Alert.alert("Error", "Failed to switch to guest mode."));
+          },
+        },
+      ]
+    );
+  };
 
   const handleSubmit = () => {
     Alert.alert("Bug Report Submitted", "Thank you for helping us improve the app.");
@@ -27,61 +62,90 @@ export default function HelpScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Report an Issue</Text>
-
-        <Text style={styles.label}>Where did you notice the issue?</Text>
-
-        <View style={styles.optionContainer}>
-          {["Chat", "Dashboard", "Profile", "Other"].map((item) => (
-            <TouchableOpacity
-              key={item}
-              style={[styles.option, location === item && styles.optionSelected]}
-              onPress={() => setLocation(item)}
-            >
-              <Text style={[styles.optionText, location === item && styles.optionTextSelected]}>
-                {item}
-              </Text>
+      <View style={[globalStyles.screen, { paddingTop: insets.top }]}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.floatingButtons} pointerEvents="box-none">
+            <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+              <MaterialIcons
+                name={session.mode === "authenticated" ? "logout" : "person"}
+                size={24}
+                color={colors.status.error}
+              />
             </TouchableOpacity>
-          ))}
-        </View>
+            <TouchableOpacity onPress={handleReset} style={styles.floatingButton}>
+              <MaterialIcons name="refresh" size={24} color={colors.status.error} />
+            </TouchableOpacity>
+          </View>
 
-        <Text style={styles.label}>Please describe the issue</Text>
+          {/* Header floated over banner bottom */}
+          <View style={styles.headerBlock}>
+            <View style={styles.headerRow}>
+              <MaterialIcons name="error" size={32} color={colors.accent.coral} />
+              <Text style={styles.title}>Report an Issue</Text>
+            </View>
+            <Text style={styles.subtitle}>
+              Help us improve the app by sharing bugs or unexpected behavior.
+            </Text>
+          </View>
+          <View style={styles.formCard}>
+            <Text style={styles.label}>Where did you notice the issue?</Text>
 
-        <TextInput
-          style={styles.textArea}
-          multiline
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Tell us what happened..."
-          textAlignVertical="top"
-        />
+            <View style={styles.optionContainer}>
+              {["Chat", "Dashboard", "Profile", "Other"].map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.option, location === item && styles.optionSelected]}
+                  onPress={() => setLocation(item)}
+                >
+                  <Text style={[styles.optionText, location === item && styles.optionTextSelected]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitText}>Submit Report</Text>
-        </TouchableOpacity>
-      </ScrollView>
+            <Text style={styles.label}>Please describe the issue</Text>
+
+            <TextInput
+              style={styles.textArea}
+              multiline
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Tell us what happened..."
+              textAlignVertical="top"
+            />
+
+            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+              <Text style={styles.submitText}>Submit Report</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 80,
-    paddingHorizontal: 24,
+    backgroundColor: colors.background.subtle,
   },
 
   title: {
-    fontSize: 24,
-    fontWeight: "700",
-    marginBottom: 24,
+    ...typography.screenTitle,
+  },
+
+  subtitle: {
+    ...typography.bodyMuted,
+    marginBottom: spacing.lg,
   },
 
   label: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 12,
-    marginTop: 12,
+    ...typography.cardTitle,
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
 
   optionContainer: {
@@ -99,30 +163,31 @@ const styles = StyleSheet.create({
   },
 
   optionSelected: {
-    backgroundColor: "#ede9fe",
-    borderColor: "#6d5efc",
+    backgroundColor: "#fff1ee",
+    borderColor: colors.accent.coral,
   },
 
   optionText: {
-    color: "#555",
+    color: colors.text.secondary,
   },
 
   optionTextSelected: {
-    color: "#6d5efc",
+    color: colors.accent.coral,
     fontWeight: "600",
   },
 
   textArea: {
     borderWidth: 1,
-    borderColor: "#d9d9d9",
-    borderRadius: 12,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.md,
     minHeight: 150,
-    padding: 12,
-    marginTop: 8,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: colors.background.subtle,
   },
 
   submitButton: {
-    backgroundColor: "#6d5efc",
+    backgroundColor: colors.accent.coral,
     paddingVertical: 14,
     borderRadius: 12,
     marginTop: 24,
@@ -130,7 +195,60 @@ const styles = StyleSheet.create({
   },
 
   submitText: {
-    color: "white",
-    fontWeight: "700",
+    ...typography.buttonPrimary,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background.subtle,
+    paddingBottom: spacing.xl,
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  bannerClip: {
+    marginHorizontal: -spacing.md,
+    height: 120,
+    overflow: "hidden",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  banner: {
+    width: 900,
+    height: 900,
+    borderRadius: 450,
+    backgroundColor: colors.accent.coral,
+    position: "absolute",
+    top: -900 + 120,
+  },
+  headerBlock: {
+    marginBottom: spacing.lg,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  floatingButtons: {
+    position: "absolute",
+    top: 2,
+    right: 16,
+    flexDirection: "row",
+    gap: 8,
+    zIndex: 10,
+  },
+  floatingButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  formCard: {
+    backgroundColor: colors.background.card,
+    borderRadius: 16,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    marginTop: spacing.sm,
   },
 });

@@ -14,6 +14,8 @@ import {
   ensureAllMappedCategoriesHaveStamps,
 } from "../services/categoryStorageService";
 
+import { colors } from "../styles/global";
+
 const DERIVED_SKILLS = computeDerivedSkills();
 
 function findNearestWithUnlocks(
@@ -98,14 +100,14 @@ export default function StampScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#1B3A72" />
+          <MaterialIcons name="arrow-back" size={24} color={colors.accent.skyDark} />
         </TouchableOpacity>
 
         <View style={styles.headerRow}>
           <View style={styles.arrowContainer}>
             {prevRegion && (
               <TouchableOpacity onPress={goToPreviousRegion}>
-                <MaterialIcons name="chevron-left" size={36} color="#1B3A72" />
+                <MaterialIcons name="chevron-left" size={36} color={colors.accent.skyDark} />
               </TouchableOpacity>
             )}
           </View>
@@ -115,7 +117,7 @@ export default function StampScreen() {
           <View style={styles.arrowContainer}>
             {nextRegion && (
               <TouchableOpacity onPress={goToNextRegion}>
-                <MaterialIcons name="chevron-right" size={36} color="#1B3A72" />
+                <MaterialIcons name="chevron-right" size={36} color={colors.accent.skyDark} />
               </TouchableOpacity>
             )}
           </View>
@@ -165,7 +167,7 @@ export default function StampScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#EBF2FF",
+    backgroundColor: colors.background.subtle,
     paddingTop: 20,
   },
 
@@ -196,7 +198,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 28,
     fontWeight: "bold",
-    color: "#1B3A72",
+    color: colors.text.primary,
   },
 
   grid: {
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
     width: 94,
     height: 94,
     borderRadius: 47,
-    backgroundColor: "#EEF4FF",
+    backgroundColor: colors.background.tinted,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
@@ -229,13 +231,13 @@ const styles = StyleSheet.create({
   stampText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#1B3A72",
+    color: colors.text.primary,
     textAlign: "center",
     paddingHorizontal: 4,
   },
 
   stampTextUnlocked: {
-    color: "#1B3A72",
+    color: colors.text.primary,
     fontWeight: "700",
   },
 
@@ -265,13 +267,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#6B7A99",
+    color: colors.text.secondary,
     marginTop: 16,
   },
 
   emptySubtitle: {
     fontSize: 14,
-    color: "#9BABCF",
+    color: colors.text.muted,
     textAlign: "center",
     marginTop: 8,
     paddingHorizontal: 40,

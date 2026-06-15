@@ -30,6 +30,12 @@ import { useAuth } from "../context/AuthContext";
 import { fetchProofStatus, uploadProofImage } from "../services/proofService";
 import { upgradeStampTier } from "../services/categoryStorageService";
 import { getOrStartSession } from "../services/sessionManager";
+import { colors } from "../styles/global";
+
+// FIXME: POC cross-hierarchy bridge — move to DialogueContext when refactoring
+export const dialogueBridgeRef = {
+  current: null as null | { handleStartButtonPress: () => void; handleReset: () => void },
+};
 
 const { width } = Dimensions.get("window");
 
@@ -654,6 +660,23 @@ export default function DialogueDashboardScreen() {
 
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
 
+  React.useEffect(() => {
+    dialogueBridgeRef.current = {
+      handleStartButtonPress: () => {
+        if (currentPrompt && !showQuestionInputModal && modalDismissedByBackdropRef.current) {
+          modalDismissedByBackdropRef.current = false;
+          setShowQuestionInputModal(true);
+        } else {
+          handleStartButtonPress();
+        }
+      },
+      handleReset: handleReset,
+    };
+    return () => {
+      dialogueBridgeRef.current = null;
+    };
+  }, [handleStartButtonPress, handleReset, currentPrompt, showQuestionInputModal]);
+
   // ── Guest: force sign-in after first mapped category ──
   // Uses useIsFocused so it fires on both focus changes AND dep changes
   // (e.g. when loadData finishes and mappedCategories flips from 0 to 1).
@@ -745,21 +768,41 @@ export default function DialogueDashboardScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#667eea" />
+        <ActivityIndicator size="large" color={colors.accent.magenta} />
         <Text style={styles.loadingText}>Loading your journey...</Text>
       </View>
     );
   }
 
   return (
-    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+    <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.floatingButtons} pointerEvents="box-none">
+          <TouchableOpacity
+            onPress={session.mode === "authenticated" ? handleLogout : handleAccountPress}
+            style={styles.floatingButton}
+          >
+            <MaterialIcons
+              name={session.mode === "authenticated" ? "logout" : "person"}
+              size={24}
+              color={colors.status.error}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleReset}
+            style={styles.floatingButton}
+            disabled={uiState !== "idle" && uiState !== "complete"}
+          >
+            <MaterialIcons name="refresh" size={24} color={colors.status.error} />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.header}>
-          <MaterialIcons name="explore" size={40} color="#fff" />
+          <MaterialIcons name="explore" size={40} color={colors.accent.magenta} />
           <Text style={styles.title}>My Skills Passport</Text>
           <Text style={styles.subtitle}>
             {mappedCategories.length}/{TOTAL_CATEGORIES} categories discovered
@@ -769,7 +812,7 @@ export default function DialogueDashboardScreen() {
         <Card style={styles.progressCard}>
           <Card.Content>
             <View style={styles.progressHeader}>
-              <MaterialIcons name="trending-up" size={24} color="#667eea" />
+              <MaterialIcons name="trending-up" size={24} color={colors.accent.magenta} />
               <Text style={styles.progressTitle}>Your Progress</Text>
             </View>
             <View style={styles.statsRow}>
@@ -949,7 +992,7 @@ export default function DialogueDashboardScreen() {
           fallSpeed={3000}
         />
       )}
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -981,17 +1024,18 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    backgroundColor: colors.background.tinted,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#667eea",
+    backgroundColor: colors.background.tinted,
   },
   loadingText: {
     marginTop: 15,
     fontSize: 16,
-    color: "#fff",
+    color: colors.text.accent,
   },
   scrollView: {
     flex: 1,
@@ -999,6 +1043,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 110,
+    paddingTop: 80,
   },
   header: {
     alignItems: "center",
@@ -1008,12 +1053,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.text.primary,
     marginTop: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: colors.text.secondary,
     marginTop: 5,
   },
   progressCard: {
@@ -1042,7 +1087,7 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#667eea",
+    color: colors.brand.primary,
   },
   statLabel: {
     fontSize: 12,
@@ -1057,13 +1102,13 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#667eea",
+    backgroundColor: colors.brand.primary,
   },
   startButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#4CAF50",
+    backgroundColor: colors.accent.teal,
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
@@ -1090,5 +1135,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+  },
+  floatingButtons: {
+    position: "absolute",
+    top: 52,
+    right: 16,
+    flexDirection: "row",
+    gap: 8,
+    zIndex: 10,
+  },
+  floatingButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

@@ -17,9 +17,10 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { states } from "states-us";
 import { updateProfile } from "../services/profileService";
+import { colors, typography, spacing, radius } from "../styles/global";
 
 type EditProfileFormState = {
   dob: Date | null;
@@ -166,7 +167,7 @@ export default function EditProfileScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+      <View style={styles.container}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -174,12 +175,12 @@ export default function EditProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+            <MaterialIcons name="arrow-back" size={24} color={colors.accent.skyDark} />
           </TouchableOpacity>
 
           <View style={styles.header}>
-            <MaterialIcons name="person" size={40} color="#fff" />
-            <Text style={styles.title}>Edit Profile</Text>
+            <MaterialIcons name="person" size={40} color={colors.accent.skyDark} />
+            <Text style={styles.title}>Personal Information</Text>
             <Text style={styles.subtitle}>Update your personal information</Text>
           </View>
 
@@ -510,7 +511,7 @@ export default function EditProfileScreen() {
             </Modal>
           </>
         )}
-      </LinearGradient>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -518,7 +519,8 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 20,
+    paddingTop: 60,
+    backgroundColor: colors.background.subtle,
   },
   backButton: {
     marginBottom: 8,
@@ -530,12 +532,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.text.primary,
     marginTop: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: colors.text.secondary,
     marginTop: 5,
   },
   scrollView: {
@@ -546,13 +548,13 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   section: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: colors.background.card,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
+        shadowColor: colors.accent.sky,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.08,
         shadowRadius: 3,
@@ -565,7 +567,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#1e3a5f",
+    color: colors.accent.skyDark,
     letterSpacing: 1,
     marginBottom: 16,
   },
@@ -582,39 +584,39 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: "#374151",
+    color: colors.text.primary,
     marginBottom: 6,
   },
   inputWrapper: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.background.base,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.sm,
     overflow: "hidden",
-    height: 42,
+    height: 50,
     justifyContent: "center",
     paddingHorizontal: 12,
   },
   pickerWrapper: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.background.base,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
+    borderColor: colors.border.subtle,
+    borderRadius: radius.sm,
     overflow: "hidden",
-    height: 42,
+    height: 50,
     justifyContent: "center",
     paddingHorizontal: 12,
   },
   picker: {
-    height: 42,
+    height: 50,
   },
   pickerText: {
     fontSize: 14,
-    color: "#111827",
+    color: colors.text.primary,
   },
   pickerPlaceholder: {
     fontSize: 14,
-    color: "#9ca3af",
+    color: colors.text.muted,
   },
   modalOverlay: {
     flex: 1,
@@ -638,31 +640,31 @@ const styles = StyleSheet.create({
   modalDone: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#667eea",
+    color: colors.accent.sky,
   },
   saveButton: {
-    backgroundColor: "#667eea",
-    borderRadius: 12,
+    backgroundColor: colors.accent.sky,
+    borderRadius: radius.md,
     paddingVertical: 16,
     alignItems: "center",
     marginTop: 8,
   },
   saveButtonText: {
-    color: "#ffffff",
+    color: colors.text.inverse,
     fontSize: 18,
     fontWeight: "bold",
   },
   cancelButton: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
+    backgroundColor: colors.background.base,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderColor: colors.border.medium,
     paddingVertical: 16,
     alignItems: "center",
     marginTop: 12,
   },
   cancelButtonText: {
-    color: "#374151",
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: "600",
   },

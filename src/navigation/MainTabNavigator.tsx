@@ -1,26 +1,20 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity, Text, Platform } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text, Alert } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons } from "@expo/vector-icons";
 import DialogueDashboardScreen from "../screens/DialogueDashboardScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import PassportScreen from "../screens/PassportScreen";
 import HelpScreen from "../screens/HelpScreen";
+import { colors } from "../styles/global";
+import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+import { useAuth } from "../context/AuthContext";
 
 function ChatScreen() {
   return (
     <View style={placeholderStyles.container}>
       <MaterialIcons name="chat-bubble-outline" size={48} color="#c7c2d8" />
       <Text style={placeholderStyles.title}>This will be a modal, not a screen.</Text>
-    </View>
-  );
-}
-
-//Placeholder for Typescript
-function SocialScreen() {
-  return (
-    <View style={placeholderStyles.container}>
-      <MaterialIcons name="people-outline" size={48} color="#c7c2d8" />
-      <Text style={placeholderStyles.title}>Social</Text>
     </View>
   );
 }
@@ -34,7 +28,6 @@ const TAB_CONFIG = [
     icon: "explore",
     label: "Dashboard",
     size: 32,
-    enabled: true,
   },
   {
     name: "Profile",
@@ -42,7 +35,6 @@ const TAB_CONFIG = [
     icon: "person-outline",
     label: "Profile",
     size: 32,
-    enabled: true,
   },
   {
     name: "Chat",
@@ -50,15 +42,13 @@ const TAB_CONFIG = [
     icon: "add-circle-outline",
     label: "Chat",
     size: 48,
-    enabled: true,
   },
   {
-    name: "Social",
-    component: SocialScreen,
-    icon: "people-outline",
-    label: "Social",
+    name: "Passport",
+    component: PassportScreen,
+    icon: "card-travel",
+    label: "Passport",
     size: 32,
-    enabled: false,
   },
   {
     name: "Help",
@@ -66,7 +56,6 @@ const TAB_CONFIG = [
     icon: "error-outline",
     label: "Help",
     size: 32,
-    enabled: true,
   },
 ] as const;
 
@@ -77,10 +66,14 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         const { options } = descriptors[route.key];
         const config = TAB_CONFIG[index];
         const isFocused = state.index === index;
-        const isDisabled = !config.enabled;
 
         const onPress = () => {
-          if (isDisabled) return;
+          if (config.name === "Chat") {
+            navigation.navigate("Dashboard");
+            // FIXME: navigate-then-call is a POC hack — move to DialogueContext
+            setTimeout(() => dialogueBridgeRef.current?.handleStartButtonPress(), 100);
+            return;
+          }
           const event = navigation.emit({
             type: "tabPress",
             target: route.key,
@@ -98,20 +91,15 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             accessibilityState={isFocused ? { selected: true } : {}}
             accessibilityLabel={options.tabBarAccessibilityLabel}
             onPress={onPress}
-            activeOpacity={isDisabled ? 1 : 0.7}
+            activeOpacity={0.7}
             style={styles.tabItem}
           >
-            <View style={[styles.iconWrap]}>
+            <View style={styles.iconWrap}>
               <MaterialIcons
                 name={config.icon as any}
                 size={config.size ?? 32}
-                color={isDisabled ? "#d1cde8" : isFocused ? "#6d5efc" : "#8e89a8"}
+                color={isFocused ? colors.accent.sky : colors.text.muted}
               />
-              {isDisabled && (
-                <View style={styles.comingSoonBadge}>
-                  <Text style={styles.comingSoonText}>Soon</Text>
-                </View>
-              )}
             </View>
           </TouchableOpacity>
         );
@@ -120,28 +108,51 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
   );
 }
 
+// FIXME: POC — buttons floating over all screens to avoid header
+// Move to a proper header or context-aware component when refactoring
+function FloatingUtilityButtons() {
+  const { session, logoutToGuest } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Switch to Guest",
+      "You will keep this account's saved progress, and the app will continue in guest mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Continue", onPress: () => void logoutToGuest() },
+      ]
+    );
+  };
+
+  const handleRefresh = () => {
+    dialogueBridgeRef.current?.handleReset?.();
+  };
+}
+
 export default function MainTabNavigator() {
   return (
-    <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      {TAB_CONFIG.map((tab) => (
-        <Tab.Screen key={tab.name} name={tab.name} component={tab.component} />
-      ))}
-    </Tab.Navigator>
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{ headerShown: false }}
+      >
+        {TAB_CONFIG.map((tab) => (
+          <Tab.Screen key={tab.name} name={tab.name} component={tab.component} />
+        ))}
+      </Tab.Navigator>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.background.base,
     borderTopWidth: 1,
-    borderTopColor: "#f0eef8",
+    borderTopColor: colors.border.subtle,
     height: 110,
     paddingHorizontal: 4,
-    shadowColor: "#6d5efc",
+    shadowColor: colors.accent.sky,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -170,11 +181,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 1,
   },
-  comingSoonText: {
-    fontSize: 8,
-    color: "#8b7fd4",
-    fontWeight: "700",
-    letterSpacing: 0.3,
+  // FIXME: POC floating buttons — remove when proper header/context solution is in place
+  floatingButtons: {
+    position: "absolute",
+    top: 52,
+    right: 16,
+    flexDirection: "row",
+    gap: 8,
+  },
+  floatingButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 

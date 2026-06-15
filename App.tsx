@@ -109,7 +109,7 @@ function AppNavigator() {
         />
 
         {/* ── Authenticated shell ── */}
-        <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+        <Stack.Screen name="MainTabs" component={MainTabNavigator} options={{ headerShown: false }} />
 
         {/* ── Stack screens pushed on top of MainTabs ── */}
         <Stack.Screen
