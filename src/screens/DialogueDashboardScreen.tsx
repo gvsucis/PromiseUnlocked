@@ -45,6 +45,7 @@ export default function DialogueDashboardScreen() {
     loadingMessage,
     error,
     weakFitJustification,
+    contentWarning,
     showConfetti,
     loading,
     prefetchedQuestion,
@@ -698,10 +699,11 @@ export default function DialogueDashboardScreen() {
       !modalDismissedByBackdropRef.current &&
       !(session.mode === "guest" && mappedCategories.length >= 1)
     ) {
-      setPendingQuestion(currentPrompt);
-      setShowQuestionInputModal(true);
+      if (userAnswer) {
+        setQuestionModalText(userAnswer);
+      }
     }
-  }, [uiState, currentPrompt, showQuestionInputModal]);
+  }, [uiState, currentPrompt, showQuestionInputModal, userAnswer]);
 
   React.useEffect(() => {
     if (
@@ -792,13 +794,12 @@ export default function DialogueDashboardScreen() {
               <TouchableOpacity
                 style={styles.startButton}
                 onPress={() => {
-                  if (
-                    currentPrompt &&
-                    !showQuestionInputModal &&
-                    modalDismissedByBackdropRef.current
-                  ) {
-                    modalDismissedByBackdropRef.current = false;
+                  if (currentPrompt && !showQuestionInputModal) {
+                    setPendingQuestion(currentPrompt);
                     setShowQuestionInputModal(true);
+                    if (userAnswer) {
+                      setQuestionModalText(userAnswer);
+                    }
                   } else {
                     handleStartButtonPress();
                   }
@@ -841,6 +842,7 @@ export default function DialogueDashboardScreen() {
       <WeakFitModal
         visible={uiState === "weak-fit"}
         justification={weakFitJustification}
+        isContentWarning={contentWarning}
         onTryAgain={handleWeakFitTryAgain}
         onNewQuestion={handleWeakFitNewQuestion}
       />
