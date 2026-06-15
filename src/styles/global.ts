@@ -149,12 +149,12 @@ export const radius = {
 export const globalStyles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background.base,
+    backgroundColor: colors.background.subtle,
   } as ViewStyle,
 
   screenPadded: {
     flex: 1,
-    backgroundColor: colors.background.base,
+    backgroundColor: colors.background.subtle,
     paddingTop: 80,
   } as ViewStyle,
 
