@@ -18,6 +18,8 @@ import {
   getMappedCategory,
 } from "../services/categoryStorageService";
 
+import { colors } from "../styles/global";
+
 const DERIVED_SKILLS = computeDerivedSkills();
 
 type StampDetailRouteProp = RouteProp<RootStackParamList, "StampDetails">;
@@ -86,7 +88,7 @@ export default function StampDetailScreen() {
   }
 
   const badgeContent = !unlockInfo ? (
-    <MaterialIcons name="school" size={50} color="#2E6EE6" />
+    <MaterialIcons name="school" size={50} color={colors.accent.sky} />
   ) : (
     <StampBadge stampName={stamp} tier={tier} size="detail" />
   );
@@ -95,14 +97,14 @@ export default function StampDetailScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#1B3A72" />
+          <MaterialIcons name="arrow-back" size={24} color={colors.accent.skyDark} />
         </TouchableOpacity>
 
         <View style={styles.headerRow}>
           <View style={styles.arrowContainer}>
             {previousStamp && (
               <TouchableOpacity onPress={goToPreviousStamp}>
-                <MaterialIcons name="chevron-left" size={36} color="#1B3A72" />
+                <MaterialIcons name="chevron-left" size={36} color={colors.accent.skyDark} />
               </TouchableOpacity>
             )}
           </View>
@@ -112,7 +114,7 @@ export default function StampDetailScreen() {
           <View style={styles.arrowContainer}>
             {nextStamp && (
               <TouchableOpacity onPress={goToNextStamp}>
-                <MaterialIcons name="chevron-right" size={36} color="#1B3A72" />
+                <MaterialIcons name="chevron-right" size={36} color={colors.accent.skyDark} />
               </TouchableOpacity>
             )}
           </View>
@@ -148,7 +150,7 @@ export default function StampDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#EBF2FF",
+    backgroundColor: colors.background.subtle,
   },
 
   content: {
@@ -180,7 +182,7 @@ const styles = StyleSheet.create({
 
     fontSize: 20,
     fontWeight: "700",
-    color: "#1B3A72",
+    color: colors.text.primary,
   },
 
   badgeContainer: {
@@ -200,20 +202,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "bold",
-    color: "#1B3A72",
+    color: colors.text.primary,
     textAlign: "center",
   },
 
   subtitle: {
     fontSize: 14,
-    color: "#6B7A99",
+    color: colors.text.secondary,
     marginTop: 4,
   },
 
   unlockedBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2E6EE6",
+    backgroundColor: colors.accent.sky,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 4,
@@ -228,10 +230,10 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.background.card,
     borderRadius: 20,
     padding: 18,
-    shadowColor: "#000",
+    shadowColor: colors.accent.sky,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
@@ -240,13 +242,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1B3A72",
+    color: colors.text.primary,
     marginBottom: 12,
   },
 
   justificationText: {
     fontSize: 14,
-    color: "#374151",
+    color: colors.text.primary,
     lineHeight: 22,
   },
 });

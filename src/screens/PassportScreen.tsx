@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -15,6 +15,9 @@ import {
 } from "../services/categoryStorageService";
 import { getCurrentAuthSession } from "../services/auth/authSessionService";
 import type { MappedCategory } from "../services/categoryTaxonomyService";
+import { colors } from "../styles/global";
+import { useAuth } from "../context/AuthContext";
+import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
@@ -36,6 +39,30 @@ const radarLabels: string[] = REGIONS.map((region) => radarLabelMap[region] ?? r
 
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
+
+  const { session, logoutToGuest } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Switch to Guest",
+      "You will keep this account's saved progress, and the app will continue in guest mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          onPress: () => {
+            logoutToGuest()
+              .then(() => navigation.navigate("Welcome"))
+              .catch(() => Alert.alert("Error", "Failed to switch to guest mode."));
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReset = () => {
+    dialogueBridgeRef.current?.handleReset?.();
+  };
 
   const [radarData, setRadarData] = useState<number[]>(REGIONS.map(() => 0));
   const [regionUnlocks, setRegionUnlocks] = useState<Record<string, string[]>>({});
@@ -105,6 +132,19 @@ export default function PassportScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.floatingButtons} pointerEvents="box-none">
+          <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+            <MaterialIcons
+              name={session.mode === "authenticated" ? "logout" : "person"}
+              size={24}
+              color={colors.brand.primary}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleReset} style={styles.floatingButton}>
+            <MaterialIcons name="refresh" size={24} color={colors.brand.primary} />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.title}>My Passport</Text>
 
         <View style={styles.radarCard}>
@@ -122,21 +162,21 @@ export default function PassportScreen() {
               shiftY: 50,
             }}
             polygonConfig={{
-              stroke: "#2E6EE6",
+              stroke: colors.accent.sky,
               strokeWidth: 2,
               fill: "rgba(46, 110, 230, 0.18)",
               showGradient: false,
               opacity: 1,
             }}
             gridConfig={{
-              stroke: "#D6E4FF",
+              stroke: colors.border.accent,
               strokeWidth: 1,
               showGradient: false,
-              fill: "#F0F5FF",
+              fill: colors.background.tinted,
             }}
             labelConfig={{
               fontSize: 10,
-              stroke: "#1B3A72",
+              stroke: colors.text.primary,
               fontWeight: "600",
             }}
           />
@@ -157,7 +197,7 @@ export default function PassportScreen() {
                     <MaterialIcons
                       name={unlocked.length > 0 ? "check-circle" : "explore"}
                       size={32}
-                      color={unlocked.length > 0 ? "#2E6EE6" : "#9BABCF"}
+                      color={unlocked.length > 0 ? colors.accent.sky : colors.text.muted}
                     />
                   </View>
                   <Text style={styles.regionText}>{region}</Text>
@@ -188,7 +228,7 @@ export default function PassportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#EBF2FF",
+    backgroundColor: colors.background.subtle,
   },
 
   content: {
@@ -204,18 +244,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#1B3A72",
+    color: colors.text.primary,
     textAlign: "center",
     marginBottom: 16,
+    paddingTop: 60,
   },
 
   radarCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.background.card,
     borderRadius: 20,
     padding: 20,
     alignItems: "center",
     marginBottom: 18,
-    shadowColor: "#000",
+    shadowColor: colors.accent.sky,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
@@ -224,14 +265,14 @@ const styles = StyleSheet.create({
   radarTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#1B3A72",
+    color: colors.text.primary,
   },
 
   regionsCard: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.background.card,
     borderRadius: 20,
     padding: 16,
-    shadowColor: "#000",
+    shadowColor: colors.accent.sky,
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
@@ -240,7 +281,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1B3A72",
+    color: colors.text.primary,
     marginBottom: 14,
   },
 
@@ -252,21 +293,21 @@ const styles = StyleSheet.create({
 
   regionItem: {
     width: "48%",
-    backgroundColor: "#F7FAFF",
+    backgroundColor: colors.background.base,
     borderRadius: 20,
     paddingVertical: 22,
     paddingHorizontal: 12,
     alignItems: "center",
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#D6E4FF",
+    borderColor: colors.border.accent,
   },
 
   iconContainer: {
     width: 68,
     height: 68,
     borderRadius: 18,
-    backgroundColor: "#EEF4FF",
+    backgroundColor: colors.background.tinted,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
@@ -275,7 +316,7 @@ const styles = StyleSheet.create({
   regionText: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#1B3A72",
+    color: colors.text.primary,
     textAlign: "center",
   },
 
@@ -288,7 +329,7 @@ const styles = StyleSheet.create({
   },
 
   chip: {
-    backgroundColor: "#D6E4FF",
+    backgroundColor: colors.border.accent,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -296,14 +337,28 @@ const styles = StyleSheet.create({
 
   chipText: {
     fontSize: 10,
-    color: "#1B3A72",
+    color: colors.accent.skyDark,
     fontWeight: "600",
   },
 
   moreChip: {
     fontSize: 10,
-    color: "#6B7A99",
+    color: colors.text.secondary,
     fontWeight: "600",
     lineHeight: 20,
+  },
+  floatingButtons: {
+    position: "absolute",
+    top: 2,
+    right: 16,
+    flexDirection: "row",
+    gap: 8,
+    zIndex: 10,
+  },
+  floatingButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

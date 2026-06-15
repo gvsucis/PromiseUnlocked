@@ -25,6 +25,7 @@ import {
   buildLocalProfile,
   type UserProfile,
 } from "../services/profileService";
+import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -50,6 +51,10 @@ function GalleryPlaceholder() {
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [savingBio, setSavingBio] = useState(false);
+
+  const handleReset = () => {
+    dialogueBridgeRef.current?.handleReset?.();
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -83,9 +88,9 @@ export default function ProfileScreen() {
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Continue",
+          text: "Switch to Guest",
           onPress: () => {
-            void logoutToGuest()
+            logoutToGuest()
               .then(() => {
                 navigation.replace("Welcome");
               })
@@ -137,6 +142,18 @@ export default function ProfileScreen() {
     >
       <View style={globalStyles.screen}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.floatingButtons} pointerEvents="box-none">
+            <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+              <MaterialIcons
+                name={session.mode === "authenticated" ? "logout" : "person"}
+                size={24}
+                color={colors.background.card}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleReset} style={styles.floatingButton}>
+              <MaterialIcons name="refresh" size={24} color={colors.background.card} />
+            </TouchableOpacity>
+          </View>
           <View style={styles.bannerContainer}>
             <View style={styles.bannerClip}>
               <View style={styles.banner} />
@@ -394,4 +411,18 @@ const styles = StyleSheet.create({
     borderColor: colors.accent.sky,
   },
   logoutText: { fontSize: 15, fontWeight: "600", color: colors.status.error, marginLeft: 10 },
+  floatingButtons: {
+    position: "absolute",
+    top: 52,
+    right: 16,
+    flexDirection: "row",
+    gap: 8,
+    zIndex: 10,
+  },
+  floatingButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

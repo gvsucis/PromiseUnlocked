@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity, Text, Platform } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text, Alert } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons } from "@expo/vector-icons";
 import DialogueDashboardScreen from "../screens/DialogueDashboardScreen";
@@ -7,6 +7,8 @@ import ProfileScreen from "../screens/ProfileScreen";
 import PassportScreen from "../screens/PassportScreen";
 import HelpScreen from "../screens/HelpScreen";
 import { colors } from "../styles/global";
+import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+import { useAuth } from "../context/AuthContext";
 
 function ChatScreen() {
   return (
@@ -66,6 +68,12 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         const isFocused = state.index === index;
 
         const onPress = () => {
+          if (config.name === "Chat") {
+            navigation.navigate("Dashboard");
+            // FIXME: navigate-then-call is a POC hack — move to DialogueContext
+            setTimeout(() => dialogueBridgeRef.current?.handleStartButtonPress(), 100);
+            return;
+          }
           const event = navigation.emit({
             type: "tabPress",
             target: route.key,
@@ -100,16 +108,39 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
   );
 }
 
+// FIXME: POC — buttons floating over all screens to avoid header
+// Move to a proper header or context-aware component when refactoring
+function FloatingUtilityButtons() {
+  const { session, logoutToGuest } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Switch to Guest",
+      "You will keep this account's saved progress, and the app will continue in guest mode.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Continue", onPress: () => void logoutToGuest() },
+      ]
+    );
+  };
+
+  const handleRefresh = () => {
+    dialogueBridgeRef.current?.handleReset?.();
+  };
+}
+
 export default function MainTabNavigator() {
   return (
-    <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      {TAB_CONFIG.map((tab) => (
-        <Tab.Screen key={tab.name} name={tab.name} component={tab.component} />
-      ))}
-    </Tab.Navigator>
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{ headerShown: false }}
+      >
+        {TAB_CONFIG.map((tab) => (
+          <Tab.Screen key={tab.name} name={tab.name} component={tab.component} />
+        ))}
+      </Tab.Navigator>
+    </View>
   );
 }
 
@@ -149,6 +180,20 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 4,
     paddingVertical: 1,
+  },
+  // FIXME: POC floating buttons — remove when proper header/context solution is in place
+  floatingButtons: {
+    position: "absolute",
+    top: 52,
+    right: 16,
+    flexDirection: "row",
+    gap: 8,
+  },
+  floatingButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
