@@ -23,8 +23,10 @@ import {
   addStampUnlock,
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
+import { STAMPS_LIST } from "../config/stampConstants";
 import { searchPdfContext } from "../services/profileEmbeddingService";
 import { endSession } from "../services/sessionManager";
+import { RegExpMatcher, englishDataset } from "obscenity";
 import {
   saveDialogueState,
   loadDialogueState,
@@ -343,7 +345,13 @@ export function useDialogueState(): DialogueState {
           );
 
         if (specificStamp) {
-          await addStampUnlock(categoryNameToCheck, specificStamp, 2);
+          if (specificStamp in STAMPS_LIST) {
+            await addStampUnlock(categoryNameToCheck, specificStamp, 2);
+          } else if (__DEV__) {
+            console.warn(
+              `Invalid stamp name "${specificStamp}" for category "${categoryNameToCheck}" — not in STAMPS_LIST, skipping unlock`
+            );
+          }
         }
 
         const interaction: ConversationInteraction = {
@@ -391,7 +399,13 @@ export function useDialogueState(): DialogueState {
         });
 
         if (specificStamp) {
-          await addStampUnlock(categoryNameToCheck, specificStamp, 2);
+          if (specificStamp in STAMPS_LIST) {
+            await addStampUnlock(categoryNameToCheck, specificStamp, 2);
+          } else if (__DEV__) {
+            console.warn(
+              `Invalid stamp name "${specificStamp}" for category "${categoryNameToCheck}" — not in STAMPS_LIST, skipping unlock`
+            );
+          }
         }
 
         // ensures no duplicate categories are added to array of mapped categories
@@ -546,6 +560,8 @@ export function useDialogueState(): DialogueState {
     }
   };
 
+  const matcherRef = useRef(new RegExpMatcher(englishDataset.build()));
+
   const handleSubmitAnswer = () => {
     if (!userAnswer.trim()) {
       Alert.alert(
@@ -553,6 +569,15 @@ export function useDialogueState(): DialogueState {
         "Cannot evaluate an empty text field. Please provide a valid response."
       );
       setError("Answer cannot be empty. Please provide a substantive response.");
+      return;
+    }
+
+    if (matcherRef.current.hasMatch(userAnswer.trim())) {
+      Alert.alert(
+        "Inappropriate Content",
+        "Please keep your response respectful and appropriate so I can help you identify your skills."
+      );
+      setError("Response contained inappropriate language.");
       return;
     }
 

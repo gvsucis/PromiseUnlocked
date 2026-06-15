@@ -20,6 +20,37 @@ export class GeminiService {
   private static readonly VISION_WIDTH_STEPS = [900, 768, 640, 512] as const;
   private static readonly VISION_QUALITY_STEPS = [0.65, 0.55, 0.45, 0.35] as const;
 
+  private static readonly requestQueue: Array<{
+    resolve: (value: GeminiResult<GeminiApiResponse>) => void;
+    reject: (error: unknown) => void;
+    fn: () => Promise<GeminiResult<GeminiApiResponse>>;
+  }> = [];
+  private static isProcessing = false;
+
+  private static processQueue(): void {
+    if (this.isProcessing || this.requestQueue.length === 0) return;
+    this.isProcessing = true;
+    const { resolve, reject, fn } = this.requestQueue.shift()!;
+    fn()
+      .then(resolve)
+      .catch(reject)
+      .finally(() => {
+        this.isProcessing = false;
+        this.processQueue();
+      });
+  }
+
+  private static enqueueRequest(
+    fn: () => Promise<GeminiResult<GeminiApiResponse>>
+  ): Promise<GeminiResult<GeminiApiResponse>> {
+    return new Promise((resolve, reject) => {
+      this.requestQueue.push({ resolve, reject, fn });
+      if (!this.isProcessing) {
+        this.processQueue();
+      }
+    });
+  }
+
   private static buildApiUrl(): string {
     const baseUrl = CONFIG.GEMINI_API_URL.replaceAll(/\/+$/g, "");
     const apiKey = encodeURIComponent(getGeminiApiKey());
@@ -165,24 +196,28 @@ export class GeminiService {
       };
     }
 
-    try {
-      const apiUrl = this.buildApiUrl();
-      const response = await this.retryWithBackoff(
-        () =>
-          axios.post<GeminiApiResponse>(apiUrl, requestBody, {
-            headers: { "Content-Type": "application/json" },
-            timeout,
-            signal,
-          }),
-        2,
-        2000,
-        signal
-      );
+    const doRequest = async () => {
+      try {
+        const apiUrl = this.buildApiUrl();
+        const response = await this.retryWithBackoff(
+          () =>
+            axios.post<GeminiApiResponse>(apiUrl, requestBody, {
+              headers: { "Content-Type": "application/json" },
+              timeout,
+              signal,
+            }),
+          4,
+          3000,
+          signal
+        );
 
-      return { ok: true, data: response.data };
-    } catch (error) {
-      return { ok: false, error: this.normalizeError(error) };
-    }
+        return { ok: true, data: response.data };
+      } catch (error) {
+        return { ok: false, error: this.normalizeError(error) };
+      }
+    };
+
+    return this.enqueueRequest(doRequest);
   }
 
   private static extractGeneratedText(
@@ -532,17 +567,21 @@ Return only the final answer text.`,
       : "";
 
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
-Your task is to map the answer to exactly one taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
+Your task is to map the answer to exactly one skill stamp taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
 Rules:
-1. Choose the single most applicable category from the taxonomy.
+1. Choose the single most applicable skill stamp category from the taxonomy.
 2. Only map to a real category if the fit is obvious and rigorous.
-3. Do not choose a category that is already mapped in the recent history; use only unmapped categories.
+3. Prefer unmapped categories, but if the answer genuinely matches an already-mapped category, you may still select it (its counter will increment). Never force a weak match just because it's unmapped.
 4. If the answer is generic filler, unrelated, or only partially addresses the question, use 'NO_MAP_WEAK_FIT'.
 5. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
-6. Keep the justification short and factual, with at most 30 words.
+6. Keep the justification short and factual, with at most 40 words.
 7. Generate a thoughtful follow-up question that directly follows from the user's answer and helps identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.
 8. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.
-9. Also pick the single most specific stamp name from the "Available Stamps" list for the chosen category. Set specificStamp to the exact stamp name. If the answer does not clearly point to any specific stamp, set specificStamp to the first available stamp.${contextBlock}`;
+9. Pick the single most specific stamp name from the category's "Available Stamps" list. Set specificStamp only if the answer clearly and directly indicates that exact stamp. If no specific stamp is evident, set specificStamp to null — do not guess or default.
+10. Before mapping, perform a confidence self-check: "Would an impartial observer clearly agree this answer belongs in this category?" If the connection requires more than one logical step, use NO_MAP_WEAK_FIT instead.
+11. Consider the QUESTION's intent alongside the answer. The question is designed to probe specific categories. If the question targets a particular type of experience and the answer aligns with it, treat that as supporting evidence for that category.
+12. If the answer contains abusive, offensive, or inappropriate language, or is gibberish/spam/unrelated to any category, use category 'NO_MAP_WEAK_FIT' with justification starting with 'INAPPROPRIATE_CONTENT:'.
+${contextBlock}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
@@ -816,7 +855,7 @@ Rules:
       ? `\nEMBEDDING_HISTORY (background only):\n${context.embeddingHistorySummary}\n`
       : "";
 
-    return `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strict ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)." : ""} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.
+    return `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strict ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)." : ""} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic. CRITICAL: Always center the question on the user — ask about their actions, choices, feelings, or role. You may reference other people (teammates, coaches, teachers), but the question's subject must remain the user's own experience. Never ask about someone else's isolated actions or strategies.
 HISTORY:
 ${history}
 
