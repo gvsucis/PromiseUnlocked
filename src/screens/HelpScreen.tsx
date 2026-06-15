@@ -72,55 +72,56 @@ export default function HelpScreen() {
               <MaterialIcons
                 name={session.mode === "authenticated" ? "logout" : "person"}
                 size={24}
-                color={colors.accent.coral}
+                color={colors.status.error}
               />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleReset} style={styles.floatingButton}>
-              <MaterialIcons name="refresh" size={24} color={colors.accent.coral} />
+              <MaterialIcons name="refresh" size={24} color={colors.status.error} />
             </TouchableOpacity>
           </View>
 
           {/* Header floated over banner bottom */}
           <View style={styles.headerBlock}>
             <View style={styles.headerRow}>
-              <MaterialIcons name="error-outline" size={32} color={colors.accent.coral} />
+              <MaterialIcons name="error" size={32} color={colors.accent.coral} />
               <Text style={styles.title}>Report an Issue</Text>
             </View>
             <Text style={styles.subtitle}>
               Help us improve the app by sharing bugs or unexpected behavior.
             </Text>
           </View>
+          <View style={styles.formCard}>
+            <Text style={styles.label}>Where did you notice the issue?</Text>
 
-          <Text style={styles.label}>Where did you notice the issue?</Text>
+            <View style={styles.optionContainer}>
+              {["Chat", "Dashboard", "Profile", "Other"].map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.option, location === item && styles.optionSelected]}
+                  onPress={() => setLocation(item)}
+                >
+                  <Text style={[styles.optionText, location === item && styles.optionTextSelected]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-          <View style={styles.optionContainer}>
-            {["Chat", "Dashboard", "Profile", "Other"].map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={[styles.option, location === item && styles.optionSelected]}
-                onPress={() => setLocation(item)}
-              >
-                <Text style={[styles.optionText, location === item && styles.optionTextSelected]}>
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <Text style={styles.label}>Please describe the issue</Text>
+
+            <TextInput
+              style={styles.textArea}
+              multiline
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Tell us what happened..."
+              textAlignVertical="top"
+            />
+
+            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+              <Text style={styles.submitText}>Submit Report</Text>
+            </TouchableOpacity>
           </View>
-
-          <Text style={styles.label}>Please describe the issue</Text>
-
-          <TextInput
-            style={styles.textArea}
-            multiline
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Tell us what happened..."
-            textAlignVertical="top"
-          />
-
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitText}>Submit Report</Text>
-          </TouchableOpacity>
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -198,6 +199,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.md,
+    backgroundColor: colors.background.subtle,
     paddingBottom: spacing.xl,
     flexGrow: 1,
     justifyContent: "center",
@@ -239,5 +241,14 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  formCard: {
+    backgroundColor: colors.background.card,
+    borderRadius: 16,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    marginTop: spacing.sm,
   },
 });
