@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from "react";
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -21,6 +20,8 @@ import { colors } from "../styles/global";
 import { useAuth } from "../context/AuthContext";
 import { useDialogue } from "../context/DialogueContext";
 import { useLogout } from "../hooks/useLogout";
+import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
@@ -129,8 +130,10 @@ export default function PassportScreen() {
     }, [loadData])
   );
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.floatingButtons} pointerEvents="box-none">
           <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
@@ -224,14 +227,15 @@ export default function PassportScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.subtle,
+    backgroundColor: colors.background.tinted,
+    paddingTop: 52,
   },
 
   content: {

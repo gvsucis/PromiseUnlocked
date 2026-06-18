@@ -39,6 +39,7 @@ import { fetchProofStatus, uploadProofImage } from "../services/proofService";
 import { upgradeStampTier } from "../services/categoryStorageService";
 import { getOrStartSession } from "../services/sessionManager";
 import { colors } from "../styles/global";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // FIXME: POC cross-hierarchy bridge — move to DialogueContext when refactoring
 export const dialogueBridgeRef = {
@@ -109,6 +110,8 @@ export default function DialogueDashboardScreen() {
   const modalIntentionallyOpenedRef = useRef(false);
   const isCombinedImageRef = useRef(false);
   const suppressSignUpPromptRef = useRef(false);
+
+  const insets = useSafeAreaInsets();
 
   // Voice recording state
   const [isRecording, setIsRecording] = React.useState(false);
@@ -813,14 +816,14 @@ export default function DialogueDashboardScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.accent.magenta} />
+        <ActivityIndicator size="large" color={colors.accent.sky} />
         <Text style={styles.loadingText}>Loading your journey...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -847,8 +850,8 @@ export default function DialogueDashboardScreen() {
         </View>
 
         <View style={styles.header}>
-          <MaterialIcons name="explore" size={40} color={colors.accent.magenta} />
-          <Text style={styles.title}>My Skills Passport</Text>
+          <MaterialIcons name="explore" size={40} color={colors.accent.sky} />
+          <Text style={styles.title}>My Dashboard</Text>
           <Text style={styles.subtitle}>
             {mappedCategories.length}/{TOTAL_CATEGORIES} categories discovered
           </Text>
@@ -857,7 +860,7 @@ export default function DialogueDashboardScreen() {
         <Card style={styles.progressCard}>
           <Card.Content>
             <View style={styles.progressHeader}>
-              <MaterialIcons name="trending-up" size={24} color={colors.accent.magenta} />
+              <MaterialIcons name="trending-up" size={24} color={colors.accent.sky} />
               <Text style={styles.progressTitle}>Your Progress</Text>
             </View>
             <View style={styles.statsRow}>
@@ -1124,6 +1127,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.tinted,
+    paddingTop: 52,
   },
   loadingContainer: {
     flex: 1,
@@ -1147,7 +1151,6 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     marginBottom: 20,
-    paddingTop: 20,
   },
   title: {
     fontSize: 28,
@@ -1237,7 +1240,6 @@ const styles = StyleSheet.create({
   },
   floatingButtons: {
     position: "absolute",
-    top: 52,
     right: 16,
     flexDirection: "row",
     gap: 8,

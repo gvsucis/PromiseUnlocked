@@ -17,6 +17,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
 import { auth } from "../config/firebase";
@@ -29,6 +30,9 @@ import {
   buildLocalProfile,
   type UserProfile,
 } from "../services/profileService";
+
+import { ImagePickerService } from "../services/imagePickerService";
+import ImageEditor from "../components/ImageEditor";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -57,6 +61,10 @@ export default function ProfileScreen() {
 
   const { reset } = useDialogue();
   const { confirmAndLogout } = useLogout();
+  const [tempImageUri, setTempImageUri] = useState<string | null>(null);
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   useFocusEffect(
     useCallback(() => {
@@ -91,8 +99,6 @@ export default function ProfileScreen() {
     return profile?.fullName || profile?.displayName || "Your Profile";
   }, [profile]);
 
-  const photoUrl = profile?.photoURL || auth.currentUser?.photoURL || null;
-
   const highSchool = useMemo(() => {
     return profile?.schoolName?.trim();
   }, [profile]);
@@ -113,6 +119,44 @@ export default function ProfileScreen() {
     } finally {
       setSavingBio(false);
     }
+  };
+
+  const handleEditPhoto = () => {
+    Alert.alert("Update Profile Photo", "Choose how to add your photo.", [
+      { text: "Take Photo", onPress: () => handlePhotoSelection(true) },
+      { text: "Choose from Gallery", onPress: () => handlePhotoSelection(false) },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const handlePhotoSelection = async (useCamera: boolean) => {
+    const hasPermissions = await ImagePickerService.requestPermissions();
+    if (!hasPermissions) {
+      Alert.alert("Permissions Required", "Camera and photo library permissions are required.");
+      return;
+    }
+    const result = useCamera
+      ? await ImagePickerService.takePhotoWithCamera()
+      : await ImagePickerService.pickImageFromGalleryWithOptions(false);
+
+    if (result.success && result.imageUri) {
+      setTempImageUri(result.imageUri);
+      setShowImageEditor(true);
+    } else if (result.error) {
+      Alert.alert("Error", result.error);
+    }
+  };
+
+  const handlePhotoEditorSave = (editedUri: string) => {
+    setLocalPhotoUri(editedUri);
+    setShowImageEditor(false);
+    setTempImageUri(null);
+    // TODO: call updateProfile({ photoURL: editedUri }) to persist to backend
+  };
+
+  const handlePhotoEditorCancel = () => {
+    setShowImageEditor(false);
+    setTempImageUri(null);
   };
 
   const checklist = [
@@ -145,126 +189,137 @@ export default function ProfileScreen() {
             <MaterialIcons name="refresh" size={24} color={colors.background.card} />
           </TouchableOpacity>
         </View>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.bannerContainer}>
-            <View style={styles.bannerClip}>
-              <View style={styles.banner} />
-            </View>
+        <View
+          style={[
+            globalStyles.screen,
+            { paddingTop: insets.top, backgroundColor: colors.accent.sky },
+          ]}
+        >
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            <View style={styles.bannerContainer}>
+              <View style={styles.bannerClip}>
+                <View style={styles.banner} />
+              </View>
 
-            <View style={styles.avatarWrapper}>
-              <View style={styles.avatarCircle}>
-                {photoUrl ? (
-                  <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
-                ) : (
-                  <MaterialIcons name="person" size={40} color={colors.text.inverse} />
-                )}
+              <View style={styles.avatarWrapper}>
+                <View style={styles.avatarCircle}>
+                  {(localPhotoUri ?? profile?.photoURL) ? (
+                    <Image
+                      source={{ uri: localPhotoUri ?? profile?.photoURL ?? "" }}
+                      style={styles.avatarImage}
+                    />
+                  ) : (
+                    <MaterialIcons name="person" size={40} color={colors.text.inverse} />
+                  )}
+                </View>
+                <TouchableOpacity style={styles.avatarEditBadge} onPress={handleEditPhoto}>
+                  <MaterialIcons name="edit" size={16} color={colors.text.inverse} />
+                </TouchableOpacity>
               </View>
             </View>
-          </View>
 
-          <View style={styles.identitySection}>
-            <Text style={styles.studentName}>{displayName}</Text>
-            <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
-            <Text style={styles.meta}>{highSchool}</Text>
-            {profile?.schoolAddress?.trim() ? (
-              <Text style={styles.meta}>{profile.schoolAddress}</Text>
-            ) : null}
-            {profile?.pageUrl && (
-              <Text style={[styles.meta, { color: colors.accent.sky, marginTop: 4 }]}>
-                {profile.pageUrl}
-              </Text>
-            )}
-          </View>
-
-          <View style={globalStyles.card}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.cardTitle}>About Me</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  if (editingBio) {
-                    void handleSaveBio();
-                    return;
-                  }
-                  setEditingBio(true);
-                }}
-                disabled={savingBio}
-              >
-                <Text style={styles.linkText}>{editingBio ? "Save" : "Edit"}</Text>
-              </TouchableOpacity>
-            </View>
-            {editingBio ? (
-              <TextInput value={bio} onChangeText={setBio} style={styles.bioInput} multiline />
-            ) : (
-              <Text style={styles.bio}>
-                {bio || "Add a short bio about your goals and interests."}
-              </Text>
-            )}
-          </View>
-
-          <View style={globalStyles.card}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.cardTitle}>Moments</Text>
-            </View>
-            <View style={styles.galleryRow}>
-              <GalleryPlaceholder />
-              <GalleryPlaceholder />
-              <TouchableOpacity style={styles.galleryAddCard}>
-                <MaterialIcons name="add" size={28} color={colors.accent.sky} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={globalStyles.card}
-            onPress={() => navigation.navigate("EditProfile")}
-          >
-            <View style={[globalStyles.row, { marginBottom: 0 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>Add Your Personal Information</Text>
-                <Text style={styles.cardSubtitle}>
-                  Share details about your background and journey.
+            <View style={styles.identitySection}>
+              <Text style={styles.studentName}>{displayName}</Text>
+              <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
+              <Text style={styles.meta}>{highSchool}</Text>
+              {profile?.schoolAddress?.trim() ? (
+                <Text style={styles.meta}>{profile.schoolAddress}</Text>
+              ) : null}
+              {profile?.pageUrl && (
+                <Text style={[styles.meta, { color: colors.accent.sky, marginTop: 4 }]}>
+                  {profile.pageUrl}
                 </Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color={colors.accent.sky} />
+              )}
             </View>
-          </TouchableOpacity>
 
-          <View style={globalStyles.card}>
-            <View style={[globalStyles.row, { marginBottom: 14 }]}>
-              <View style={{ flex: 1, paddingRight: 16 }}>
-                <Text style={styles.cardTitle}>Profile Completion</Text>
-                <Text style={styles.cardSubtitle}>
-                  Complete your profile to unlock more opportunities.
+            <View style={globalStyles.card}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.cardTitle}>About Me</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (editingBio) {
+                      void handleSaveBio();
+                      return;
+                    }
+                    setEditingBio(true);
+                  }}
+                  disabled={savingBio}
+                >
+                  <Text style={styles.linkText}>{editingBio ? "Save" : "Edit"}</Text>
+                </TouchableOpacity>
+              </View>
+              {editingBio ? (
+                <TextInput value={bio} onChangeText={setBio} style={styles.bioInput} multiline />
+              ) : (
+                <Text style={styles.bio}>
+                  {bio || "Add a short bio about your goals and interests."}
                 </Text>
+              )}
+            </View>
+
+            <View style={globalStyles.card}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.cardTitle}>Moments & Artifacts</Text>
               </View>
-              <Text style={styles.progressPercent}>{progressPercent}%</Text>
+              <View style={styles.galleryRow}>
+                <GalleryPlaceholder />
+                <GalleryPlaceholder />
+                <TouchableOpacity style={styles.galleryAddCard}>
+                  <MaterialIcons name="add" size={28} color={colors.accent.sky} />
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-            </View>
-
-            <View style={styles.progressChecklist}>
-              {checklist.map((item) => (
-                <ChecklistItem key={item.label} {...item} />
-              ))}
-            </View>
-
-            <Text style={styles.footnote}>
-              Your journey continues beyond profile completion through stamps and experiences.
-            </Text>
-          </View>
-
-          {session.mode === "authenticated" && (
-            <TouchableOpacity style={globalStyles.card} onPress={handleLogout}>
-              <View style={globalStyles.row}>
-                <MaterialIcons name="logout" size={20} color={colors.status.error} />
-                <Text style={styles.logoutText}>Sign Out</Text>
+            <TouchableOpacity
+              style={globalStyles.card}
+              onPress={() => navigation.navigate("EditProfile")}
+            >
+              <View style={[globalStyles.row, { marginBottom: 0 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>Add Your Personal Information</Text>
+                  <Text style={styles.cardSubtitle}>
+                    Share details about your background and journey.
+                  </Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color={colors.accent.sky} />
               </View>
             </TouchableOpacity>
-          )}
-        </ScrollView>
+
+            <View style={globalStyles.card}>
+              <View style={[globalStyles.row, { marginBottom: 14 }]}>
+                <View style={{ flex: 1, paddingRight: 16 }}>
+                  <Text style={styles.cardTitle}>Profile Completion</Text>
+                  <Text style={styles.cardSubtitle}>
+                    Complete your profile to unlock more opportunities.
+                  </Text>
+                </View>
+                <Text style={styles.progressPercent}>{progressPercent}%</Text>
+              </View>
+
+              <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+              </View>
+
+              <View style={styles.progressChecklist}>
+                {checklist.map((item) => (
+                  <ChecklistItem key={item.label} {...item} />
+                ))}
+              </View>
+
+              <Text style={styles.footnote}>
+                Your journey continues beyond profile completion through stamps and experiences.
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
       </SafeAreaView>
+      {showImageEditor && tempImageUri && (
+        <ImageEditor
+          imageUri={tempImageUri}
+          onSave={handlePhotoEditorSave}
+          onCancel={handlePhotoEditorCancel}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -381,6 +436,7 @@ const styles = StyleSheet.create({
     padding: 10,
     minHeight: 80,
     backgroundColor: colors.background.subtle,
+    textAlignVertical: "top",
   },
 
   galleryRow: { flexDirection: "row", gap: 12 },
@@ -408,7 +464,6 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: 15, fontWeight: "600", color: colors.status.error, marginLeft: 10 },
   floatingButtons: {
     position: "absolute",
-    top: 52,
     right: 16,
     flexDirection: "row",
     gap: 8,
@@ -419,5 +474,19 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.accent.skyDark,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.text.inverse,
   },
 });
