@@ -14,6 +14,7 @@ import {
   ensureAllMappedCategoriesHaveStamps,
 } from "../services/categoryStorageService";
 import { getCurrentAuthSession } from "../services/auth/authSessionService";
+import { getActiveSessionId } from "../services/sessionManager";
 import type { MappedCategory } from "../services/categoryTaxonomyService";
 import { colors } from "../styles/global";
 import { useAuth } from "../context/AuthContext";
@@ -62,8 +63,17 @@ export default function PassportScreen() {
         const session = getCurrentAuthSession();
         if (session.mode === "authenticated" && session.uid) {
           try {
+            const activeSessionId = await getActiveSessionId();
+            if (!activeSessionId) return;
             const snapshot = await getDocs(
-              collection(db, "participants", session.uid, "skillPassport")
+              collection(
+                db,
+                "participants",
+                session.uid,
+                "sessions",
+                activeSessionId,
+                "skillPassport"
+              )
             );
             if (!snapshot.empty) {
               mappedCategories = snapshot.docs.map((doc) => {

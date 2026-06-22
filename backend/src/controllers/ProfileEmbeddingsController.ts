@@ -266,9 +266,7 @@ export class ProfileEmbeddingsController {
 
     try {
       const results = await searchUserEmbeddings(authUser.uid, query.trim(), limit);
-      console.log(
-        `[EmbeddingsFetch] userId=${authUser.uid} query="${query.trim()}" results=${results.length}`
-      );
+
       return res.json({ results });
     } catch (err) {
       console.error("[MemoryUpload] searchEmbeddings error:", err);

@@ -29,6 +29,8 @@ export interface ConversationInteraction {
   mappingOutcome?: "mapped" | "already_mapped" | "weak_fit" | "invalid";
   matchedToCategory?: string | null;
   matchedToSequenceIndex?: number | null;
+  justification?: string;
+  specificStamp?: string;
 }
 
 // Define the 11 top-level categories matching the skills taxonomy

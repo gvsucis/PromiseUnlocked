@@ -20,7 +20,7 @@ export function useLogout() {
   const confirmAndLogout = useCallback(
     (onSuccess?: () => void, confirmText?: string) => {
       Alert.alert(
-        "Switch to Guest",
+        "Logout to Gust ",
         "You will keep this account's saved progress, and the app will continue in guest mode.",
         [
           { text: "Cancel", style: "cancel" },

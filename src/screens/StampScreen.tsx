@@ -168,9 +168,6 @@ export default function StampScreen() {
             {unlockedList.map((stamp) => {
               const count = stampCounts[stamp] ?? 1;
               const tier = stampTiers[stamp] ?? DEFAULT_TIER;
-              const tierCfg =
-                TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ??
-                TIER_CONFIG[DEFAULT_TIER as keyof typeof TIER_CONFIG];
               return (
                 <TouchableOpacity
                   key={stamp}
@@ -240,7 +237,7 @@ export default function StampScreen() {
           onNewTopic={() => {
             setShowQuestionModal(false);
             setGeneratedQuestion("");
-            dialogueBridgeRef.current?.handleNewTopic();
+            dialogueBridgeRef.current?.handleNewTopic(region);
             navigation.getParent()?.navigate("MainTabs", { screen: "Dashboard" });
           }}
         />

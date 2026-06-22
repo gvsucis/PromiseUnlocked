@@ -106,6 +106,7 @@ export interface InteractionRecord {
   isWeakFit: boolean;
   isAlreadyMapped: boolean;
   justification: string;
+  specificStamp?: string | null;
   matchedToCategory: string | null;
   matchedToSequenceIndex: number | null;
   timestamp: FirestoreDateValue;

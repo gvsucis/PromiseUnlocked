@@ -62,6 +62,24 @@ export class GeminiService {
     return url.replaceAll(/key=[^&]*/g, "key=***");
   }
 
+  // Shared rate-limit backoff budget, keyed by the AbortSignal that flows
+  // through one logical operation (e.g. a single dialogue answer: map ->
+  // synthesize -> strict retry). Without this, each chained requestGemini call
+  // runs its own multi-attempt backoff, so a sustained 429 could stack ~60s of
+  // waiting before failing. The first retry to need it establishes a deadline;
+  // every chained call sharing the signal then draws down the same budget.
+  private static readonly retryDeadlines = new WeakMap<AbortSignal, number>();
+  private static readonly TOTAL_RETRY_BUDGET_MS = 20000;
+
+  private static retryDeadlineFor(signal?: AbortSignal): number {
+    if (!signal) return Number.POSITIVE_INFINITY;
+    const existing = this.retryDeadlines.get(signal);
+    if (existing !== undefined) return existing;
+    const deadline = Date.now() + this.TOTAL_RETRY_BUDGET_MS;
+    this.retryDeadlines.set(signal, deadline);
+    return deadline;
+  }
+
   /**
    * Helper: Retry with exponential backoff for rate limits
    */
@@ -83,6 +101,10 @@ export class GeminiService {
         if (this.isCancellation(error)) throw error;
         const delay = this.computeRetryDelay(error, attempt, initialDelay);
         if (delay < 0) throw error;
+        // Stop stacking backoff once this operation's shared budget is spent.
+        if (Date.now() + delay > this.retryDeadlineFor(signal)) {
+          throw error;
+        }
         console.log(
           `Rate limit/service busy. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`
         );
@@ -654,7 +676,8 @@ ${contextBlock}${regionHint}`;
         interactions,
         mappedCategories,
         taxonomyString,
-        { latestQuestion: question, latestAnswer: answer }
+        { latestQuestion: question, latestAnswer: answer },
+        signal
       );
       return parsed;
     } catch (error) {
@@ -681,7 +704,8 @@ ${contextBlock}${regionHint}`;
     interactions: DialogueInteraction[],
     mappedCategories: MappedCategory[],
     taxonomyString: string,
-    context?: QuestionSynthesisContext
+    context?: QuestionSynthesisContext,
+    signal?: AbortSignal
   ): Promise<MapAnswerResponse> {
     let parsed: MapAnswerResponse;
     try {
@@ -716,7 +740,8 @@ ${contextBlock}${regionHint}`;
       interactions,
       mappedCategories,
       taxonomyString,
-      context
+      context,
+      signal
     );
     return parsed;
   }
@@ -858,8 +883,10 @@ ${contextBlock}${regionHint}`;
     context?: QuestionSynthesisContext,
     targetRegion?: string
   ): string {
+    // In "New Topic" mode we deliberately drop the latest turn so the question
+    // pivots to a new dimension instead of continuing the current thread.
     const latestTurnBlock =
-      context?.latestQuestion || context?.latestAnswer
+      !context?.newTopic && (context?.latestQuestion || context?.latestAnswer)
         ? `\nLATEST_TURN:\nQ: ${context.latestQuestion ?? ""}\nA: ${context.latestAnswer ?? ""}\n`
         : "\n";
     const embeddingHistoryBlock = context?.embeddingHistorySummary
@@ -869,7 +896,16 @@ ${contextBlock}${regionHint}`;
       ? `\nTARGET REGION: ${targetRegion} — focus the question on this specific area.\n`
       : "";
 
-    return `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strict ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)." : ""} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic. CRITICAL: Always center the question on the user — ask about their actions, choices, feelings, or role. You may reference other people (teammates, coaches, teachers), but the question's subject must remain the user's own experience. Never ask about someone else's isolated actions or strategies. Never repeat or quote offensive, profane, or inappropriate language from the user's answer — paraphrase in general terms if needed.
+    const strictClause = strict
+      ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)."
+      : "";
+    const userCenterClause = ` CRITICAL: Always center the question on the user — ask about their actions, choices, feelings, or role. You may reference other people (teammates, coaches, teachers), but the question's subject must remain the user's own experience. Never ask about someone else's isolated actions or strategies. Never repeat or quote offensive, profane, or inappropriate language from the user's answer — paraphrase in general terms if needed.`;
+
+    const leadInstruction = context?.newTopic
+      ? `Based on the taxonomy (including the NO_OP category as a mapping option) and the categories already mapped to me, synthesize a clear, specific new question that DELIBERATELY CHANGES THE TOPIC to a fresh dimension. Do NOT build on, reference, or continue the most recent answer or the current thread — start a genuinely new line of conversation. Choose a dimension likely to surface one of the categories NOT yet mapped to me. The question must end with a "?".${strictClause} Use any embedding/background context about me to pick a new dimension that fits my experience.${userCenterClause}`
+      : `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strictClause} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.${userCenterClause}`;
+
+    return `${leadInstruction}
 HISTORY:
 ${history}
 
@@ -922,10 +958,14 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
 
   private static shouldRetryQuestionStrict(
     question: string,
-    text: string,
+    _text: string,
     finishReason?: string
   ): boolean {
-    const isIncomplete = finishReason === "MAX_TOKENS" || text.length > 250;
+    // Retry strictly only when the question is genuinely weak or the response
+    // was actually truncated (MAX_TOKENS). A long-but-complete question that
+    // already passes isQuestionStrong is fine — retrying it just adds a wasted
+    // Gemini round-trip to the user's "Generating next question…" wait.
+    const isIncomplete = finishReason === "MAX_TOKENS";
     return !this.isQuestionStrong(question) || isIncomplete;
   }
 

@@ -19,6 +19,7 @@ import { colors, typography, spacing, radius, globalStyles } from "../styles/glo
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
+import { auth } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useDialogue } from "../context/DialogueContext";
 import { useLogout } from "../hooks/useLogout";
@@ -62,8 +63,6 @@ export default function ProfileScreen() {
       fetchProfile()
         .then((nextProfile) => {
           setProfile(nextProfile);
-          console.log("[ProfileScreen] Profile fetched:", JSON.stringify(nextProfile, null, 2));
-          console.log("[ProfileScreen] metadata.bio:", nextProfile.metadata.bio);
           const bioValue = nextProfile.metadata.bio;
           setBio(typeof bioValue === "string" ? bioValue : "");
         })
@@ -91,6 +90,8 @@ export default function ProfileScreen() {
   const displayName = useMemo(() => {
     return profile?.fullName || profile?.displayName || "Your Profile";
   }, [profile]);
+
+  const photoUrl = profile?.photoURL || auth.currentUser?.photoURL || null;
 
   const highSchool = useMemo(() => {
     return profile?.schoolName?.trim();
@@ -152,8 +153,8 @@ export default function ProfileScreen() {
 
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarCircle}>
-                {profile?.photoURL ? (
-                  <Image source={{ uri: profile.photoURL }} style={styles.avatarImage} />
+                {photoUrl ? (
+                  <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
                 ) : (
                   <MaterialIcons name="person" size={40} color={colors.text.inverse} />
                 )}

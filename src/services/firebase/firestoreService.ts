@@ -217,6 +217,7 @@ export async function saveInteraction(
     isWeakFit: boolean;
     isAlreadyMapped: boolean;
     justification: string;
+    specificStamp?: string;
     matchedToCategory: string | null;
     matchedToSequenceIndex: number | null;
   }
@@ -235,7 +236,18 @@ export async function saveInteraction(
       resolvedInteractionId
     );
     const interactionDoc: InteractionDocument = {
-      ...interaction,
+      sequenceIndex: interaction.sequenceIndex,
+      question: interaction.question,
+      answer: interaction.answer,
+      inputMethod: interaction.inputMethod,
+      mappingOutcome: interaction.mappingOutcome,
+      mappedCategory: interaction.mappedCategory,
+      isWeakFit: interaction.isWeakFit,
+      isAlreadyMapped: interaction.isAlreadyMapped,
+      justification: interaction.justification,
+      specificStamp: interaction.specificStamp ?? null,
+      matchedToCategory: interaction.matchedToCategory,
+      matchedToSequenceIndex: interaction.matchedToSequenceIndex,
       timestamp: serverTimestamp() as unknown as Timestamp,
     };
     await setDoc(interactionRef, interactionDoc);
@@ -275,18 +287,34 @@ export async function savePassportMapping(
   sessionId: string,
   interactionId: string,
   category: string,
-  justification: string
+  justification: string,
+  specificStamp?: string
 ): Promise<void> {
   try {
     await ensureSessionDocument(userId, sessionId);
 
     const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-    const passportRef = doc(db, "participants", userId, "skillPassport", categoryId);
+    const passportRef = doc(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport",
+      categoryId
+    );
 
-    const mapping = {
+    const mapping: {
+      sessionId: string;
+      interactionId: string;
+      justification: string;
+      specificStamp?: string | null;
+      timestamp: Timestamp;
+    } = {
       sessionId,
       interactionId,
       justification,
+      specificStamp: specificStamp ?? null,
       // Field transforms are not allowed inside arrayUnion payloads.
       timestamp: Timestamp.now(),
     };
@@ -324,13 +352,22 @@ export async function savePassportMapping(
  */
 export async function saveStampUnlock(
   userId: string,
+  sessionId: string,
   category: string,
   stampName: string,
   tier: number = 1
 ): Promise<void> {
   try {
     const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-    const passportRef = doc(db, "participants", userId, "skillPassport", categoryId);
+    const passportRef = doc(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport",
+      categoryId
+    );
 
     const stampKey = `unlockedStamps.${stampName.replaceAll(/[.[\]/]/g, "_")}`;
     const existing = await getDoc(passportRef);
@@ -362,10 +399,18 @@ export async function saveStampUnlock(
 }
 
 export async function fetchPassportMappings(
-  userId: string
+  userId: string,
+  sessionId: string
 ): Promise<{ category: string; firstMappedAt: Date; totalMappings: number }[]> {
   try {
-    const passportRef = collection(db, "participants", userId, "skillPassport");
+    const passportRef = collection(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport"
+    );
     const snapshot = await getDocs(passportRef);
     const mappings: { category: string; firstMappedAt: Date; totalMappings: number }[] = [];
 

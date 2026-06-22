@@ -10,6 +10,9 @@ import { STAMP_TAXONOMY } from "../config/stampTaxonomy";
 import { DEFAULT_TIER } from "../config/stampConstants";
 import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../config/firebase";
+import type { SkillPassportDocument } from "../types/firestore";
 import { getScopedStorageKey } from "./auth/authSessionService";
 import {
   clearSessionState,
@@ -20,7 +23,6 @@ import {
 } from "./sessionManager";
 import {
   saveInteraction,
-  savePassportMapping,
   saveStampUnlock,
   fetchSessionInteractions,
 } from "./firebase/firestoreService";
@@ -143,6 +145,7 @@ export async function upgradeStampTier(
         async () => {
           await saveStampUnlock(
             writeContext.userId,
+            writeContext.sessionId,
             categoryName,
             stampName,
             stamps[existingIdx].tier
@@ -198,7 +201,13 @@ export async function addStampUnlock(
       const writeContext = await getFirestoreWriteContext();
       await enqueueFirestoreWrite(
         async () => {
-          await saveStampUnlock(writeContext.userId, categoryName, stampName, tier);
+          await saveStampUnlock(
+            writeContext.userId,
+            writeContext.sessionId,
+            categoryName,
+            stampName,
+            tier
+          );
         },
         { rethrowOnFailure: true }
       );
@@ -277,34 +286,98 @@ export async function syncFromFirestore(): Promise<void> {
     if (remote.length === 0) return;
 
     const local = await getConversationHistory();
-    if (remote.length <= local.length) return;
 
-    const merged: ConversationInteraction[] = [];
-    const seen = new Set<string>();
+    // Identity that is stable across the local↔Firestore boundary. The
+    // timestamp is deliberately NOT part of the key: local rows store a client
+    // clock (`new Date().toISOString()`) while Firestore stores
+    // `serverTimestamp()`, so keying on it treats every synced interaction as
+    // new and duplicates it on each sync. A question+answer pair uniquely
+    // identifies an interaction within a session; the NUL separator keeps the
+    // boundary unambiguous so two distinct pairs can't concatenate to one key.
+    const identityKey = (i: { question: string; answer: string }) =>
+      `${i.question}\u0000${i.answer}`;
+
+    // Local rows win (they carry the device-authored timestamp/ordering); a
+    // remote-only interaction is added, and a justification present only
+    // remotely backfills the local row. This makes sync idempotent — running it
+    // repeatedly converges instead of appending duplicates.
+    const byKey = new Map<string, ConversationInteraction>();
     for (const i of local) {
-      const key = `${i.question}|${i.answer}|${i.timestamp}`;
-      seen.add(key);
-      merged.push(i);
+      byKey.set(identityKey(i), i);
     }
+
     for (const r of remote) {
-      const key = `${r.question}|${r.answer}|${r.timestamp.toDate().toISOString()}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push({
+      const key = identityKey(r);
+      const existing = byKey.get(key);
+      if (existing) {
+        if (r.justification && !existing.justification) {
+          existing.justification = r.justification;
+        }
+        continue;
+      }
+      byKey.set(key, {
         question: r.question,
         answer: r.answer,
         mappedCategory: r.mappedCategory ?? "",
-        timestamp: r.timestamp.toDate().toISOString(),
+        // serverTimestamp() reads back null until the write resolves — fall
+        // back to "now" rather than throwing and aborting the whole sync.
+        timestamp: r.timestamp ? r.timestamp.toDate().toISOString() : new Date().toISOString(),
         mappingOutcome: r.mappingOutcome,
         matchedToCategory: r.matchedToCategory,
         matchedToSequenceIndex: r.matchedToSequenceIndex,
+        justification: r.justification || undefined,
+        specificStamp: r.specificStamp || undefined,
       });
     }
+
+    // Deterministic chronological order regardless of local/remote origin.
+    const merged = Array.from(byKey.values()).sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
 
     const storageKey = await getInteractionsStorageKey();
     await setJSONInStorage(storageKey, merged);
   } catch {
     // Firestore read failed — skip sync, rely on local data
+  }
+}
+
+/**
+ * Fetch justification entries from the Firestore skillPassport document.
+ * Each mapped interaction saves a PassportCategoryMapping with a real
+ * justification string (falls back to mappedCategory.justification),
+ * so this is the most reliable source for historical justifications.
+ * Optionally filter by sessionId so only the current session's entries appear.
+ */
+export async function fetchPassportJustifications(
+  categoryName: string,
+  sessionId?: string,
+  stampName?: string
+): Promise<string[]> {
+  try {
+    const resolvedSessionId = sessionId || (await getActiveSessionId());
+    if (!resolvedSessionId) return [];
+
+    const userId = await getUserId();
+    const categoryId = categoryName.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
+    const passportRef = doc(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      resolvedSessionId,
+      "skillPassport",
+      categoryId
+    );
+    const snapshot = await getDoc(passportRef);
+    if (!snapshot.exists()) return [];
+    const data = snapshot.data() as SkillPassportDocument;
+    const items = data.mappings ?? [];
+    return items
+      .filter((m) => m.justification && (!stampName || m.specificStamp === stampName))
+      .map((m) => m.justification);
+  } catch {
+    return [];
   }
 }
 
@@ -320,7 +393,9 @@ export async function saveConversationInteraction(
   const interactionId = generateInteractionId();
   const current = await getConversationHistory();
   const sequenceIndex = current.length;
-  current.push({ ...interaction });
+  // Store an absent justification as undefined, not "", so it matches the
+  // remote shape and the sync backfill can later fill it in from Firestore.
+  current.push({ ...interaction, justification: justification || undefined });
   const storageKey = await getInteractionsStorageKey();
   await setJSONInStorage(storageKey, current);
 
@@ -338,6 +413,7 @@ export async function saveConversationInteraction(
           isWeakFit: interaction.mappingOutcome === "weak_fit",
           isAlreadyMapped: interaction.mappingOutcome === "already_mapped",
           justification: justification ?? "",
+          specificStamp: interaction.specificStamp,
           matchedToCategory: interaction.matchedToCategory ?? null,
           matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,
         });

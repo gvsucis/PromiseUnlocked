@@ -203,7 +203,7 @@ export default function EditProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.flex1}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={styles.container}>
@@ -269,7 +269,7 @@ export default function EditProfileScreen() {
                     onChangeText={setFullName}
                     autoCapitalize="words"
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
@@ -340,7 +340,7 @@ export default function EditProfileScreen() {
                     onChangeText={setPhone}
                     keyboardType="phone-pad"
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
@@ -355,7 +355,7 @@ export default function EditProfileScreen() {
                     keyboardType="url"
                     autoCapitalize="none"
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
@@ -373,7 +373,7 @@ export default function EditProfileScreen() {
                     value={street}
                     onChangeText={setStreet}
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
@@ -387,7 +387,7 @@ export default function EditProfileScreen() {
                       value={city}
                       onChangeText={setCity}
                       className="h-10 px-0 text-sm bg-white border-0"
-                      style={{ flex: 1 }}
+                      style={styles.flex1}
                     />
                   </View>
                 </View>
@@ -429,7 +429,7 @@ export default function EditProfileScreen() {
                     keyboardType="number-pad"
                     maxLength={5}
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
@@ -443,7 +443,7 @@ export default function EditProfileScreen() {
                     onChangeText={setCountry}
                     autoCapitalize="words"
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
@@ -461,7 +461,7 @@ export default function EditProfileScreen() {
                     value={schoolName}
                     onChangeText={setSchoolName}
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
@@ -473,7 +473,7 @@ export default function EditProfileScreen() {
                     value={schoolAddress}
                     onChangeText={setSchoolAddress}
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
@@ -590,6 +590,11 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Stable reference so memoized <Input> fields don't re-render on every
+  // keystroke just because an inline `{ flex: 1 }` object changes identity.
+  flex1: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     paddingTop: 60,

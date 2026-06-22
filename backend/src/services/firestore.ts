@@ -125,6 +125,7 @@ export function normalizeInteraction(
     isWeakFit: data?.isWeakFit ?? false,
     isAlreadyMapped: data?.isAlreadyMapped ?? false,
     justification: data?.justification ?? "",
+    specificStamp: data?.specificStamp ?? undefined,
     matchedToCategory: data?.matchedToCategory ?? null,
     matchedToSequenceIndex: data?.matchedToSequenceIndex ?? null,
     ...normalizeTimestamps(data!, ["timestamp"]),
@@ -195,6 +196,7 @@ const interactionConverter: FirestoreDataConverter<InteractionRecord> = {
       isWeakFit: data.isWeakFit ?? false,
       isAlreadyMapped: data.isAlreadyMapped ?? false,
       justification: data.justification ?? "",
+      specificStamp: data.specificStamp ?? undefined,
       matchedToCategory: data.matchedToCategory ?? null,
       matchedToSequenceIndex: data.matchedToSequenceIndex ?? null,
       timestamp: data.timestamp ?? null,
@@ -228,11 +230,11 @@ export const participantSessionInteractionsCollection = (uid: string, sessionId:
     .collection("interactions")
     .withConverter(interactionConverter);
 
-export const participantPassportCollection = (uid: string) =>
-  participantDoc(uid).collection("skillPassport");
+export const participantPassportCollection = (uid: string, sessionId: string) =>
+  participantSessionDoc(uid, sessionId).collection("skillPassport");
 
-export const participantPassportDoc = (uid: string, categoryId: string) =>
-  participantPassportCollection(uid).doc(categoryId);
+export const participantPassportDoc = (uid: string, sessionId: string, categoryId: string) =>
+  participantPassportCollection(uid, sessionId).doc(categoryId);
 
 export function normalizePassport(
   doc: FirebaseFirestore.DocumentSnapshot

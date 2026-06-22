@@ -92,6 +92,7 @@ export default function DialogueDashboardScreen() {
     handleNewTopic,
     dismissAnswerModal,
     clearPendingProofRequest,
+    clearStampUnlock,
     continueAfterStampUnlock,
     clearProofNotification,
     activateProofFromNotification,
@@ -103,7 +104,6 @@ export default function DialogueDashboardScreen() {
 
   const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  const [questionModalText, setQuestionModalText] = useState("");
   const suppressModalReopenRef = useRef(false);
   const modalDismissedByBackdropRef = useRef(false);
   const modalIntentionallyOpenedRef = useRef(false);
@@ -190,7 +190,7 @@ export default function DialogueDashboardScreen() {
   const handleLogout = () => {
     suppressSignUpPromptRef.current = true;
     Alert.alert(
-      "Switch to Guest",
+      "Logoutt",
       "You will keep this account's saved progress, and the app will continue in guest mode.",
       [
         {
@@ -230,7 +230,6 @@ export default function DialogueDashboardScreen() {
     const q = pendingQuestion || currentPrompt;
     setPendingQuestion(null);
     setCurrentPrompt("");
-    setQuestionModalText("");
     suppressModalReopenRef.current = false;
     void mapAnswerToCategory(q, text);
   };
@@ -239,7 +238,6 @@ export default function DialogueDashboardScreen() {
     suppressModalReopenRef.current = true;
     setShowQuestionInputModal(false);
     setPendingQuestion(null);
-    setQuestionModalText("");
     await new Promise((resolve) => setTimeout(resolve, 150));
     suppressModalReopenRef.current = false;
     if (method === "voice") {
@@ -282,7 +280,6 @@ export default function DialogueDashboardScreen() {
     const q = pendingQuestion || currentPrompt;
     setPendingQuestion(null);
     setCurrentPrompt("");
-    setQuestionModalText("");
     setCombinedImageUri(null);
     suppressModalReopenRef.current = false;
 
@@ -605,6 +602,7 @@ export default function DialogueDashboardScreen() {
 
   const handleContinueAfterStampUnlock = () => {
     modalIntentionallyOpenedRef.current = true;
+    clearStampUnlock();
     continueAfterStampUnlockRef.current();
   };
 
@@ -750,11 +748,10 @@ export default function DialogueDashboardScreen() {
     ) {
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
-      if (userAnswer) {
-        setQuestionModalText(userAnswer);
-      }
     }
-  }, [uiState, currentPrompt, showQuestionInputModal, userAnswer]);
+    // `userAnswer` is no longer a dependency: the modal seeds its own input
+    // from `seedText`, so this effect should not re-run on every keystroke.
+  }, [uiState, currentPrompt, showQuestionInputModal]);
 
   React.useEffect(() => {
     if (
@@ -886,9 +883,6 @@ export default function DialogueDashboardScreen() {
                     modalIntentionallyOpenedRef.current = true;
                     setPendingQuestion(currentPrompt);
                     setShowQuestionInputModal(true);
-                    if (userAnswer) {
-                      setQuestionModalText(userAnswer);
-                    }
                   } else {
                     modalIntentionallyOpenedRef.current = true;
                     handleStartButtonPress();
@@ -997,8 +991,7 @@ export default function DialogueDashboardScreen() {
       <QuestionInputModal
         visible={showQuestionInputModal && !!pendingQuestion}
         question={pendingQuestion || ""}
-        textValue={questionModalText}
-        onTextChange={setQuestionModalText}
+        seedText={userAnswer}
         onSelectInputType={handleInputTypeSelect}
         onSubmitText={handleSubmitTextFromModal}
         onSubmitTextAndImage={handleSubmitTextAndImage}
@@ -1009,7 +1002,6 @@ export default function DialogueDashboardScreen() {
           setShowQuestionInputModal(false);
           setPendingQuestion(null);
           setCurrentPrompt("");
-          setQuestionModalText("");
           setCombinedImageUri(null);
         }}
         onBackdropDismiss={() => {

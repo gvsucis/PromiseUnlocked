@@ -89,19 +89,19 @@ export class HelpController {
       }
 
       try {
-        const bucket = admin.storage().bucket(STORAGE_BUCKET!);
+        const bucket = admin.storage().bucket(STORAGE_BUCKET);
         const timestamp = Date.now();
         const reportId = `${authUser.uid}_${timestamp}_${randomUUID().slice(0, 8)}`;
         const imagePaths: string[] = [];
 
-        for (let i = 0; i < images.length; i++) {
-          const ext = images[i].filename.split(".").pop() || "jpg";
+        for (const [i, image] of images.entries()) {
+          const ext = image.filename.split(".").pop() || "jpg";
           const storagePath = `help-reports/${authUser.uid}/${timestamp}/${i}.${ext}`;
           const file = bucket.file(storagePath);
 
-          await file.save(images[i].buffer, {
+          await file.save(image.buffer, {
             resumable: false,
-            contentType: images[i].mimeType,
+            contentType: image.mimeType,
             metadata: { uploadedBy: authUser.uid, reportId },
           });
 

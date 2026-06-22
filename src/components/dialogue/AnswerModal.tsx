@@ -120,7 +120,7 @@ export function AnswerModal({
                   numberOfLines={4}
                 />
                 <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
-                  <Text style={styles.submitButtonText}>Submit Answer</Text>
+                  <Text style={styles.submitButtonText}>Submit</Text>
                 </TouchableOpacity>
               </>
             )}

@@ -257,16 +257,20 @@ export class ParticipantsController {
   static async getPassport(req: Request, res: Response) {
     const requester = (req as AuthenticatedRequest).user;
     const { uid } = req.params as { uid: string };
+    const sessionId = req.query.sessionId as string | undefined;
     if (!uid) {
       return res.status(400).json({ error: "Missing participant uid" });
+    }
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId query param is required" });
     }
     try {
       if (!(await canAccessParticipant(requester, uid))) {
         return res.status(403).json({ error: "Forbidden" });
       }
-      const snapshot = await participantPassportCollection(uid).get();
+      const snapshot = await participantPassportCollection(uid, sessionId).get();
       const passport = snapshot.docs.map((doc) => normalizePassport(doc));
-      return res.json({ passport });
+      return res.json({ passport, sessionId });
     } catch (error) {
       console.error("Error fetching passport:", error);
       return res.status(500).json({ error: "Failed to fetch passport" });
@@ -292,22 +296,45 @@ export class ParticipantsController {
       const result = await Promise.all(
         participantsSnapshot.docs.map(async (doc) => {
           const profile = normalizeUser(doc) as Record<string, unknown>;
-          const passportSnapshot = await participantPassportCollection(doc.id).get();
-          const passport = passportSnapshot.docs.map((p) => {
-            const n = normalizePassport(p) ?? {};
-            const stamps = n.unlockedStamps as
-              | Record<string, { timesUnlocked?: number }>
-              | undefined;
-            let unlockedStampCount = 0;
-            if (stamps) {
-              unlockedStampCount = Object.keys(stamps).length;
+          const sessionsSnapshot = await participantSessionsCollection(doc.id)
+            .select("status")
+            .get();
+          const allPassportDocs: Array<Record<string, unknown>> = [];
+          for (const sessionDoc of sessionsSnapshot.docs) {
+            const passportSnapshot = await participantPassportCollection(
+              doc.id,
+              sessionDoc.id
+            ).get();
+            for (const p of passportSnapshot.docs) {
+              allPassportDocs.push(normalizePassport(p) ?? {});
             }
-            return {
-              category: n.category,
-              totalMappings: n.totalMappings,
-              unlockedStampCount,
-            };
-          });
+          }
+          const aggregated = allPassportDocs.reduce<Record<string, unknown>>(
+            (acc, p) => {
+              const category = p.category as string;
+              if (!category) return acc;
+              if (!acc[category]) {
+                acc[category] = { category, totalMappings: 0, unlockedStampCount: 0 };
+              }
+              const stamps = p.unlockedStamps as
+                | Record<string, { timesUnlocked?: number }>
+                | undefined;
+              const stampCount = stamps ? Object.keys(stamps).length : 0;
+              (acc[category] as Record<string, unknown>).totalMappings =
+                ((acc[category] as Record<string, unknown>).totalMappings as number) +
+                ((p.totalMappings as number) ?? 0);
+              (acc[category] as Record<string, unknown>).unlockedStampCount =
+                ((acc[category] as Record<string, unknown>).unlockedStampCount as number) +
+                stampCount;
+              return acc;
+            },
+            {} as Record<string, unknown>
+          );
+          const passport = Object.values(aggregated) as Array<{
+            category: string;
+            totalMappings: number;
+            unlockedStampCount: number;
+          }>;
           const totalStampsUnlocked = passport.reduce(
             (sum, c) => sum + (c.unlockedStampCount as number),
             0

@@ -31,6 +31,7 @@ export interface InteractionDocument {
   isWeakFit: boolean;
   isAlreadyMapped: boolean;
   justification: string;
+  specificStamp?: string | null;
   matchedToCategory: string | null;
   matchedToSequenceIndex: number | null;
   timestamp: Timestamp;
@@ -40,6 +41,7 @@ export interface PassportCategoryMapping {
   sessionId: string;
   interactionId: string;
   justification: string;
+  specificStamp?: string | null;
   timestamp: Timestamp;
 }
 

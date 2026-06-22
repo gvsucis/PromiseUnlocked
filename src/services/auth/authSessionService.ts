@@ -12,6 +12,7 @@ import {
 import {
   QueryDocumentSnapshot,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   serverTimestamp,
@@ -26,6 +27,8 @@ import {
 } from "../../utils/asyncStorage";
 import { DEFAULT_TIER } from "../../config/stampConstants";
 import { getErrorCode } from "../../utils/errorUtils";
+import { getActiveSessionId } from "../sessionManager";
+import { createSession } from "../firebase/firestoreService";
 import type { AppAuthSession, PassportEntry } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
 
@@ -95,6 +98,60 @@ async function handleAuthenticatedUser(
   void syncUserDocument(user).catch((error) => {
     console.warn("[AuthSession] Failed to sync user document:", error);
   });
+
+  // One-time migration: old user-level passport → session-scoped
+  void (async () => {
+    try {
+      const uid = user.uid;
+      const oldSnapshot = await getDocs(collection(db, "participants", uid, "skillPassport"));
+      if (oldSnapshot.empty) return;
+
+      const migrationSessionRef = doc(collection(db, "participants", uid, "sessions"));
+      const now = serverTimestamp();
+
+      await setDoc(migrationSessionRef, {
+        userId: uid,
+        topic: "migration",
+        status: "completed",
+        startedAt: now,
+        completedAt: now,
+        totalInteractions: 0,
+        categoriesMappedCount: oldSnapshot.size,
+        categoriesMapped: oldSnapshot.docs
+          .map((d) => d.data().category as string | undefined)
+          .filter(Boolean),
+      });
+
+      let count = 0;
+      for (const oldDoc of oldSnapshot.docs) {
+        const data = oldDoc.data();
+        if (!data.category) continue;
+        const newRef = doc(
+          db,
+          "participants",
+          uid,
+          "sessions",
+          migrationSessionRef.id,
+          "skillPassport",
+          oldDoc.id
+        );
+        await setDoc(newRef, data);
+        await deleteDoc(oldDoc.ref);
+        count++;
+      }
+
+      // Re-hydrate so local cache picks up session-scoped data
+      if (!user.isAnonymous) {
+        await hydratePassportMappings(uid);
+      }
+      if (__DEV__)
+        console.log(
+          `[AuthSession] Migrated ${count} passport entries to session ${migrationSessionRef.id}`
+        );
+    } catch (err) {
+      console.warn("[AuthSession] Passport migration skipped:", err);
+    }
+  })();
 
   return nextSession;
 }
@@ -180,7 +237,12 @@ function mergePassportDoc(
 
 async function fetchPassportSnapshot(uid: string, existingCount: number) {
   try {
-    const passportRef = collection(db, "participants", uid, "skillPassport");
+    const sessionId = await getActiveSessionId();
+    if (!sessionId) {
+      if (__DEV__) console.log("[AuthSession] No active session, skipping Firestore hydrate");
+      return null;
+    }
+    const passportRef = collection(db, "participants", uid, "sessions", sessionId, "skillPassport");
     const snapshot = await getDocs(passportRef);
     if (snapshot.empty) {
       if (__DEV__)
@@ -293,6 +355,11 @@ async function migrateOrClearGuestData(oldUid: string, newUid: string): Promise<
     }
 
     if (entries.length > 0) {
+      // Create a dedicated migration session under the new UID
+      const migrationSessionId = await createSession(newUid).catch(() => {
+        return `migrated-${Date.now()}`;
+      });
+
       await Promise.all(
         entries.map(async (entry) => {
           const category = entry.category as string;
@@ -304,23 +371,34 @@ async function migrateOrClearGuestData(oldUid: string, newUid: string): Promise<
             (acc, s) => ({ ...acc, [s.name]: { timesUnlocked: s.timesUnlocked } }),
             {}
           );
-          await setDoc(doc(db, "participants", newUid, "skillPassport", categoryId), {
-            category,
-            firstMappedAt: serverTimestamp(),
-            lastMappedAt: serverTimestamp(),
-            totalMappings: (entry.timesMapped as number) ?? 1,
-            unlockedStamps: unlockedStamps ?? {},
-            mappings: entry.justification
-              ? [
-                  {
-                    sessionId: "",
-                    interactionId: "",
-                    justification: entry.justification as string,
-                    timestamp: Timestamp.now(),
-                  },
-                ]
-              : [],
-          });
+          await setDoc(
+            doc(
+              db,
+              "participants",
+              newUid,
+              "sessions",
+              migrationSessionId,
+              "skillPassport",
+              categoryId
+            ),
+            {
+              category,
+              firstMappedAt: serverTimestamp(),
+              lastMappedAt: serverTimestamp(),
+              totalMappings: (entry.timesMapped as number) ?? 1,
+              unlockedStamps: unlockedStamps ?? {},
+              mappings: entry.justification
+                ? [
+                    {
+                      sessionId: migrationSessionId,
+                      interactionId: "",
+                      justification: entry.justification as string,
+                      timestamp: Timestamp.now(),
+                    },
+                  ]
+                : [],
+            }
+          );
         })
       );
       if (__DEV__)

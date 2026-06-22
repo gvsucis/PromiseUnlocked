@@ -85,8 +85,6 @@ export async function fetchProfile(): Promise<UserProfile> {
   try {
     const data = await apiFetch<{ participant?: UserProfile }>("/participants/me");
     const result = data.participant ?? buildLocalProfile();
-    console.log("[fetchProfile] Raw API response:", JSON.stringify(data, null, 2));
-    console.log("[fetchProfile] Resolved profile:", JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
     if (!(error instanceof GuestUserError)) {

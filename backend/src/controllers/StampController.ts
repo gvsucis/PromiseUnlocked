@@ -16,10 +16,14 @@ export class StampController {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { category, stampName, tier } = req.body ?? {};
+    const { category, stampName, tier, sessionId } = req.body ?? {};
 
     if (typeof category !== "string" || typeof stampName !== "string") {
       return res.status(400).json({ error: "category and stampName are required" });
+    }
+
+    if (typeof sessionId !== "string") {
+      return res.status(400).json({ error: "sessionId is required" });
     }
 
     const targetTier = typeof tier === "number" ? Math.min(Math.max(1, tier), 4) : 1;
@@ -41,6 +45,8 @@ export class StampController {
       const passportRef = db
         .collection("participants")
         .doc(requester.uid)
+        .collection("sessions")
+        .doc(sessionId)
         .collection("skillPassport")
         .doc(categoryId);
 

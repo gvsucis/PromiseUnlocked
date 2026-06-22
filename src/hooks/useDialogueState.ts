@@ -34,6 +34,7 @@ import {
   loadDialogueState,
   clearDialogueState,
 } from "../services/dialogueStateStorage";
+import { useProofWorkflow } from "./useProofWorkflow";
 
 export type UIState =
   | "idle"
@@ -142,17 +143,10 @@ export function useDialogueState(): DialogueState {
   } | null>(null);
   const [deferredNextQuestion, setDeferredNextQuestion] = useState<string | null>(null);
   const [deferredCheckCompletion, setDeferredCheckCompletion] = useState(false);
-  const [deferredArtifactUpload, setDeferredArtifactUpload] =
-    useState<DialogueState["pendingProofRequest"]>(null);
-  const [pendingProofRequest, setPendingProofRequest] =
-    useState<DialogueState["pendingProofRequest"]>(null);
-  const [pendingProofNotification, setPendingProofNotification] = useState<{
-    artifactUploadReason: string;
-    stampName: string;
-    proofTier: number;
-    category: string;
-  } | null>(null);
-  const pendingProofRequestRef = useRef<DialogueState["pendingProofRequest"]>(null);
+
+  // Proof-request workflow lives behind its own deep module; this hook only
+  // hands off requests and reads back the active request / notification.
+  const proof = useProofWorkflow();
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const deferredAdvanceOptsRef = useRef<{
@@ -243,13 +237,13 @@ export function useDialogueState(): DialogueState {
   };
 
   useEffect(() => {
-    if (mappedCategories.length === TOTAL_CATEGORIES) {
+    if (mappedCategories.length === TOTAL_CATEGORIES && !deferredCheckCompletion) {
       void endSession("completed");
       setUiState("complete");
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
     }
-  }, [mappedCategories.length]);
+  }, [mappedCategories.length, deferredCheckCompletion]);
 
   const loadData = async () => {
     try {
@@ -460,7 +454,7 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        const interactionId = await saveConversationInteraction(interaction);
+        const interactionId = await saveConversationInteraction(interaction, justification ?? "");
         setInteractions((prev) => [...prev, interaction]);
         setWeakFitJustification(justification ?? "");
         setUiState("weak-fit");
@@ -487,9 +481,17 @@ export function useDialogueState(): DialogueState {
           mappingOutcome: "mapped",
           matchedToCategory: null,
           matchedToSequenceIndex: null,
+          specificStamp: specificStamp ?? undefined,
         };
         const interactionId = await saveConversationInteraction(interaction, justification ?? "");
-        savePassportMappingToFirestore(interactionId, categoryNameToCheck, justification ?? "");
+        if (justification) {
+          savePassportMappingToFirestore(
+            interactionId,
+            categoryNameToCheck,
+            justification,
+            specificStamp ?? undefined
+          );
+        }
         setInteractions((prev) => [...prev, interaction]);
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
@@ -503,8 +505,9 @@ export function useDialogueState(): DialogueState {
 
           setDeferredNextQuestion(nextQuestion ?? null);
           setDeferredCheckCompletion(newMappedCategories.length === TOTAL_CATEGORIES);
+          setUiState("idle");
           if (result.suggestArtifactUpload) {
-            setDeferredArtifactUpload({
+            proof.deferAfterUnlock({
               question,
               answer,
               interactionId,
@@ -522,7 +525,7 @@ export function useDialogueState(): DialogueState {
             return { mapped: true as const, category: categoryNameToCheck, interactionId };
           }
           if (result.suggestArtifactUpload) {
-            setPendingProofRequest({
+            proof.requestNow({
               question,
               answer,
               interactionId,
@@ -558,12 +561,14 @@ export function useDialogueState(): DialogueState {
           mappingOutcome: "already_mapped",
           matchedToCategory: categoryNameToCheck,
           matchedToSequenceIndex: null,
+          specificStamp: specificStamp ?? undefined,
         };
-        const interactionId = await saveConversationInteraction(interaction);
+        const interactionId = await saveConversationInteraction(interaction, justification ?? "");
         savePassportMappingToFirestore(
           interactionId,
           categoryNameToCheck,
-          justification || mappedCategory.justification
+          justification || mappedCategory.justification,
+          specificStamp ?? undefined
         );
         setInteractions((prev) => [...prev, interaction]);
         await advanceToNextQuestion(nextQuestion, advanceOpts);
@@ -579,7 +584,7 @@ export function useDialogueState(): DialogueState {
         matchedToCategory: null,
         matchedToSequenceIndex: null,
       };
-      const interactionId = await saveConversationInteraction(interaction);
+      const interactionId = await saveConversationInteraction(interaction, justification ?? "");
       setInteractions((prev) => [...prev, interaction]);
       await advanceToNextQuestion(nextQuestion, advanceOpts);
       return { mapped: false as const, category: null, interactionId };
@@ -807,10 +812,10 @@ export function useDialogueState(): DialogueState {
     abortControllerRef.current = controller;
     try {
       const question = await GeminiService.synthesizeNextQuestion(
-        [],
-        [],
-        getTaxonomyString(),
-        { embeddingHistorySummary: pdfContextRef.current },
+        interactions,
+        mappedCategories,
+        region ? getFilteredTaxonomyString(region) : getTaxonomyString(),
+        { embeddingHistorySummary: pdfContextRef.current, newTopic: true },
         controller.signal,
         region
       );
@@ -832,10 +837,6 @@ export function useDialogueState(): DialogueState {
     setUiState("idle");
   };
 
-  const clearPendingProofRequest = () => {
-    setPendingProofRequest(null);
-  };
-
   const clearStampUnlock = () => {
     setNewStampUnlock(null);
   };
@@ -843,29 +844,19 @@ export function useDialogueState(): DialogueState {
   const continueAfterStampUnlock = () => {
     const nextQuestion = deferredNextQuestion;
     const isComplete = deferredCheckCompletion;
-    const artifactUpload = deferredArtifactUpload;
 
     setDeferredNextQuestion(null);
     setDeferredCheckCompletion(false);
-    setDeferredArtifactUpload(null);
 
     if (isComplete) {
+      proof.clearDeferred();
       void endSession("completed");
       setUserAnswer("");
       setUiState("complete");
       return;
     }
 
-    if (artifactUpload) {
-      pendingProofRequestRef.current = artifactUpload;
-      setPendingProofNotification({
-        category: artifactUpload.category,
-        stampName: artifactUpload.stampName ?? "",
-        proofTier: artifactUpload.proofTier ?? 3,
-        artifactUploadReason:
-          artifactUpload.artifactUploadReason ?? "Share proof to upgrade your stamp tier!",
-      });
-    }
+    proof.surfaceDeferred();
 
     if (nextQuestion) {
       setPrefetchedQuestion(nextQuestion);
@@ -878,30 +869,30 @@ export function useDialogueState(): DialogueState {
     }
   };
 
-  const clearProofNotification = () => {
-    setPendingProofNotification(null);
-    pendingProofRequestRef.current = null;
-  };
-
-  const activateProofFromNotification = () => {
-    if (pendingProofRequestRef.current) {
-      setPendingProofRequest(pendingProofRequestRef.current);
-    }
-    setPendingProofNotification(null);
-  };
-
   const clearDeferredState = () => {
     setDeferredNextQuestion(null);
     setDeferredCheckCompletion(false);
-    setDeferredArtifactUpload(null);
+    proof.clearDeferred();
   };
 
   const savePassportMappingToFirestore = useCallback(
-    async (interactionId: string, category: string, justification: string) => {
+    async (
+      interactionId: string,
+      category: string,
+      justification: string,
+      specificStamp?: string
+    ) => {
       try {
         const [userId, sessionId] = await Promise.all([getUserId(), getActiveSessionId()]);
         if (userId && sessionId) {
-          await savePassportMapping(userId, sessionId, interactionId, category, justification);
+          await savePassportMapping(
+            userId,
+            sessionId,
+            interactionId,
+            category,
+            justification,
+            specificStamp
+          );
         }
       } catch {
         // Firestore write is best-effort — guest users and transient errors are expected
@@ -928,8 +919,8 @@ export function useDialogueState(): DialogueState {
     pdfContextText: pdfContextRef.current ?? "",
     showConfetti,
     newStampUnlock,
-    pendingProofRequest,
-    pendingProofNotification,
+    pendingProofRequest: proof.proofRequest,
+    pendingProofNotification: proof.proofNotification,
     setUserAnswer,
     setUiState,
     setLoadingMessage,
@@ -948,11 +939,11 @@ export function useDialogueState(): DialogueState {
     handleWeakFitNewQuestion,
     handleNewTopic,
     dismissAnswerModal,
-    clearPendingProofRequest,
+    clearPendingProofRequest: proof.clearRequest,
     clearStampUnlock,
     continueAfterStampUnlock,
-    clearProofNotification,
-    activateProofFromNotification,
+    clearProofNotification: proof.clearNotification,
+    activateProofFromNotification: proof.activateFromNotification,
     clearDeferredState,
   };
 }

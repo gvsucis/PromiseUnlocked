@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -33,6 +33,8 @@ interface Props {
   question: string;
   textValue?: string;
   onTextChange?: (text: string) => void;
+  /** Pre-fills the input when the modal opens (uncontrolled mode only). */
+  seedText?: string;
   onSelectInputType: (method: Exclude<InputMethod, "text">) => void;
   onSubmitText: (text: string) => void;
   onSubmitTextAndImage?: (text: string, imageUri: string) => void;
@@ -50,6 +52,7 @@ export function QuestionInputModal({
   question,
   textValue: controlledText,
   onTextChange,
+  seedText,
   onSelectInputType,
   onSubmitText,
   onSubmitTextAndImage,
@@ -64,6 +67,19 @@ export function QuestionInputModal({
   const [internalText, setInternalText] = useState("");
   const textValue = controlledText ?? internalText;
   const setTextValue = onTextChange ?? setInternalText;
+
+  // In uncontrolled mode, pre-fill the input from `seedText` when the modal
+  // opens for a *new* question. Keying off the question (not just visibility)
+  // means reopening the same question — e.g. resuming after a backdrop dismiss
+  // — preserves the in-progress draft instead of overwriting it, while a new
+  // question still seeds fresh. Never re-seeds on keystroke-driven re-renders.
+  const seededQuestionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (visible && controlledText === undefined && seededQuestionRef.current !== question) {
+      setInternalText(seedText ?? "");
+      seededQuestionRef.current = question;
+    }
+  }, [visible, question, seedText, controlledText]);
 
   const resetText = () => {
     setTextValue("");
@@ -170,7 +186,7 @@ export function QuestionInputModal({
                       handleClose();
                     }}
                   >
-                    <Text style={styles.newQuestionText}>New Question</Text>
+                    <Text style={styles.newQuestionText}>Skip</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.newTopicButton}
@@ -179,7 +195,7 @@ export function QuestionInputModal({
                       handleClose();
                     }}
                   >
-                    <Text style={styles.newTopicText}>New Topic</Text>
+                    <Text style={styles.newTopicText}>New Region</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.submitButton, !hasContent && styles.submitButtonDisabled]}
