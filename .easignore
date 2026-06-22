@@ -1,0 +1,63 @@
+# EAS Build upload ignore list. When present, EAS uses THIS instead of .gitignore
+# to decide what to upload. Mirrors .gitignore, but intentionally UPLOADS
+# src/config/env.ts (which stays gitignored) so Metro can resolve ../config/env.
+# NOTE: .env stays excluded — its secrets come from EAS environment variables instead.
+
+# dependencies
+node_modules/
+.comman*
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files (keep secrets out of the build upload)
+.env*.local
+.env
+src/config/env.secrets.ts
+src/config/env.staging.ts
+
+# local dev planning
+plans/
+
+# typescript
+*.tsbuildinfo
+
+# Native build artifacts (EAS regenerates these; keep android/ & ios/ SOURCE).
+android/build/
+android/.gradle/
+android/app/build/
+android/.cxx/
+ios/Pods/
+ios/build/
+ios/DerivedData/
+*.log
+
+# backend service is not part of the mobile build
+backend/
+
+# Upload the app config Metro needs (kept out of git, but required by the build).
+!src/config/env.ts

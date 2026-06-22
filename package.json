@@ -10,6 +10,7 @@
     "eas:link:preview": "node scripts/eas-links.mjs preview",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,json,md}\" \"App.tsx\" \"index.ts\"",
     "lint": "eslint src --fix",
+    "deploy:firestore": "node scripts/deploy-firestore.mjs",
     "prepare": "husky"
   },
   "dependencies": {

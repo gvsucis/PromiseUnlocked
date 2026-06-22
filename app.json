@@ -1,8 +1,10 @@
 {
   "expo": {
     "name": "promiseUnlocked",
-    "slug": "promiseunlocked",
-    "owner": "promiseunlocked",
+    "slug": "promise-unlock-for-sure",
+    //"slug": "promiseunlocked",
+    // "owner": "promiseunlocked",
+    "owner": "rexfordkode",
     "scheme": "promiseunlocked",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -41,10 +43,7 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "com.anonymous.promiseUnlocked",
       "intentFilters": [
@@ -78,12 +77,12 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "dab9b9dc-bae0-4d27-8c15-47573a0a1d58"
+        "projectId": "4232b656-a2b9-40b3-a281-ce1362c73382"
       }
     },
     "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://u.expo.dev/dab9b9dc-bae0-4d27-8c15-47573a0a1d58",
+      "url": "https://u.expo.dev/4232b656-a2b9-40b3-a281-ce1362c73382",
       "enabled": true,
       "fallbackToCacheTimeout": 0,
       "requestHeaders": {
