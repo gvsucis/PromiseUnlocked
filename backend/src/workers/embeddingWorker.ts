@@ -2,6 +2,10 @@ import { GoogleGenAI } from "@google/genai";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
 import path from "node:path";
 
+// Must match DEFAULT_OUTPUT_DIMENSIONALITY in embeddingService.ts so that
+// document vectors and query vectors occupy the same space for cosine search.
+export const EMBEDDING_DIMENSIONALITY = 768;
+
 let ai: GoogleGenAI | undefined;
 
 function getAi(): GoogleGenAI {
@@ -28,18 +32,28 @@ export async function extractTextFromPdfBuffer(buffer: Uint8Array, maxPages = 12
   const pdf = await loadingTask.promise;
   const totalPages = pdf.numPages;
   const pages = Math.min(maxPages, totalPages);
-  const texts: string[] = [];
-  for (let i = 1; i <= pages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items.map((item) => ("str" in item ? item.str : "")).join(" ");
-    texts.push(pageText);
-  }
-  return texts.join("\n\n--- Page ---\n\n");
+
+  const pageNumbers = Array.from({ length: pages }, (_, i) => i + 1);
+  const pageTexts = await Promise.all(
+    pageNumbers.map(async (i) => {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      return content.items.map((item) => ("str" in item ? item.str : "")).join(" ");
+    })
+  );
+
+  return pageTexts.join("\n\n--- Page ---\n\n");
 }
 
-export async function generatePdfEmbedding(pdfBytes: Uint8Array, fallbackText: string): Promise<number[]> {
+export async function generatePdfEmbedding(
+  pdfBytes: Uint8Array,
+  fallbackText: string
+): Promise<number[]> {
   const embedModel = process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2";
+
+  // RETRIEVAL_DOCUMENT signals to the model that this vector will be indexed
+  // and searched against RETRIEVAL_QUERY vectors (used on the search side).
+  // outputDimensionality must match the query side (768) for cosine search to work.
   try {
     const response = await getAi().models.embedContent({
       model: embedModel,
@@ -51,6 +65,10 @@ export async function generatePdfEmbedding(pdfBytes: Uint8Array, fallbackText: s
           },
         },
       ],
+      config: {
+        taskType: "RETRIEVAL_DOCUMENT",
+        outputDimensionality: EMBEDDING_DIMENSIONALITY,
+      },
     });
     const values = response.embeddings?.[0]?.values;
     if (values?.length) {
@@ -63,6 +81,10 @@ export async function generatePdfEmbedding(pdfBytes: Uint8Array, fallbackText: s
   const fallback = await getAi().models.embedContent({
     model: embedModel,
     contents: fallbackText,
+    config: {
+      taskType: "RETRIEVAL_DOCUMENT",
+      outputDimensionality: EMBEDDING_DIMENSIONALITY,
+    },
   });
   const vector = fallback.embeddings?.[0]?.values ?? null;
   if (!vector) {

@@ -57,6 +57,16 @@ export async function getEmbedding(
   return { id: doc.id, ...(doc.data() as UserFileEmbedding) };
 }
 
+export async function findEmbeddingByChecksum(
+  uid: string,
+  checksum: string
+): Promise<(UserFileEmbedding & { id: string }) | null> {
+  const snapshot = await getCollection(uid).where("checksum", "==", checksum).limit(1).get();
+  if (snapshot.empty) return null;
+  const doc = snapshot.docs[0];
+  return { id: doc!.id, ...(doc!.data() as UserFileEmbedding) };
+}
+
 function isMissingVectorIndexError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   return (
@@ -85,15 +95,17 @@ export async function searchEmbeddings(
   const queryEmbedding = await embeddingService.generateEmbedding(queryText);
   const collection = getCollection(uid);
   const limitVal = Math.min(limit, MAX_SEARCH_LIMIT);
-  const findNearest = (collection as unknown as {
-    findNearest?: (opts: {
-      vectorField: string;
-      queryVector: number[];
-      limit: number;
-      distanceMeasure: "COSINE" | "EUCLIDEAN" | "DOT_PRODUCT";
-      distanceResultField: string;
-    }) => FirebaseFirestore.Query;
-  }).findNearest;
+  const findNearest = (
+    collection as unknown as {
+      findNearest?: (opts: {
+        vectorField: string;
+        queryVector: number[];
+        limit: number;
+        distanceMeasure: "COSINE" | "EUCLIDEAN" | "DOT_PRODUCT";
+        distanceResultField: string;
+      }) => FirebaseFirestore.Query;
+    }
+  ).findNearest;
 
   try {
     if (!findNearest) {

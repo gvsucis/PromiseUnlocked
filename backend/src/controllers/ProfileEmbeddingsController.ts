@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
 import type { AuthenticatedRequest } from "@/types/firestore";
 import Busboy from "busboy";
+import crypto from "node:crypto";
 import { admin, db } from "@/services/firestore";
 import { isAllowedMimeType, uploadMemoryFile } from "@/services/memoryFileStorageService";
 import {
   saveEmbedding,
+  findEmbeddingByChecksum,
   listEmbeddings as listUserEmbeddings,
   getEmbedding as getUserEmbedding,
   searchEmbeddings as searchUserEmbeddings,
@@ -127,6 +129,23 @@ export class ProfileEmbeddingsController {
       }
 
       const fileBuffer = Buffer.concat(state.chunks);
+      const checksum = crypto.createHash("sha256").update(fileBuffer).digest("hex");
+
+      // Duplicate detection: return the existing record without re-processing.
+      const existing = await findEmbeddingByChecksum(targetUid, checksum);
+      if (existing) {
+        console.log(
+          `[MemoryUpload] Duplicate detected for user ${targetUid}, returning existing ${existing.id}`
+        );
+        return res.status(200).json({
+          embeddingId: existing.id,
+          targetUid,
+          fileName: existing.fileName,
+          fileSizeBytes: existing.fileSizeBytes,
+          message: "File already uploaded — returning existing embedding",
+          duplicate: true,
+        });
+      }
 
       let gcsResult;
       try {
@@ -141,12 +160,12 @@ export class ProfileEmbeddingsController {
         return res.status(500).json({ error: "File storage failed" });
       }
 
+      const uint8 = new Uint8Array(fileBuffer.buffer, fileBuffer.byteOffset, fileBuffer.byteLength);
       let extractedText = "";
       let vector: number[] | null = null;
       try {
-        const uint8 = new Uint8Array(fileBuffer);
         extractedText = await extractTextFromPdfBuffer(uint8, 12);
-        vector = await generatePdfEmbedding(extractedText || state.filename);
+        vector = await generatePdfEmbedding(uint8, extractedText || state.filename);
       } catch (err) {
         console.error("[MemoryUpload] Embedding generation failed:", err);
         return res.status(500).json({ error: "Embedding generation failed" });
@@ -154,12 +173,15 @@ export class ProfileEmbeddingsController {
 
       let truncatedText = state.filename;
       if (extractedText) {
-        if (extractedText.length <= 12000) {
+        const limit = 12000;
+        if (extractedText.length <= limit) {
           truncatedText = extractedText;
         } else {
-          truncatedText = extractedText.slice(0, extractedText.lastIndexOf(" ", 12000) || 12000);
+          const cutAt = extractedText.lastIndexOf(" ", limit);
+          truncatedText = extractedText.slice(0, cutAt > 0 ? cutAt : limit);
         }
       }
+
       try {
         const embeddingId = await saveEmbedding(targetUid, {
           userId: targetUid,
@@ -171,6 +193,7 @@ export class ProfileEmbeddingsController {
           extractedText: truncatedText,
           embedding: vector,
           embeddingModel: process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2",
+          checksum,
         });
 
         console.log(`[MemoryUpload] Saved embedding ${embeddingId} for user ${targetUid}`);
@@ -180,6 +203,7 @@ export class ProfileEmbeddingsController {
           fileName: state.filename,
           fileSizeBytes: fileBuffer.length,
           message: "Upload successful",
+          duplicate: false,
         });
       } catch (err) {
         console.error("[MemoryUpload] Firestore write failed:", err);
@@ -242,6 +266,9 @@ export class ProfileEmbeddingsController {
 
     try {
       const results = await searchUserEmbeddings(authUser.uid, query.trim(), limit);
+      console.log(
+        `[EmbeddingsFetch] userId=${authUser.uid} query="${query.trim()}" results=${results.length}`
+      );
       return res.json({ results });
     } catch (err) {
       console.error("[MemoryUpload] searchEmbeddings error:", err);

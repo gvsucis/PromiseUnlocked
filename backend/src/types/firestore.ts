@@ -45,8 +45,9 @@ export interface UserFileEmbedding {
   fileSizeBytes: number;
   contentType: string;
   extractedText: string;
-  embedding: number[];
+  embedding: number[] | null;
   embeddingModel: string;
+  checksum: string;
   createdAt: FirebaseFirestore.FieldValue;
 }
 
