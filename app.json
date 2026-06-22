@@ -2,8 +2,6 @@
   "expo": {
     "name": "promiseUnlocked",
     "slug": "promise-unlock-for-sure",
-    //"slug": "promiseunlocked",
-    // "owner": "promiseunlocked",
     "scheme": "promiseunlocked",
     "version": "1.0.0",
     "orientation": "portrait",
