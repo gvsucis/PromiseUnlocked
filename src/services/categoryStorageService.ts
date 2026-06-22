@@ -68,7 +68,17 @@ async function getInteractionsStorageKey(): Promise<string> {
 
 export async function getMappedCategories(): Promise<MappedCategory[]> {
   const storageKey = await getMappedCategoriesStorageKey();
-  return getJSONFromStorage(storageKey, [] as MappedCategory[]);
+  const raw = await getJSONFromStorage<Record<string, unknown>[]>(storageKey, []);
+  return raw.map((entry) => ({
+    category: typeof entry.category === "string" ? entry.category : "",
+    justification: typeof entry.justification === "string" ? entry.justification : "",
+    dateIdentified:
+      typeof entry.dateIdentified === "string" ? entry.dateIdentified : new Date().toISOString(),
+    timesMapped: typeof entry.timesMapped === "number" ? entry.timesMapped : 1,
+    unlockedStamps: Array.isArray(entry.unlockedStamps)
+      ? (entry.unlockedStamps as MappedCategory["unlockedStamps"])
+      : undefined,
+  }));
 }
 
 /**

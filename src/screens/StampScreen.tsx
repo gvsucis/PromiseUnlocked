@@ -1,5 +1,12 @@
 import React, { useState, useCallback } from "react";
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -8,6 +15,10 @@ import type { RootStackParamList } from "../types/navigation";
 import { computeDerivedSkills, REGIONS } from "../config/stampTaxonomy";
 import { TIER_CONFIG, DEFAULT_TIER } from "../config/stampConstants";
 import StampBadge from "../components/stamps/StampBadge";
+import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
+import { GeminiService } from "../services/geminiService";
+import { getFilteredTaxonomyString } from "../services/categoryTaxonomyService";
+import { dialogueBridgeRef } from "./DialogueDashboardScreen";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getMappedCategories,
@@ -15,6 +26,7 @@ import {
 } from "../services/categoryStorageService";
 
 import { colors } from "../styles/global";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const DERIVED_SKILLS = computeDerivedSkills();
 
@@ -45,6 +57,9 @@ export default function StampScreen() {
   const [stampTiers, setStampTiers] = useState<Record<string, number>>({});
   const [prevRegion, setPrevRegion] = useState<string | null>(null);
   const [nextRegion, setNextRegion] = useState<string | null>(null);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [generatedQuestion, setGeneratedQuestion] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const loadUnlocked = useCallback(async () => {
     await ensureAllMappedCategoriesHaveStamps();
@@ -88,6 +103,31 @@ export default function StampScreen() {
     if (!nextRegion) return;
     navigation.replace("Stamps", { region: nextRegion });
   }
+
+  const handleGenerateQuestion = useCallback(async () => {
+    setIsGenerating(true);
+    try {
+      const filteredTaxonomy = getFilteredTaxonomyString(region);
+      const bridge = dialogueBridgeRef.current;
+      const interactions = bridge?.interactions ?? [];
+      const mappedCategories = bridge?.mappedCategories ?? [];
+      const pdfContextText = bridge?.pdfContextText ?? "";
+      const question = await GeminiService.synthesizeNextQuestion(
+        interactions,
+        mappedCategories,
+        filteredTaxonomy,
+        { embeddingHistorySummary: pdfContextText || undefined },
+        undefined,
+        region
+      );
+      setGeneratedQuestion(question);
+      setShowQuestionModal(true);
+    } catch (err) {
+      console.error("Failed to generate region question:", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [region]);
 
   const allStamps = DERIVED_SKILLS[region] ?? [];
   const unlockedList = allStamps.filter((s) => {
@@ -159,6 +199,51 @@ export default function StampScreen() {
             </Text>
           </View>
         )}
+
+        <TouchableOpacity
+          style={styles.generateButton}
+          onPress={handleGenerateQuestion}
+          disabled={isGenerating}
+          activeOpacity={0.8}
+        >
+          {isGenerating ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <MaterialIcons name="auto-awesome" size={20} color="#fff" />
+          )}
+          <Text style={styles.generateButtonText}>
+            {isGenerating ? "Generating..." : "Generate Question"}
+          </Text>
+        </TouchableOpacity>
+
+        <QuestionInputModal
+          visible={showQuestionModal}
+          question={generatedQuestion}
+          onSubmitText={(text) => {
+            setShowQuestionModal(false);
+            const bridge = dialogueBridgeRef.current;
+            if (bridge) {
+              bridge.handleRegionAnswer(generatedQuestion, text, region);
+            }
+            navigation.getParent()?.navigate("MainTabs", { screen: "Dashboard" });
+          }}
+          onClose={() => {
+            setShowQuestionModal(false);
+            setGeneratedQuestion("");
+          }}
+          onSelectInputType={() => {}}
+          onNewQuestion={() => {
+            setShowQuestionModal(false);
+            setGeneratedQuestion("");
+            handleGenerateQuestion();
+          }}
+          onNewTopic={() => {
+            setShowQuestionModal(false);
+            setGeneratedQuestion("");
+            dialogueBridgeRef.current?.handleNewTopic();
+            navigation.getParent()?.navigate("MainTabs", { screen: "Dashboard" });
+          }}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -277,5 +362,21 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
     paddingHorizontal: 40,
+  },
+
+  generateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.accent.sky,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 24,
+    gap: 10,
+  },
+  generateButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

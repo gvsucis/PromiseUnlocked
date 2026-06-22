@@ -30,6 +30,7 @@ import MainTabNavigator from "./src/navigation/MainTabNavigator";
 import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
 import { checkBackendHealth } from "./src/services/backendHealth";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
+import { DialogueProvider } from "./src/context/DialogueContext";
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -185,7 +186,9 @@ export default function App() {
   return (
     <PaperProvider>
       <AuthProvider>
-        <AppNavigator />
+        <DialogueProvider>
+          <AppNavigator />
+        </DialogueProvider>
       </AuthProvider>
     </PaperProvider>
   );

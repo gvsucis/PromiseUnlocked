@@ -1,12 +1,12 @@
-import { Timestamp } from "firebase/firestore";
+import { FieldValue, Timestamp } from "firebase/firestore";
 
 export type InteractionMappingOutcome = "mapped" | "already_mapped" | "weak_fit" | "invalid";
 
 export interface UserDocument {
   email: string | null;
   displayName: string | null;
-  createdAt: Timestamp;
-  lastActiveAt: Timestamp;
+  createdAt: Timestamp | FieldValue;
+  lastActiveAt: Timestamp | FieldValue;
   isAnonymous: boolean;
 }
 

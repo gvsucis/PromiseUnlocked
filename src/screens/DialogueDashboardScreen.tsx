@@ -1,15 +1,20 @@
 import React, { useRef, useState } from "react";
 import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
 import { Text, Card, ActivityIndicator, Snackbar } from "react-native-paper";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { MaterialIcons } from "@expo/vector-icons";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
-import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
+import {
+  CATEGORY_TAXONOMY,
+  TOTAL_CATEGORIES,
+  MappedCategory,
+  ConversationInteraction,
+} from "../services/categoryTaxonomyService";
 import { GeminiService } from "../services/geminiService";
-import { ImagePickerService } from "../services/imagePickerService";
+import { useImagePicker } from "../hooks/useImagePicker";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -22,11 +27,14 @@ import { LoadingModal } from "../components/dialogue/LoadingModal";
 import { CompletionModal } from "../components/dialogue/CompletionModal";
 import { WeakFitModal } from "../components/dialogue/WeakFitModal";
 import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
+import { StampUnlockModal } from "../components/dialogue/StampUnlockModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
 import { CategoryCard } from "../components/dialogue/CategoryCard";
 import { useDialogueState } from "../hooks/useDialogueState";
 import { useAuth } from "../context/AuthContext";
+import { dialogueResetTarget } from "../context/DialogueContext";
+import { useLogout } from "../hooks/useLogout";
 import { fetchProofStatus, uploadProofImage } from "../services/proofService";
 import { upgradeStampTier } from "../services/categoryStorageService";
 import { getOrStartSession } from "../services/sessionManager";
@@ -34,7 +42,16 @@ import { colors } from "../styles/global";
 
 // FIXME: POC cross-hierarchy bridge — move to DialogueContext when refactoring
 export const dialogueBridgeRef = {
-  current: null as null | { handleStartButtonPress: () => void; handleReset: () => void },
+  current: null as null | {
+    handleStartButtonPress: () => void;
+    handleForceNewQuestion: () => void;
+    handleReset: () => void;
+    handleNewTopic: (region?: string) => void;
+    handleRegionAnswer: (question: string, answer: string, region?: string) => void;
+    interactions: ConversationInteraction[];
+    mappedCategories: MappedCategory[];
+    pdfContextText: string;
+  },
 };
 
 const { width } = Dimensions.get("window");
@@ -42,9 +59,11 @@ const { width } = Dimensions.get("window");
 export default function DialogueDashboardScreen() {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList, "DialogueDashboard">>();
   const isFocused = useIsFocused();
-  const { session, logoutToGuest } = useAuth();
+  const { session } = useAuth();
   const {
     mappedCategories,
+    interactions,
+    pdfContextText,
     uiState,
     currentPrompt,
     userAnswer,
@@ -53,22 +72,30 @@ export default function DialogueDashboardScreen() {
     weakFitJustification,
     contentWarning,
     showConfetti,
+    newStampUnlock,
     loading,
     prefetchedQuestion,
     pendingProofRequest,
+    pendingProofNotification,
     setUserAnswer,
     setUiState,
     setCurrentPrompt,
     resetData,
     mapAnswerToCategory,
     handleStartButtonPress,
+    handleForceNewQuestion,
     handleVoiceInputPress,
     prepareImageQuestion,
     handleSubmitAnswer,
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
+    handleNewTopic,
     dismissAnswerModal,
     clearPendingProofRequest,
+    continueAfterStampUnlock,
+    clearProofNotification,
+    activateProofFromNotification,
+    clearDeferredState,
     setLoadingMessage,
     setError,
     loadData,
@@ -79,7 +106,9 @@ export default function DialogueDashboardScreen() {
   const [questionModalText, setQuestionModalText] = useState("");
   const suppressModalReopenRef = useRef(false);
   const modalDismissedByBackdropRef = useRef(false);
+  const modalIntentionallyOpenedRef = useRef(false);
   const isCombinedImageRef = useRef(false);
+  const suppressSignUpPromptRef = useRef(false);
 
   // Voice recording state
   const [isRecording, setIsRecording] = React.useState(false);
@@ -100,6 +129,12 @@ export default function DialogueDashboardScreen() {
   const [tempProofImageUri, setTempProofImageUri] = React.useState<string | null>(null);
   const [isUploadingProof, setIsUploadingProof] = React.useState(false);
   const [combinedImageUri, setCombinedImageUri] = React.useState<string | null>(null);
+  const [proofSnackbarVisible, setProofSnackbarVisible] = React.useState(false);
+  const continueAfterStampUnlockRef = useRef(continueAfterStampUnlock);
+  continueAfterStampUnlockRef.current = continueAfterStampUnlock;
+
+  const { pickImage } = useImagePicker();
+  const { logout } = useLogout();
 
   React.useLayoutEffect(() => {
     navigation.getParent()?.setOptions({
@@ -137,10 +172,11 @@ export default function DialogueDashboardScreen() {
       setTempProofImageUri(null);
       setIsUploadingProof(false);
       clearPendingProofRequest();
+      clearProofNotification();
     });
 
     return unsubscribe;
-  }, [navigation, clearPendingProofRequest]);
+  }, [navigation, clearPendingProofRequest, clearProofNotification]);
 
   // Reload mapped data when auth session changes (e.g. guest→authenticated after login)
   React.useEffect(() => {
@@ -152,22 +188,21 @@ export default function DialogueDashboardScreen() {
   };
 
   const handleLogout = () => {
+    suppressSignUpPromptRef.current = true;
     Alert.alert(
       "Switch to Guest",
       "You will keep this account's saved progress, and the app will continue in guest mode.",
       [
-        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => {
+            suppressSignUpPromptRef.current = false;
+          },
+        },
         {
           text: "Continue",
-          onPress: () => {
-            void logoutToGuest()
-              .then(() => {
-                navigation.replace("Welcome");
-              })
-              .catch(() => {
-                Alert.alert("Error", "Failed to switch to guest mode.");
-              });
-          },
+          onPress: () => void logout(() => navigation.replace("Welcome")),
         },
       ]
     );
@@ -200,7 +235,7 @@ export default function DialogueDashboardScreen() {
     void mapAnswerToCategory(q, text);
   };
 
-  const handleInputTypeSelect = async (method: "voice" | "image") => {
+  const handleInputTypeSelect = async (method: "voice" | "image" | "refresh") => {
     suppressModalReopenRef.current = true;
     setShowQuestionInputModal(false);
     setPendingQuestion(null);
@@ -212,6 +247,8 @@ export default function DialogueDashboardScreen() {
     } else if (method === "image") {
       const ready = prepareImageQuestion();
       if (ready) showImageSourceDialog();
+    } else if (method === "refresh") {
+      handleWeakFitNewQuestion();
     }
   };
 
@@ -231,25 +268,11 @@ export default function DialogueDashboardScreen() {
   };
 
   const handleCombinedImageSelection = async (useCamera: boolean) => {
-    try {
-      const hasPermissions = await ImagePickerService.requestPermissions();
-      if (!hasPermissions) {
-        Alert.alert("Permissions Required", "Camera and photo library permissions are required.");
-        return;
-      }
-
-      const result = useCamera
-        ? await ImagePickerService.takePhotoWithCamera()
-        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
-
-      if (result.success && result.imageUri) {
-        isCombinedImageRef.current = true;
-        setTempImageUri(result.imageUri);
-        setShowImageEditor(true);
-      }
-    } catch (err) {
-      console.error("Error selecting combined image:", err);
-    }
+    const imageUri = await pickImage(useCamera);
+    if (!imageUri) return;
+    isCombinedImageRef.current = true;
+    setTempImageUri(imageUri);
+    setShowImageEditor(true);
   };
 
   const handleSubmitTextAndImage = async (text: string, imageUri: string) => {
@@ -421,30 +444,10 @@ export default function DialogueDashboardScreen() {
   };
 
   const handleImageSelection = async (useCamera: boolean) => {
-    try {
-      const hasPermissions = await ImagePickerService.requestPermissions();
-      if (!hasPermissions) {
-        Alert.alert(
-          "Permissions Required",
-          "Camera and photo library permissions are required to use this feature."
-        );
-        return;
-      }
-
-      const result = useCamera
-        ? await ImagePickerService.takePhotoWithCamera()
-        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
-
-      if (result.success && result.imageUri) {
-        setTempImageUri(result.imageUri);
-        setShowImageEditor(true);
-      } else if (result.error) {
-        Alert.alert("Error", result.error);
-      }
-    } catch (err) {
-      console.error("Error selecting image:", err);
-      Alert.alert("Error", "An error occurred while selecting image");
-    }
+    const imageUri = await pickImage(useCamera);
+    if (!imageUri) return;
+    setTempImageUri(imageUri);
+    setShowImageEditor(true);
   };
 
   const handleImageEditorSave = (editedImageUri: string) => {
@@ -521,32 +524,13 @@ export default function DialogueDashboardScreen() {
   };
 
   const handleProofImageSelection = async (useCamera: boolean) => {
-    try {
-      const hasPermissions = await ImagePickerService.requestPermissions();
-      if (!hasPermissions) {
-        Alert.alert(
-          "Permissions Required",
-          "Camera and photo library permissions are required to upload proof."
-        );
-        return;
-      }
-
-      const result = useCamera
-        ? await ImagePickerService.takePhotoWithCamera()
-        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
-
-      if (result.success && result.imageUri) {
-        setTempProofImageUri(result.imageUri);
-        setShowProofImageEditor(true);
-      } else if (result.error) {
-        Alert.alert("Error", result.error);
-      }
-      // User cancelled — keep pendingProofRequest so it re-prompts later
-    } catch (err) {
-      console.error("Error selecting proof image:", err);
-      Alert.alert("Error", "An error occurred while selecting proof image");
+    const imageUri = await pickImage(useCamera);
+    if (!imageUri) {
       clearPendingProofRequest();
+      return;
     }
+    setTempProofImageUri(imageUri);
+    setShowProofImageEditor(true);
   };
 
   const submitProofImage = async (imageUri: string) => {
@@ -585,7 +569,9 @@ export default function DialogueDashboardScreen() {
         pendingProofRequest.stampName &&
         pendingProofRequest.category
       ) {
-        const targetTier = Math.min(parseInt(latestStatus.proofTier ?? "2", 10) || 2, 4);
+        const targetTier =
+          pendingProofRequest.proofTier ??
+          Math.min(Number.parseInt(latestStatus.proofTier ?? "2", 10) || 2, 4);
         await upgradeStampTier(
           pendingProofRequest.category,
           pendingProofRequest.stampName,
@@ -615,6 +601,11 @@ export default function DialogueDashboardScreen() {
     setShowProofImageEditor(false);
     setTempProofImageUri(null);
     clearPendingProofRequest();
+  };
+
+  const handleContinueAfterStampUnlock = () => {
+    modalIntentionallyOpenedRef.current = true;
+    continueAfterStampUnlockRef.current();
   };
 
   // --- UI helpers ---
@@ -661,27 +652,61 @@ export default function DialogueDashboardScreen() {
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
 
   React.useEffect(() => {
+    dialogueResetTarget.current = handleReset;
     dialogueBridgeRef.current = {
       handleStartButtonPress: () => {
+        modalIntentionallyOpenedRef.current = true;
         if (currentPrompt && !showQuestionInputModal && modalDismissedByBackdropRef.current) {
           modalDismissedByBackdropRef.current = false;
           setShowQuestionInputModal(true);
         } else {
-          handleStartButtonPress();
+          void handleStartButtonPress();
         }
       },
+      handleForceNewQuestion: () => {
+        modalIntentionallyOpenedRef.current = true;
+        modalDismissedByBackdropRef.current = false;
+        suppressModalReopenRef.current = false;
+        void handleForceNewQuestion();
+      },
       handleReset: handleReset,
+      handleNewTopic: (region?: string) => {
+        handleNewTopic(region);
+      },
+      handleRegionAnswer: (question: string, answer: string, region?: string) => {
+        mapAnswerToCategory(question, answer, region);
+      },
+      interactions,
+      mappedCategories,
+      pdfContextText,
     };
     return () => {
       dialogueBridgeRef.current = null;
+      dialogueResetTarget.current = null;
     };
-  }, [handleStartButtonPress, handleReset, currentPrompt, showQuestionInputModal]);
+  }, [
+    handleStartButtonPress,
+    handleForceNewQuestion,
+    handleReset,
+    handleNewTopic,
+    mapAnswerToCategory,
+    currentPrompt,
+    showQuestionInputModal,
+    interactions,
+    mappedCategories,
+    pdfContextText,
+  ]);
 
   // ── Guest: force sign-in after first mapped category ──
   // Uses useIsFocused so it fires on both focus changes AND dep changes
   // (e.g. when loadData finishes and mappedCategories flips from 0 to 1).
   React.useEffect(() => {
-    if (!isFocused || session.mode !== "guest" || mappedCategories.length < 1) {
+    if (
+      !isFocused ||
+      session.mode !== "guest" ||
+      mappedCategories.length < 1 ||
+      suppressSignUpPromptRef.current
+    ) {
       return;
     }
     const timer = setTimeout(() => {
@@ -720,8 +745,11 @@ export default function DialogueDashboardScreen() {
       !showQuestionInputModal &&
       !suppressModalReopenRef.current &&
       !modalDismissedByBackdropRef.current &&
+      modalIntentionallyOpenedRef.current &&
       !(session.mode === "guest" && mappedCategories.length >= 1)
     ) {
+      setPendingQuestion(currentPrompt);
+      setShowQuestionInputModal(true);
       if (userAnswer) {
         setQuestionModalText(userAnswer);
       }
@@ -733,6 +761,7 @@ export default function DialogueDashboardScreen() {
       prefetchedQuestion &&
       uiState === "idle" &&
       !pendingProofRequest &&
+      modalIntentionallyOpenedRef.current &&
       !(session.mode === "guest" && mappedCategories.length >= 1)
     ) {
       setPendingQuestion(prefetchedQuestion);
@@ -764,6 +793,22 @@ export default function DialogueDashboardScreen() {
       },
     ]);
   }, [pendingProofRequest]);
+
+  React.useEffect(() => {
+    if (!pendingProofNotification) {
+      setProofSnackbarVisible(false);
+      return;
+    }
+    if (session.mode === "guest") {
+      clearProofNotification();
+      return;
+    }
+    if (showQuestionInputModal) return;
+    const timer = setTimeout(() => {
+      setProofSnackbarVisible(true);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [pendingProofNotification, showQuestionInputModal, session.mode]);
 
   if (loading) {
     return (
@@ -838,12 +883,14 @@ export default function DialogueDashboardScreen() {
                 style={styles.startButton}
                 onPress={() => {
                   if (currentPrompt && !showQuestionInputModal) {
+                    modalIntentionallyOpenedRef.current = true;
                     setPendingQuestion(currentPrompt);
                     setShowQuestionInputModal(true);
                     if (userAnswer) {
                       setQuestionModalText(userAnswer);
                     }
                   } else {
+                    modalIntentionallyOpenedRef.current = true;
                     handleStartButtonPress();
                   }
                 }}
@@ -929,6 +976,24 @@ export default function DialogueDashboardScreen() {
         onCancel={handleVoiceCancel}
       />
 
+      <StampUnlockModal
+        visible={!!newStampUnlock}
+        stampName={newStampUnlock?.stamp ?? ""}
+        tier={newStampUnlock?.tier ?? 1}
+        region={newStampUnlock?.category ?? ""}
+        onContinue={handleContinueAfterStampUnlock}
+        onViewStamp={() => {
+          if (newStampUnlock) {
+            setShowQuestionInputModal(false);
+            clearDeferredState();
+            navigation.navigate("StampDetails", {
+              stamp: newStampUnlock.stamp,
+              region: newStampUnlock.category,
+            });
+          }
+        }}
+      />
+
       <QuestionInputModal
         visible={showQuestionInputModal && !!pendingQuestion}
         question={pendingQuestion || ""}
@@ -951,7 +1016,35 @@ export default function DialogueDashboardScreen() {
           modalDismissedByBackdropRef.current = true;
           setShowQuestionInputModal(false);
         }}
+        onNewQuestion={() => {
+          handleWeakFitNewQuestion();
+        }}
+        onNewTopic={() => {
+          handleNewTopic();
+        }}
       />
+
+      {pendingProofNotification && (
+        <View style={styles.proofSnackbarContainer}>
+          <Snackbar
+            visible={proofSnackbarVisible}
+            onDismiss={() => {
+              setProofSnackbarVisible(false);
+              clearProofNotification();
+            }}
+            duration={6000}
+            action={{
+              label: "Share",
+              onPress: () => {
+                setProofSnackbarVisible(false);
+                activateProofFromNotification();
+              },
+            }}
+          >
+            {pendingProofNotification.artifactUploadReason}
+          </Snackbar>
+        </View>
+      )}
 
       {showImageEditor && tempImageUri && (
         <ImageEditor
@@ -1012,6 +1105,13 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  proofSnackbarContainer: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 24,
+    zIndex: 9999,
   },
 
   headerActions: {

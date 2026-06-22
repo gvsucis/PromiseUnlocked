@@ -139,6 +139,16 @@ export function getTaxonomyString(): string {
 }
 
 /**
+ * Get taxonomy string filtered to a single region
+ */
+export function getFilteredTaxonomyString(region: string): string {
+  const category = CATEGORY_TAXONOMY.find((t) => t.category === region);
+  if (!category) return getTaxonomyString();
+  const stamps = SKILLS_TAXONOMY[region]?.join(", ") ?? category.stamps;
+  return `${category.category}: ${category.description} | Available Stamps: ${stamps}`;
+}
+
+/**
  * Get unmapped categories
  */
 export function getUnmappedCategories(mappedCategories: MappedCategory[]): string[] {

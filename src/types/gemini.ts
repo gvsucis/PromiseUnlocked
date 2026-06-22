@@ -48,5 +48,7 @@ export interface MapAnswerResponse {
   suggestArtifactUpload?: boolean;
   artifactUploadReason?: string;
   specificStamp?: string;
+  initialTier?: number;
+  proofTier?: number;
   [key: string]: unknown;
 }

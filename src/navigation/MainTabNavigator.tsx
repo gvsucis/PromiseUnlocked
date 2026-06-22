@@ -2,12 +2,11 @@ import React from "react";
 import { View, StyleSheet, TouchableOpacity, Text, Alert } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons } from "@expo/vector-icons";
-import DialogueDashboardScreen from "../screens/DialogueDashboardScreen";
+import DialogueDashboardScreen, { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import PassportScreen from "../screens/PassportScreen";
 import HelpScreen from "../screens/HelpScreen";
 import { colors } from "../styles/global";
-import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
 import { useAuth } from "../context/AuthContext";
 
 function ChatScreen() {
@@ -69,9 +68,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
         const onPress = () => {
           if (config.name === "Chat") {
-            navigation.navigate("Dashboard");
-            // FIXME: navigate-then-call is a POC hack — move to DialogueContext
-            setTimeout(() => dialogueBridgeRef.current?.handleStartButtonPress(), 100);
+            navigation.getParent()?.navigate("MainTabs", { screen: "Dashboard" });
+            setTimeout(() => dialogueBridgeRef.current?.handleForceNewQuestion(), 300);
             return;
           }
           const event = navigation.emit({

@@ -9,7 +9,15 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { collection, doc, getDocs, serverTimestamp, setDoc, Timestamp } from "firebase/firestore";
+import {
+  QueryDocumentSnapshot,
+  collection,
+  doc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+} from "firebase/firestore";
 import { auth, db } from "../../config/firebase";
 import {
   getJSONFromStorage,
@@ -17,7 +25,8 @@ import {
   setJSONInStorage,
 } from "../../utils/asyncStorage";
 import { DEFAULT_TIER } from "../../config/stampConstants";
-import type { AppAuthSession } from "../../types/auth";
+import { getErrorCode } from "../../utils/errorUtils";
+import type { AppAuthSession, PassportEntry } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
 
 const AUTH_SESSION_STORAGE_KEY = "@app_auth_session";
@@ -47,13 +56,6 @@ let authListenerInitialized = false;
 let resolvingAnonymousUser = false;
 
 const subscribers = new Set<(session: AppAuthSession) => void>();
-
-function getErrorCode(error: unknown): string | undefined {
-  if (typeof error === "object" && error !== null && "code" in error) {
-    return String((error as { code?: unknown }).code);
-  }
-  return undefined;
-}
 
 async function setSignedOutSession(): Promise<AppAuthSession> {
   const signedOutSession = buildSession(null);
@@ -97,117 +99,131 @@ async function handleAuthenticatedUser(
   return nextSession;
 }
 
+const HYDRATE_CACHE_KEY = "@passport_hydrated_at";
+const HYDRATE_CACHE_TTL_MS = 5 * 60 * 1000; // re-fetch at most once every 5 minutes
+
+type StampEntry = { name: string; timesUnlocked: number; tier?: number };
+
+function mergeStamps(
+  local: StampEntry[] | undefined,
+  remote: Record<string, { timesUnlocked?: number; tier?: number }> | undefined
+): StampEntry[] | undefined {
+  const localByName = new Map((local ?? []).map((s) => [s.name, s]));
+  const remoteEntries = Object.entries(remote ?? {}).map(([name, e]) => ({
+    name,
+    timesUnlocked: e.timesUnlocked ?? 1,
+    tier: e.tier,
+  }));
+  const remoteByName = new Map(remoteEntries.map((s) => [s.name, s]));
+
+  const merged = [...new Set([...localByName.keys(), ...remoteByName.keys()])].map((name) => {
+    const l = localByName.get(name);
+    const r = remoteByName.get(name);
+    return {
+      name,
+      timesUnlocked: Math.max(l?.timesUnlocked ?? 0, r?.timesUnlocked ?? 1),
+      tier: Math.max(l?.tier ?? DEFAULT_TIER, r?.tier ?? DEFAULT_TIER),
+    };
+  });
+
+  return merged.length > 0 ? merged : undefined;
+}
+
+function resolveCategory(
+  doc: { id: string; ref: Parameters<typeof setDoc>[0] },
+  rawCategory: string | undefined
+): string | null {
+  if (rawCategory) return rawCategory;
+  // Recover from slugified doc ID for docs created by saveStampUnlock
+  // without a category field. Fix doc permanently for future reads.
+  const recovered = doc.id
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  if (!recovered) return null;
+  void setDoc(doc.ref, { category: recovered }, { merge: true }).catch(() => {});
+  return recovered;
+}
+
+function mergePassportDoc(
+  d: QueryDocumentSnapshot,
+  existingMap: Map<unknown, Record<string, unknown>>
+): PassportEntry | null {
+  const data = d.data();
+  const category = resolveCategory(d, data.category as string | undefined);
+  if (!category) return null;
+
+  const existingEntry = existingMap.get(category);
+  const firestoreMappings = data.mappings as Array<{ justification?: string }> | undefined;
+
+  return {
+    category,
+    justification:
+      (typeof existingEntry?.justification === "string" ? existingEntry.justification : null) ??
+      firestoreMappings?.at(-1)?.justification ??
+      "",
+    dateIdentified:
+      typeof existingEntry?.dateIdentified === "string"
+        ? existingEntry.dateIdentified
+        : (data.firstMappedAt?.toDate?.() ?? new Date()).toISOString(),
+    timesMapped: Math.max(
+      Number(existingEntry?.timesMapped ?? 0),
+      (data.totalMappings as number | undefined) ?? 1
+    ),
+    unlockedStamps: mergeStamps(
+      existingEntry?.unlockedStamps as StampEntry[] | undefined,
+      data.unlockedStamps as Record<string, { timesUnlocked?: number; tier?: number }> | undefined
+    ),
+  };
+}
+
+async function fetchPassportSnapshot(uid: string, existingCount: number) {
+  try {
+    const passportRef = collection(db, "participants", uid, "skillPassport");
+    const snapshot = await getDocs(passportRef);
+    if (snapshot.empty) {
+      if (__DEV__)
+        console.log(
+          existingCount > 0
+            ? `[AuthSession] Firestore empty, keeping ${existingCount} local mappings`
+            : "[AuthSession] No passport mappings found in Firestore or local"
+        );
+      return null;
+    }
+    return snapshot;
+  } catch (fsError) {
+    console.warn("[AuthSession] Firestore read failed for hydrate, keeping local data:", fsError);
+    if (__DEV__ && existingCount > 0)
+      console.log(`[AuthSession] Keeping ${existingCount} local mappings (Firestore unavailable)`);
+    return null;
+  }
+}
+
 export async function hydratePassportMappings(uid: string): Promise<void> {
   try {
     const mappedCategoriesKey = `@mappedCategories:${uid}`;
     const existing = await getJSONFromStorage<unknown[]>(mappedCategoriesKey, []);
 
-    let snapshot;
-    try {
-      const passportRef = collection(db, "participants", uid, "skillPassport");
-      snapshot = await getDocs(passportRef);
-    } catch (fsError) {
-      console.warn("[AuthSession] Firestore read failed for hydrate, keeping local data:", fsError);
-      if (existing.length > 0) {
-        if (__DEV__)
-          console.log(
-            `[AuthSession] Keeping ${existing.length} local mappings (Firestore unavailable)`
-          );
-      }
+    const lastHydrated = await getJSONFromStorage<number>(`${HYDRATE_CACHE_KEY}:${uid}`, 0);
+    if (existing.length > 0 && Date.now() - lastHydrated < HYDRATE_CACHE_TTL_MS) {
+      if (__DEV__) console.log("[AuthSession] Skipping Firestore hydrate — cache still fresh");
       return;
     }
 
-    if (snapshot.empty) {
-      if (existing.length > 0) {
-        if (__DEV__)
-          console.log(`[AuthSession] Firestore empty, keeping ${existing.length} local mappings`);
-      } else {
-        if (__DEV__) console.log("[AuthSession] No passport mappings found in Firestore or local");
-      }
-      return;
-    }
+    const snapshot = await fetchPassportSnapshot(uid, existing.length);
+    if (!snapshot) return;
 
     const existingMap = new Map(
       (existing as Array<Record<string, unknown>>).map((e) => [e.category, e])
     );
 
-    const merged = snapshot.docs.map((doc) => {
-      const data = doc.data();
-      let category = data.category as string | undefined;
-      if (!category) {
-        // Recover from slugified doc ID for docs created by saveStampUnlock
-        // without a category field. Fix doc permanently for future reads.
-        const recovered = doc.id
-          .split("_")
-          .filter(Boolean)
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" ");
-        if (recovered) {
-          category = recovered;
-          void setDoc(doc.ref, { category }, { merge: true }).catch(() => {});
-        } else {
-          return null;
-        }
-      }
+    const filtered = snapshot.docs
+      .map((d) => mergePassportDoc(d, existingMap))
+      .filter(Boolean) as Record<string, unknown>[];
 
-      const existingEntry = existingMap.get(category) as Record<string, unknown> | undefined;
-
-      const firestoreStamps: { name: string; timesUnlocked: number; tier?: number }[] = [];
-      const rawStamps = data.unlockedStamps as
-        | Record<string, { timesUnlocked?: number; tier?: number }>
-        | undefined;
-      if (rawStamps) {
-        for (const [name, entry] of Object.entries(rawStamps)) {
-          firestoreStamps.push({ name, timesUnlocked: entry.timesUnlocked ?? 1, tier: entry.tier });
-        }
-      }
-
-      const existingLocalStamps = existingEntry?.unlockedStamps as
-        | Array<{ name: string; timesUnlocked: number; tier?: number }>
-        | undefined;
-
-      const mergedStamps: Array<{ name: string; timesUnlocked: number; tier?: number }> = [];
-
-      const localByName = new Map(
-        (existingLocalStamps ?? []).map((s) => [
-          s.name,
-          { timesUnlocked: s.timesUnlocked, tier: s.tier },
-        ])
-      );
-      const firestoreByName = new Map(
-        firestoreStamps.map((s) => [s.name, { timesUnlocked: s.timesUnlocked, tier: s.tier }])
-      );
-
-      const allNames = new Set([...localByName.keys(), ...firestoreByName.keys()]);
-      for (const name of allNames) {
-        const local = localByName.get(name);
-        const remote = firestoreByName.get(name);
-        mergedStamps.push({
-          name,
-          timesUnlocked: Math.max(local?.timesUnlocked ?? 0, remote?.timesUnlocked ?? 1),
-          tier: Math.max(local?.tier ?? DEFAULT_TIER, remote?.tier ?? DEFAULT_TIER),
-        });
-      }
-
-      const firestoreMappings = data.mappings as Array<{ justification?: string }> | undefined;
-      const firestoreJustification = firestoreMappings?.at(-1)?.justification;
-
-      return {
-        category,
-        justification: (existingEntry?.justification as string) || (firestoreJustification ?? ""),
-        dateIdentified:
-          (existingEntry?.dateIdentified as string) ??
-          (data.firstMappedAt?.toDate?.() ?? new Date()).toISOString(),
-        timesMapped: Math.max(
-          (existingEntry?.timesMapped as number) ?? 0,
-          (data.totalMappings as number) ?? 1
-        ),
-        unlockedStamps: mergedStamps.length > 0 ? mergedStamps : undefined,
-      };
-    });
-
-    const filtered = merged.filter(Boolean) as Record<string, unknown>[];
     await setJSONInStorage(mappedCategoriesKey, filtered);
+    await setJSONInStorage(`${HYDRATE_CACHE_KEY}:${uid}`, Date.now());
     if (__DEV__)
       console.log(`[AuthSession] Hydrated ${filtered.length} passport mappings from Firestore`);
   } catch (error) {
@@ -229,7 +245,7 @@ async function migrateOrClearGuestData(oldUid: string, newUid: string): Promise<
       data: Record<string, unknown>[];
     } | null>(PENDING_KEY, null);
     let entries: Record<string, unknown>[] = [];
-    if (pending && pending.oldUid === oldUid && pending.data.length > 0) {
+    if (pending?.oldUid === oldUid && pending.data.length > 0) {
       entries = pending.data;
       // Clean up the pending key using a write (empty object) instead of separate remove
       await setJSONInStorage(PENDING_KEY, null);
@@ -265,7 +281,7 @@ async function migrateOrClearGuestData(oldUid: string, newUid: string): Promise<
                   data.unlockedStamps as Record<string, { timesUnlocked?: number }>
                 ).map(([name, s]) => ({ name, timesUnlocked: s.timesUnlocked ?? 1 }))
               : [],
-          } as Record<string, unknown>;
+          };
         });
         if (__DEV__)
           console.log(
@@ -284,9 +300,9 @@ async function migrateOrClearGuestData(oldUid: string, newUid: string): Promise<
           const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
           const unlockedStamps = (
             entry.unlockedStamps as Array<{ name: string; timesUnlocked: number }> | undefined
-          )?.reduce(
+          )?.reduce<Record<string, { timesUnlocked: number }>>(
             (acc, s) => ({ ...acc, [s.name]: { timesUnlocked: s.timesUnlocked } }),
-            {} as Record<string, { timesUnlocked: number }>
+            {}
           );
           await setDoc(doc(db, "participants", newUid, "skillPassport", categoryId), {
             category,
@@ -312,10 +328,14 @@ async function migrateOrClearGuestData(oldUid: string, newUid: string): Promise<
           `[AuthSession] Migrated ${entries.length} passport mappings from ${oldUid} to ${newUid}`
         );
     }
-  } catch (error) {
-    console.warn("[AuthSession] Failed to migrate passport data:", error);
-  } finally {
+
+    // Only clear old local data once writes have all succeeded.
     await clearLocalDataForUid(oldUid);
+  } catch (error) {
+    console.warn(
+      "[AuthSession] Failed to migrate passport data — keeping local data intact:",
+      error
+    );
   }
 }
 
@@ -362,12 +382,12 @@ async function syncUserDocument(user: User): Promise<void> {
   const userDoc: Partial<UserDocument> = {
     email: user.email ?? null,
     displayName: user.displayName ?? null,
-    lastActiveAt: serverTimestamp() as unknown as Timestamp,
+    lastActiveAt: serverTimestamp(),
     isAnonymous: user.isAnonymous,
   };
 
   if (user.isAnonymous) {
-    userDoc.createdAt = serverTimestamp() as unknown as Timestamp;
+    userDoc.createdAt = serverTimestamp();
   }
 
   try {
@@ -452,6 +472,24 @@ export async function bootstrapAuthSession(): Promise<AppAuthSession> {
         resolve(session);
       }
     });
+
+    setTimeout(() => {
+      if (currentSession.mode !== "loading") {
+        unsubscribe();
+        return;
+      }
+      unsubscribe();
+      console.warn("[AuthSession] Auth bootstrap timed out — falling back to signed-out");
+      const fallback: AppAuthSession = {
+        uid: null,
+        mode: "signed_out",
+        isAnonymous: false,
+        email: null,
+        displayName: null,
+      };
+      emitSession(fallback);
+      resolve(fallback);
+    }, 8000);
   });
 
   return bootstrapPromise;
@@ -550,7 +588,7 @@ export async function logoutToGuest(): Promise<void> {
 }
 
 const GUEST_EXPIRY_KEY = "@guest_session_expiry";
-const GUEST_EXPIRY_MS = 60_000;
+const GUEST_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export async function saveGuestSessionTimestamp(): Promise<void> {
   try {

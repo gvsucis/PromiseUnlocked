@@ -8,6 +8,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 
 import { useAuth } from "../context/AuthContext";
@@ -17,44 +19,91 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/ui/text";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
-import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+import { useDialogue } from "../context/DialogueContext";
+import { useLogout } from "../hooks/useLogout";
+import { ImagePickerService } from "../services/imagePickerService";
+import { uploadMultipleImages } from "../services/uploadService";
+
+const MAX_IMAGES = 3;
 
 export default function HelpScreen() {
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const insets = useSafeAreaInsets();
 
-  const handleReset = () => {
-    dialogueBridgeRef.current?.handleReset?.();
-  };
-
-  const { session, logoutToGuest } = useAuth();
+  const { session } = useAuth();
+  const { reset } = useDialogue();
+  const { confirmAndLogout } = useLogout();
 
   const handleLogout = () => {
-    Alert.alert(
-      "Switch to Guest",
-      "You will keep this account's saved progress, and the app will continue in guest mode.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          onPress: () => {
-            logoutToGuest()
-              .then(() => {
-                /* no navigation needed from Help */
-              })
-              .catch(() => Alert.alert("Error", "Failed to switch to guest mode."));
-          },
-        },
-      ]
-    );
+    confirmAndLogout();
   };
 
-  const handleSubmit = () => {
-    Alert.alert("Bug Report Submitted", "Thank you for helping us improve the app.");
+  const pickImages = async () => {
+    if (images.length >= MAX_IMAGES) {
+      Alert.alert("Limit Reached", `You can upload a maximum of ${MAX_IMAGES} images.`);
+      return;
+    }
 
-    setLocation("");
-    setDescription("");
+    try {
+      const hasPermissions = await ImagePickerService.requestPermissions();
+      if (!hasPermissions) {
+        Alert.alert("Permissions Required", "Photo library permissions are required.");
+        return;
+      }
+
+      const result = await ImagePickerService.pickImageFromGalleryWithOptions(false);
+
+      if (result.success && result.imageUri) {
+        setImages((prev) => [...prev, result.imageUri!]);
+      }
+    } catch (err) {
+      console.error("Error picking image:", err);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async () => {
+    if (!location) {
+      Alert.alert("Missing Field", "Please select where you noticed the issue.");
+      return;
+    }
+    if (!description.trim()) {
+      Alert.alert("Missing Field", "Please describe the issue.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const result = await uploadMultipleImages({
+      endpoint: "/help/report",
+      imageUris: images,
+      fileField: "images",
+      fields: { location, description: description.trim() },
+    });
+
+    if (!result.success) {
+      Alert.alert("Submission Failed", result.error || "Could not submit your report.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    Alert.alert("Report Submitted", "Thank you for helping us improve the app.", [
+      {
+        text: "OK",
+        onPress: () => {
+          setLocation("");
+          setDescription("");
+          setImages([]);
+        },
+      },
+    ]);
+    setIsSubmitting(false);
   };
 
   return (
@@ -75,12 +124,11 @@ export default function HelpScreen() {
                 color={colors.status.error}
               />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleReset} style={styles.floatingButton}>
+            <TouchableOpacity onPress={reset} style={styles.floatingButton}>
               <MaterialIcons name="refresh" size={24} color={colors.status.error} />
             </TouchableOpacity>
           </View>
 
-          {/* Header floated over banner bottom */}
           <View style={styles.headerBlock}>
             <View style={styles.headerRow}>
               <MaterialIcons name="error" size={32} color={colors.accent.coral} />
@@ -90,6 +138,7 @@ export default function HelpScreen() {
               Help us improve the app by sharing bugs or unexpected behavior.
             </Text>
           </View>
+
           <View style={styles.formCard}>
             <Text style={styles.label}>Where did you notice the issue?</Text>
 
@@ -118,8 +167,38 @@ export default function HelpScreen() {
               textAlignVertical="top"
             />
 
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-              <Text style={styles.submitText}>Submit Report</Text>
+            <Text style={styles.label}>Screenshots (optional, max {MAX_IMAGES})</Text>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRow}>
+              {images.map((uri, index) => (
+                <View key={index} style={styles.imageThumbWrap}>
+                  <Image source={{ uri }} style={styles.imageThumb} />
+                  <TouchableOpacity
+                    style={styles.imageRemoveBtn}
+                    onPress={() => removeImage(index)}
+                  >
+                    <MaterialIcons name="close" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {images.length < MAX_IMAGES && (
+                <TouchableOpacity style={styles.addImageBtn} onPress={pickImages}>
+                  <MaterialIcons name="add" size={28} color={colors.accent.coral} />
+                  <Text style={styles.addImageLabel}>Add</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.submitText}>Submit Report</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -186,6 +265,53 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.subtle,
   },
 
+  imageRow: {
+    flexDirection: "row",
+    marginTop: spacing.sm,
+  },
+
+  imageThumbWrap: {
+    position: "relative",
+    marginRight: 10,
+  },
+
+  imageThumb: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    backgroundColor: colors.background.subtle,
+  },
+
+  imageRemoveBtn: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  addImageBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.border.subtle,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background.subtle,
+  },
+
+  addImageLabel: {
+    fontSize: 11,
+    color: colors.accent.coral,
+    marginTop: 2,
+  },
+
   submitButton: {
     backgroundColor: colors.accent.coral,
     paddingVertical: 14,
@@ -194,9 +320,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+
   submitText: {
     ...typography.buttonPrimary,
   },
+
   scrollContent: {
     paddingHorizontal: spacing.md,
     backgroundColor: colors.background.subtle,
@@ -204,30 +335,18 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
   },
-  bannerClip: {
-    marginHorizontal: -spacing.md,
-    height: 120,
-    overflow: "hidden",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-  banner: {
-    width: 900,
-    height: 900,
-    borderRadius: 450,
-    backgroundColor: colors.accent.coral,
-    position: "absolute",
-    top: -900 + 120,
-  },
+
   headerBlock: {
     marginBottom: spacing.lg,
   },
+
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     marginBottom: spacing.xs,
   },
+
   floatingButtons: {
     position: "absolute",
     top: 2,
@@ -236,6 +355,7 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 10,
   },
+
   floatingButton: {
     width: 36,
     height: 36,

@@ -1,6 +1,7 @@
 import { auth } from "../config/firebase";
 import { CONFIG } from "../config/env";
 import { apiFetch, GuestUserError } from "./apiClient";
+import { uploadImage, type UploadResult } from "./uploadService";
 
 export interface UserProfile {
   uid: string;
@@ -59,7 +60,7 @@ export function buildLocalProfile(overrides: Partial<UserProfile> = {}): UserPro
     photoURL: overrides.photoURL ?? user?.photoURL ?? null,
     createdAt: overrides.createdAt ?? Date.now(),
     updatedAt: overrides.updatedAt ?? Date.now(),
-    fullName: overrides.fullName ?? null,
+    fullName: overrides.displayName ?? null,
     schoolName: overrides.schoolName ?? null,
     schoolAddress: overrides.schoolAddress ?? null,
     phone: overrides.phone ?? null,
@@ -83,7 +84,10 @@ export async function fetchProfile(): Promise<UserProfile> {
 
   try {
     const data = await apiFetch<{ participant?: UserProfile }>("/participants/me");
-    return data.participant ?? buildLocalProfile();
+    const result = data.participant ?? buildLocalProfile();
+    console.log("[fetchProfile] Raw API response:", JSON.stringify(data, null, 2));
+    console.log("[fetchProfile] Resolved profile:", JSON.stringify(result, null, 2));
+    return result;
   } catch (error) {
     if (!(error instanceof GuestUserError)) {
       console.warn("[profileService] Falling back to local profile:", error);
@@ -97,17 +101,22 @@ export async function updateProfile(updates: Partial<UserProfile>): Promise<User
     return buildLocalProfile(updates);
   }
 
+  console.log("[updateProfile] Sending to API:", JSON.stringify(updates, null, 2));
+
   try {
     const data = await apiFetch<{ participant?: UserProfile }>("/participants/me", {
       method: "PUT",
       body: JSON.stringify(updates),
     });
-    return data.participant ?? buildLocalProfile(updates);
+    const result = data.participant ?? buildLocalProfile(updates);
+    console.log("[updateProfile] API success response:", JSON.stringify(data, null, 2));
+    console.log("[updateProfile] Resolved result:", JSON.stringify(result, null, 2));
+    return result;
   } catch (error) {
-    if (!(error instanceof GuestUserError)) {
-      console.warn("[profileService] Falling back to local profile update:", error);
-    }
-    return buildLocalProfile(updates);
+    console.warn("[updateProfile] API call failed, falling back to local profile:", error);
+    const fallback = buildLocalProfile(updates);
+    console.log("[updateProfile] Fallback profile:", JSON.stringify(fallback, null, 2));
+    return fallback;
   }
 }
 
@@ -139,4 +148,16 @@ export async function fetchUserSessionDetails(_sessionId: string): Promise<unkno
     console.warn("[profileService] Falling back to empty session details:", error);
     return null;
   }
+}
+
+export async function uploadProfilePicture(imageUri: string): Promise<UploadResult> {
+  if (!isApiAvailable()) {
+    return { success: false, error: "API not available" };
+  }
+
+  return uploadImage({
+    endpoint: "/participants/me/profile-picture",
+    imageUri,
+    fileField: "image",
+  });
 }

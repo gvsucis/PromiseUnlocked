@@ -17,7 +17,8 @@ import { getCurrentAuthSession } from "../services/auth/authSessionService";
 import type { MappedCategory } from "../services/categoryTaxonomyService";
 import { colors } from "../styles/global";
 import { useAuth } from "../context/AuthContext";
-import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+import { useDialogue } from "../context/DialogueContext";
+import { useLogout } from "../hooks/useLogout";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
@@ -40,28 +41,12 @@ const radarLabels: string[] = REGIONS.map((region) => radarLabelMap[region] ?? r
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
 
-  const { session, logoutToGuest } = useAuth();
+  const { session } = useAuth();
+  const { reset } = useDialogue();
+  const { confirmAndLogout } = useLogout();
 
   const handleLogout = () => {
-    Alert.alert(
-      "Switch to Guest",
-      "You will keep this account's saved progress, and the app will continue in guest mode.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          onPress: () => {
-            logoutToGuest()
-              .then(() => navigation.navigate("Welcome"))
-              .catch(() => Alert.alert("Error", "Failed to switch to guest mode."));
-          },
-        },
-      ]
-    );
-  };
-
-  const handleReset = () => {
-    dialogueBridgeRef.current?.handleReset?.();
+    confirmAndLogout(() => navigation.navigate("Welcome"));
   };
 
   const [radarData, setRadarData] = useState<number[]>(REGIONS.map(() => 0));
@@ -140,7 +125,7 @@ export default function PassportScreen() {
               color={colors.brand.primary}
             />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleReset} style={styles.floatingButton}>
+          <TouchableOpacity onPress={reset} style={styles.floatingButton}>
             <MaterialIcons name="refresh" size={24} color={colors.brand.primary} />
           </TouchableOpacity>
         </View>
