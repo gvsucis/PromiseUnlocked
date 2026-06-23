@@ -11,7 +11,7 @@ import {
   createSession,
   closeSession,
   getOrCreateUserId,
-  getSessionStatus,
+  getInProgressSession,
 } from "./firebase/firestoreService";
 
 const SESSION_ID_KEY = "@active_session_id";
@@ -34,45 +34,60 @@ export async function getUserId(): Promise<string> {
   return _userId;
 }
 
+async function cacheActiveSession(sessionId: string, scope: string): Promise<void> {
+  _activeSessionId = sessionId;
+  _activeSessionScope = scope;
+  const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
+  await setJSONInStorage(sessionStorageKey, sessionId);
+}
+
+/**
+ * Resolve the user's active session ID.
+ *
+ * Firestore is the source of truth: a user has at most one in_progress session,
+ * shared across every device, so we resolve it from Firestore before trusting
+ * the local cache. When Firestore is reachable and reports no in_progress
+ * session, the stale local pointer is cleared. Only when Firestore is
+ * unreachable (offline / guest) do we fall back to the locally persisted ID.
+ */
 export async function getActiveSessionId(): Promise<string | null> {
   const scope = await getCurrentScope();
   if (_activeSessionId && _activeSessionScope === scope) return _activeSessionId;
-  const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
-  const stored = await getJSONFromStorage<string | null>(sessionStorageKey, null);
-  _activeSessionId = stored;
-  _activeSessionScope = scope;
-  return stored;
+
+  try {
+    const userId = await getUserId();
+    const remote = await getInProgressSession(userId);
+    if (remote) {
+      await cacheActiveSession(remote, scope);
+      return remote;
+    }
+    // Firestore confirms no in_progress session — drop any stale local pointer.
+    const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
+    await removeFromStorage(sessionStorageKey);
+    _activeSessionId = null;
+    _activeSessionScope = scope;
+    return null;
+  } catch {
+    // Firestore unavailable — fall back to the locally persisted session ID.
+    const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
+    const stored = await getJSONFromStorage<string | null>(sessionStorageKey, null);
+    _activeSessionId = stored;
+    _activeSessionScope = scope;
+    return stored;
+  }
 }
 
 export async function startNewSession(): Promise<string> {
   const userId = await getUserId();
   const sessionId = await createSession(userId);
-  _activeSessionId = sessionId;
-  _activeSessionScope = await getCurrentScope();
-  const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
-  await setJSONInStorage(sessionStorageKey, sessionId);
+  await cacheActiveSession(sessionId, await getCurrentScope());
   return sessionId;
 }
 
 export async function getOrStartSession(): Promise<string> {
   const existing = await getActiveSessionId();
-  if (!existing) return startNewSession();
-
-  try {
-    const userId = await getUserId();
-    const status = await getSessionStatus(userId, existing);
-    if (status === "completed" || status === "abandoned") {
-      _activeSessionId = null;
-      _activeSessionScope = null;
-      const sessionStorageKey = await getScopedStorageKey(SESSION_ID_KEY);
-      await removeFromStorage(sessionStorageKey);
-      return startNewSession();
-    }
-  } catch {
-    // Firestore read failed (e.g. guest user, offline) — reuse existing session
-  }
-
-  return existing;
+  if (existing) return existing;
+  return startNewSession();
 }
 
 export async function endSession(status: "completed" | "abandoned"): Promise<void> {

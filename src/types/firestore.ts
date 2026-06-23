@@ -28,6 +28,7 @@ export interface InteractionDocument {
   inputMethod: "text" | "voice" | "image";
   mappingOutcome: InteractionMappingOutcome;
   mappedCategory: string | null;
+  categoryId: string | null;
   isWeakFit: boolean;
   isAlreadyMapped: boolean;
   justification: string;
@@ -42,6 +43,7 @@ export interface PassportCategoryMapping {
   interactionId: string;
   justification: string;
   specificStamp?: string | null;
+  categoryId?: string | null;
   timestamp: Timestamp;
 }
 
@@ -49,10 +51,13 @@ export interface UnlockedStampEntry {
   timesUnlocked: number;
   firstUnlockedAt: Timestamp;
   lastUnlockedAt: Timestamp;
+  category?: string;
+  categoryId?: string;
 }
 
 export interface SkillPassportDocument {
   category: string;
+  categoryId: string;
   firstMappedAt: Timestamp;
   lastMappedAt: Timestamp;
   totalMappings: number;

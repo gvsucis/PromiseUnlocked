@@ -16,6 +16,7 @@ import {
 import { getCurrentAuthSession } from "../services/auth/authSessionService";
 import { getActiveSessionId } from "../services/sessionManager";
 import type { MappedCategory } from "../services/categoryTaxonomyService";
+import { getCategoryIdFromName } from "../services/categoryTaxonomyService";
 import { colors } from "../styles/global";
 import { useAuth } from "../context/AuthContext";
 import { useDialogue } from "../context/DialogueContext";
@@ -78,11 +79,13 @@ export default function PassportScreen() {
             if (!snapshot.empty) {
               mappedCategories = snapshot.docs.map((doc) => {
                 const data = doc.data();
+                const categoryId = (data.categoryId as string) ?? doc.id;
                 const stamps = data.unlockedStamps as
-                  | Record<string, { timesUnlocked?: number }>
+                  | Record<string, { timesUnlocked?: number; category?: string }>
                   | undefined;
                 return {
                   category: (data.category as string) ?? doc.id,
+                  categoryId,
                   justification:
                     (data.mappings as Array<{ justification?: string }> | undefined)?.at(-1)
                       ?.justification ?? "",
@@ -92,6 +95,8 @@ export default function PassportScreen() {
                   unlockedStamps: stamps
                     ? Object.entries(stamps).map(([name, s]) => ({
                         name,
+                        category: s.category ?? (data.category as string) ?? doc.id,
+                        categoryId,
                         timesUnlocked: s.timesUnlocked ?? 1,
                       }))
                     : [],
@@ -186,7 +191,10 @@ export default function PassportScreen() {
                 <TouchableOpacity
                   key={region}
                   style={styles.regionItem}
-                  onPress={() => navigation.navigate("Stamps", { region })}
+                  onPress={() => {
+                    const catId = getCategoryIdFromName(region);
+                    navigation.navigate("Stamps", { region, categoryId: catId });
+                  }}
                 >
                   <View style={styles.iconContainer}>
                     <MaterialIcons

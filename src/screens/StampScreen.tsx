@@ -17,7 +17,10 @@ import { TIER_CONFIG, DEFAULT_TIER } from "../config/stampConstants";
 import StampBadge from "../components/stamps/StampBadge";
 import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
 import { GeminiService } from "../services/geminiService";
-import { getFilteredTaxonomyString } from "../services/categoryTaxonomyService";
+import {
+  getFilteredTaxonomyString,
+  getCategoryIdFromName,
+} from "../services/categoryTaxonomyService";
 import { dialogueBridgeRef } from "./DialogueDashboardScreen";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -49,7 +52,7 @@ export default function StampScreen() {
   const navigation = useNavigation<StampNavigationProp>();
 
   const route = useRoute<StampRouteProp>();
-  const { region } = route.params;
+  const { region, categoryId } = route.params;
   const currentIndex = REGIONS.indexOf(region);
 
   const [unlockedStamps, setUnlockedStamps] = useState<Set<string>>(new Set());
@@ -73,8 +76,9 @@ export default function StampScreen() {
     for (const mc of mappedCategories) {
       if (!mc.unlockedStamps?.length) continue;
       regionsWithUnlocks.add(mc.category);
-      if (mc.category !== region) continue;
       for (const s of mc.unlockedStamps) {
+        const stampCategory = s.category || mc.category;
+        if (stampCategory !== region) continue;
         names.add(s.name);
         counts[s.name] = s.timesUnlocked;
         tiers[s.name] = s.tier ?? DEFAULT_TIER;
@@ -96,12 +100,14 @@ export default function StampScreen() {
 
   function goToPreviousRegion() {
     if (!prevRegion) return;
-    navigation.replace("Stamps", { region: prevRegion });
+    const prevCategoryId = getCategoryIdFromName(prevRegion);
+    navigation.replace("Stamps", { region: prevRegion, categoryId: prevCategoryId });
   }
 
   function goToNextRegion() {
     if (!nextRegion) return;
-    navigation.replace("Stamps", { region: nextRegion });
+    const nextCategoryId = getCategoryIdFromName(nextRegion);
+    navigation.replace("Stamps", { region: nextRegion, categoryId: nextCategoryId });
   }
 
   const handleGenerateQuestion = useCallback(async () => {
@@ -172,7 +178,7 @@ export default function StampScreen() {
                 <TouchableOpacity
                   key={stamp}
                   style={styles.stampItem}
-                  onPress={() => navigation.navigate("StampDetails", { stamp, region })}
+                  onPress={() => navigation.navigate("StampDetails", { stamp, region, categoryId })}
                 >
                   <View style={styles.stampCircle}>
                     <StampBadge stampName={stamp} tier={tier} size="list" />

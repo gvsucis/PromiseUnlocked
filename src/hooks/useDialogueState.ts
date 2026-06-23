@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { waitForAuthReady } from "../services/auth/authSessionService";
+import {
+  waitForAuthReady,
+  hydratePassportMappings,
+  getCurrentAuthSession,
+} from "../services/auth/authSessionService";
 import { Alert } from "react-native";
 import {
   MappedCategory,
@@ -65,6 +69,7 @@ export interface DialogueState {
   newStampUnlock: {
     stamp: string;
     category: string;
+    categoryId: string;
     tier: number;
   } | null;
   pendingProofRequest: {
@@ -72,6 +77,7 @@ export interface DialogueState {
     answer: string;
     interactionId: string;
     category: string;
+    categoryId?: string;
     stampName?: string;
     artifactUploadReason?: string;
     proofTier?: number;
@@ -139,6 +145,7 @@ export function useDialogueState(): DialogueState {
   const [newStampUnlock, setNewStampUnlock] = useState<{
     stamp: string;
     category: string;
+    categoryId: string;
     tier: number;
   } | null>(null);
   const [deferredNextQuestion, setDeferredNextQuestion] = useState<string | null>(null);
@@ -268,6 +275,13 @@ export function useDialogueState(): DialogueState {
       }
 
       await syncFromFirestore();
+
+      // Sync passport data from Firestore for authenticated users
+      const currentSession = getCurrentAuthSession();
+      if (currentSession.mode === "authenticated" && currentSession.uid) {
+        await hydratePassportMappings(currentSession.uid);
+      }
+
       const mapped = await getMappedCategories();
       const history = await getConversationHistory();
       const persisted = await loadDialogueState();
@@ -314,16 +328,16 @@ export function useDialogueState(): DialogueState {
   };
 
   const maybeUnlockStamp = async (
-    category: string,
+    categoryId: string,
     stamp: string | null | undefined,
     tier: number = 1
   ) => {
     if (!stamp) return;
     if (stamp in STAMPS_LIST) {
-      await addStampUnlock(category, stamp, tier);
+      await addStampUnlock(categoryId, stamp, tier);
     } else if (__DEV__) {
       console.warn(
-        `Invalid stamp name "${stamp}" for category "${category}" — not in STAMPS_LIST, skipping unlock`
+        `Invalid stamp name "${stamp}" for category "${categoryId}" — not in STAMPS_LIST, skipping unlock`
       );
     }
   };
@@ -340,6 +354,7 @@ export function useDialogueState(): DialogueState {
       signal: AbortSignal;
     }
   ) => {
+    setUiState("loading");
     setUserAnswer("");
     setLoadingMessage("Generating next question...");
     try {
@@ -437,6 +452,7 @@ export function useDialogueState(): DialogueState {
       } = result;
       const validCategory = findValidCategory(rawCategory);
       const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
+      const categoryIdToCheck = validCategory ? validCategory.id : rawCategory;
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
         if (justification?.startsWith("INAPPROPRIATE_CONTENT:")) {
@@ -461,9 +477,10 @@ export function useDialogueState(): DialogueState {
         return { mapped: false as const, category: null, interactionId };
       }
 
-      if (validCategory && !(await isCategoryMapped(categoryNameToCheck))) {
+      if (validCategory && !(await isCategoryMapped(categoryIdToCheck))) {
         const newMappedCategory: MappedCategory = {
           category: categoryNameToCheck,
+          categoryId: categoryIdToCheck,
           justification: justification ?? "",
           dateIdentified: new Date().toISOString(),
           timesMapped: 1,
@@ -471,12 +488,13 @@ export function useDialogueState(): DialogueState {
         await saveMappedCategory(newMappedCategory);
         const newMappedCategories = [...mappedCategories, newMappedCategory];
         setMappedCategories(newMappedCategories);
-        await maybeUnlockStamp(categoryNameToCheck, specificStamp, initialTier ?? 1);
+        await maybeUnlockStamp(categoryIdToCheck, specificStamp, initialTier ?? 1);
 
         const interaction: ConversationInteraction = {
           question,
           answer,
           mappedCategory: categoryNameToCheck,
+          categoryId: categoryIdToCheck,
           timestamp: new Date().toISOString(),
           mappingOutcome: "mapped",
           matchedToCategory: null,
@@ -488,6 +506,7 @@ export function useDialogueState(): DialogueState {
           savePassportMappingToFirestore(
             interactionId,
             categoryNameToCheck,
+            categoryIdToCheck,
             justification,
             specificStamp ?? undefined
           );
@@ -500,6 +519,7 @@ export function useDialogueState(): DialogueState {
           setNewStampUnlock({
             stamp: specificStamp,
             category: categoryNameToCheck,
+            categoryId: categoryIdToCheck,
             tier: initialTier ?? 1,
           });
 
@@ -512,6 +532,7 @@ export function useDialogueState(): DialogueState {
               answer,
               interactionId,
               category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
               stampName: specificStamp ?? undefined,
               artifactUploadReason: result.artifactUploadReason,
               proofTier: result.proofTier ?? 3,
@@ -530,6 +551,7 @@ export function useDialogueState(): DialogueState {
               answer,
               interactionId,
               category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
               stampName: specificStamp ?? undefined,
               artifactUploadReason: result.artifactUploadReason,
               proofTier: result.proofTier ?? 3,
@@ -547,16 +569,17 @@ export function useDialogueState(): DialogueState {
           ...mappedCategory,
           justification: justification || mappedCategory.justification,
         });
-        await maybeUnlockStamp(categoryNameToCheck, specificStamp, initialTier ?? 1);
+        await maybeUnlockStamp(categoryIdToCheck, specificStamp, initialTier ?? 1);
         setMappedCategories(
           mappedCategories.map((c) =>
-            c.category === updatedMappedCategory.category ? updatedMappedCategory : c
+            c.categoryId === updatedMappedCategory.categoryId ? updatedMappedCategory : c
           )
         );
         const interaction: ConversationInteraction = {
           question,
           answer,
           mappedCategory: categoryNameToCheck,
+          categoryId: categoryIdToCheck,
           timestamp: new Date().toISOString(),
           mappingOutcome: "already_mapped",
           matchedToCategory: categoryNameToCheck,
@@ -567,6 +590,7 @@ export function useDialogueState(): DialogueState {
         savePassportMappingToFirestore(
           interactionId,
           categoryNameToCheck,
+          categoryIdToCheck,
           justification || mappedCategory.justification,
           specificStamp ?? undefined
         );
@@ -859,8 +883,12 @@ export function useDialogueState(): DialogueState {
     proof.surfaceDeferred();
 
     if (nextQuestion) {
-      setPrefetchedQuestion(nextQuestion);
-      setUiState("idle");
+      setUiState("loading");
+      setLoadingMessage("Preparing your next question...");
+      setTimeout(() => {
+        setPrefetchedQuestion(nextQuestion);
+        setUiState("idle");
+      }, 600);
     } else {
       void advanceToNextQuestion(null, {
         ...deferredAdvanceOptsRef.current!,
@@ -879,6 +907,7 @@ export function useDialogueState(): DialogueState {
     async (
       interactionId: string,
       category: string,
+      categoryId: string,
       justification: string,
       specificStamp?: string
     ) => {
@@ -890,6 +919,7 @@ export function useDialogueState(): DialogueState {
             sessionId,
             interactionId,
             category,
+            categoryId,
             justification,
             specificStamp
           );

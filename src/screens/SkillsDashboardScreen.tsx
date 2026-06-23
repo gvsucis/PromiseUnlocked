@@ -94,7 +94,7 @@ export default function SkillsDashboardScreen({ navigation, route: _route }: Rea
       "Problem-Solving": "lightbulb",
       "Work Experience": "work",
       "Future Self & Direction": "rocket-launch",
-      "Technological Fluency": "computer",
+      "Digital & Tech Fluency": "computer",
       "Wellbeing & Personal Resilience": "health-and-safety",
       "Faith, Culture & Identity": "person",
     };
@@ -111,7 +111,7 @@ export default function SkillsDashboardScreen({ navigation, route: _route }: Rea
       "Problem-Solving": "#FCBAD3",
       "Work Experience": "#A8D8EA",
       "Future Self & Direction": "#FFD6A5",
-      "Technological Fluency": "#9AD0EC",
+      "Digital & Tech Fluency": "#9AD0EC",
       "Wellbeing & Personal Resilience": "#C7CEEA",
       "Faith, Culture & Identity": "#D4A5A5",
     };

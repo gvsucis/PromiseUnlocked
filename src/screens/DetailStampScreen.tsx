@@ -16,7 +16,6 @@ import StampBadge from "../components/stamps/StampBadge";
 import { getActiveSessionId } from "../services/sessionManager";
 import {
   getUnlockedStampsForCategory,
-  getMappedCategory,
   getConversationHistory,
   syncFromFirestore,
   fetchPassportJustifications,
@@ -33,7 +32,7 @@ type StampDetailNavigationProp = StackNavigationProp<RootStackParamList, "StampD
 export default function StampDetailScreen() {
   const navigation = useNavigation<StampDetailNavigationProp>();
   const route = useRoute<StampDetailRouteProp>();
-  const { stamp, region } = route.params;
+  const { stamp, region, categoryId } = route.params;
   const allStamps = DERIVED_SKILLS[region] ?? [];
 
   const [unlockInfo, setUnlockInfo] = useState<{
@@ -57,7 +56,7 @@ export default function StampDetailScreen() {
   const tierCfg = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG[DEFAULT_TIER];
 
   const loadUnlockInfo = useCallback(async () => {
-    const unlocks = await getUnlockedStampsForCategory(region);
+    const unlocks = await getUnlockedStampsForCategory(categoryId);
     const found = unlocks.find((u) => u.name === stamp);
     setUnlockInfo(found ?? null);
     setUnlockedNames(new Set(unlocks.map((u) => u.name)));
@@ -67,7 +66,7 @@ export default function StampDetailScreen() {
     try {
       // Source 1: passport justifications filtered by this specific stamp
       const stampPassportItems = (
-        await fetchPassportJustifications(region, activeSessionId ?? undefined, stamp)
+        await fetchPassportJustifications(categoryId, activeSessionId ?? undefined, stamp)
       ).map((j) => ({ justification: j }));
       if (stampPassportItems.length > 0) {
         setJustifications(stampPassportItems);
@@ -85,33 +84,11 @@ export default function StampDetailScreen() {
         return;
       }
 
-      // Source 3: fallback — region-level justifications from passport
-      const passportItems = (
-        await fetchPassportJustifications(region, activeSessionId ?? undefined)
-      ).map((j) => ({
-        justification: j,
-      }));
-      if (passportItems.length > 0) {
-        setJustifications(passportItems);
-        return;
-      }
-
-      // Source 4: fallback — region-level conversation history
-      const historyItems = history
-        .filter((i) => i.mappedCategory === region && i.justification)
-        .map((i) => ({ justification: i.justification! }));
-      if (historyItems.length > 0) {
-        setJustifications(historyItems);
-        return;
-      }
-
-      // Source 5: fallback — local mapped category
-      const mc = await getMappedCategory(region);
-      setJustifications(mc?.justification ? [{ justification: mc.justification }] : []);
+      setJustifications([]);
     } catch {
       setJustifications([]);
     }
-  }, [region, stamp]);
+  }, [categoryId, stamp]);
 
   useFocusEffect(
     useCallback(() => {
@@ -124,6 +101,7 @@ export default function StampDetailScreen() {
     navigation.replace("StampDetails", {
       stamp: previousStamp,
       region,
+      categoryId,
     });
   }
 
@@ -132,6 +110,7 @@ export default function StampDetailScreen() {
     navigation.replace("StampDetails", {
       stamp: nextStamp,
       region,
+      categoryId,
     });
   }
 

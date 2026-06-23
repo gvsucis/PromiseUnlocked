@@ -8,8 +8,8 @@ export type RootStackParamList = {
   MainTabs: undefined;
   EditProfile: undefined;
   Passport: undefined;
-  Stamps: { region: string };
-  StampDetails: { stamp: string; region: string };
+  Stamps: { region: string; categoryId: string };
+  StampDetails: { stamp: string; region: string; categoryId: string };
   Home: undefined;
   Result: { result: AnalysisResult };
   Blue: undefined;

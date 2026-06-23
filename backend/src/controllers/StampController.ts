@@ -16,7 +16,7 @@ export class StampController {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { category, stampName, tier, sessionId } = req.body ?? {};
+    const { category, categoryId, stampName, tier, sessionId } = req.body ?? {};
 
     if (typeof category !== "string" || typeof stampName !== "string") {
       return res.status(400).json({ error: "category and stampName are required" });
@@ -41,14 +41,14 @@ export class StampController {
     }
 
     try {
-      const categoryId = sanitizeCategoryId(category);
+      const docId = typeof categoryId === "string" ? categoryId : sanitizeCategoryId(category);
       const passportRef = db
         .collection("participants")
         .doc(requester.uid)
         .collection("sessions")
         .doc(sessionId)
         .collection("skillPassport")
-        .doc(categoryId);
+        .doc(docId);
 
       const stampKey = `unlockedStamps.${sanitizeStampKey(stampName)}`;
       const existing = await passportRef.get();
@@ -72,6 +72,7 @@ export class StampController {
               timesUnlocked: FieldValue.increment(1),
               lastUnlockedAt: FieldValue.serverTimestamp(),
               tier: mergedTier,
+              categoryId: docId,
             },
           },
           { merge: true }
@@ -84,6 +85,7 @@ export class StampController {
               firstUnlockedAt: FieldValue.serverTimestamp(),
               lastUnlockedAt: FieldValue.serverTimestamp(),
               tier: mergedTier,
+              categoryId: docId,
             },
           },
           { merge: true }

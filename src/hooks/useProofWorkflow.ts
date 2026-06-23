@@ -9,6 +9,7 @@ export interface ProofRequest {
   answer: string;
   interactionId: string;
   category: string;
+  categoryId?: string;
   stampName?: string;
   artifactUploadReason?: string;
   proofTier?: number;
@@ -23,6 +24,7 @@ export interface ProofNotification {
   stampName: string;
   proofTier: number;
   category: string;
+  categoryId?: string;
 }
 
 const DEFAULT_NOTIFICATION_REASON = "Share proof to upgrade your stamp tier!";
@@ -83,6 +85,7 @@ export function useProofWorkflow(): ProofWorkflow {
       notifiedRequestRef.current = deferred;
       setProofNotification({
         category: deferred.category,
+        categoryId: deferred.categoryId,
         stampName: deferred.stampName ?? "",
         proofTier: deferred.proofTier ?? 3,
         artifactUploadReason: deferred.artifactUploadReason ?? DEFAULT_NOTIFICATION_REASON,

@@ -10,6 +10,7 @@ export interface AppAuthSession {
 
 export type PassportEntry = {
   category: string;
+  categoryId: string;
   justification: string;
   dateIdentified: string;
   timesMapped: number;
@@ -18,6 +19,8 @@ export type PassportEntry = {
 
 export type StampEntry = {
   name: string;
+  category: string;
+  categoryId: string;
   timesUnlocked: number;
   tier?: number;
 };

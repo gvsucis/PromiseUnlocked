@@ -570,7 +570,7 @@ export default function DialogueDashboardScreen() {
           pendingProofRequest.proofTier ??
           Math.min(Number.parseInt(latestStatus.proofTier ?? "2", 10) || 2, 4);
         await upgradeStampTier(
-          pendingProofRequest.category,
+          pendingProofRequest.categoryId ?? pendingProofRequest.category,
           pendingProofRequest.stampName,
           targetTier
         );
@@ -983,6 +983,7 @@ export default function DialogueDashboardScreen() {
             navigation.navigate("StampDetails", {
               stamp: newStampUnlock.stamp,
               region: newStampUnlock.category,
+              categoryId: newStampUnlock.categoryId,
             });
           }
         }}
