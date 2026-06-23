@@ -1,5 +1,12 @@
 import React, { useState, useCallback } from "react";
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -8,6 +15,13 @@ import type { RootStackParamList } from "../types/navigation";
 import { computeDerivedSkills, REGIONS } from "../config/stampTaxonomy";
 import { TIER_CONFIG, DEFAULT_TIER } from "../config/stampConstants";
 import StampBadge from "../components/stamps/StampBadge";
+import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
+import { GeminiService } from "../services/geminiService";
+import {
+  getFilteredTaxonomyString,
+  getCategoryIdFromName,
+} from "../services/categoryTaxonomyService";
+import { dialogueBridgeRef } from "./DialogueDashboardScreen";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getMappedCategories,
@@ -15,6 +29,7 @@ import {
 } from "../services/categoryStorageService";
 
 import { colors } from "../styles/global";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const DERIVED_SKILLS = computeDerivedSkills();
 
@@ -37,7 +52,7 @@ export default function StampScreen() {
   const navigation = useNavigation<StampNavigationProp>();
 
   const route = useRoute<StampRouteProp>();
-  const { region } = route.params;
+  const { region, categoryId } = route.params;
   const currentIndex = REGIONS.indexOf(region);
 
   const [unlockedStamps, setUnlockedStamps] = useState<Set<string>>(new Set());
@@ -45,6 +60,9 @@ export default function StampScreen() {
   const [stampTiers, setStampTiers] = useState<Record<string, number>>({});
   const [prevRegion, setPrevRegion] = useState<string | null>(null);
   const [nextRegion, setNextRegion] = useState<string | null>(null);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [generatedQuestion, setGeneratedQuestion] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const loadUnlocked = useCallback(async () => {
     await ensureAllMappedCategoriesHaveStamps();
@@ -58,8 +76,9 @@ export default function StampScreen() {
     for (const mc of mappedCategories) {
       if (!mc.unlockedStamps?.length) continue;
       regionsWithUnlocks.add(mc.category);
-      if (mc.category !== region) continue;
       for (const s of mc.unlockedStamps) {
+        const stampCategory = s.category || mc.category;
+        if (stampCategory !== region) continue;
         names.add(s.name);
         counts[s.name] = s.timesUnlocked;
         tiers[s.name] = s.tier ?? DEFAULT_TIER;
@@ -81,13 +100,60 @@ export default function StampScreen() {
 
   function goToPreviousRegion() {
     if (!prevRegion) return;
-    navigation.replace("Stamps", { region: prevRegion });
+    const prevCategoryId = getCategoryIdFromName(prevRegion);
+    navigation.replace("Stamps", { region: prevRegion, categoryId: prevCategoryId });
   }
 
   function goToNextRegion() {
     if (!nextRegion) return;
-    navigation.replace("Stamps", { region: nextRegion });
+    const nextCategoryId = getCategoryIdFromName(nextRegion);
+    navigation.replace("Stamps", { region: nextRegion, categoryId: nextCategoryId });
   }
+
+  const handleGenerateQuestion = useCallback(async () => {
+    setIsGenerating(true);
+    try {
+      const filteredTaxonomy = getFilteredTaxonomyString(region);
+      const bridge = dialogueBridgeRef.current;
+      const interactions = bridge?.interactions ?? [];
+      const mappedCategories = bridge?.mappedCategories ?? [];
+      const pdfContextText = bridge?.pdfContextText ?? "";
+      const question = await GeminiService.synthesizeNextQuestion(
+        interactions,
+        mappedCategories,
+        filteredTaxonomy,
+        { embeddingHistorySummary: pdfContextText || undefined },
+        undefined,
+        region
+      );
+      setGeneratedQuestion(question);
+      setShowQuestionModal(true);
+    } catch (err) {
+      console.error("Failed to generate region question:", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [region]);
+
+  const handleRegionSubmit = useCallback(
+    async (question: string, answerText: string) => {
+      setShowQuestionModal(false);
+      setGeneratedQuestion("");
+      const bridge = dialogueBridgeRef.current;
+      // Map + persist the answer (saves to storage/Firebase, unlocks stamps) in
+      // the background, then refresh the grid so any newly unlocked stamp shows
+      // here — that grid update is the local unlock feedback.
+      if (bridge) {
+        Promise.resolve(bridge.handleRegionAnswer(question, answerText, region))
+          .then(() => loadUnlocked())
+          .catch((err) => console.error("Failed to map region answer:", err));
+      }
+      // Stay on this screen and loop: immediately offer the next region-focused
+      // question in this screen's own modal.
+      await handleGenerateQuestion();
+    },
+    [region, loadUnlocked, handleGenerateQuestion]
+  );
 
   const allStamps = DERIVED_SKILLS[region] ?? [];
   const unlockedList = allStamps.filter((s) => {
@@ -128,14 +194,11 @@ export default function StampScreen() {
             {unlockedList.map((stamp) => {
               const count = stampCounts[stamp] ?? 1;
               const tier = stampTiers[stamp] ?? DEFAULT_TIER;
-              const tierCfg =
-                TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ??
-                TIER_CONFIG[DEFAULT_TIER as keyof typeof TIER_CONFIG];
               return (
                 <TouchableOpacity
                   key={stamp}
                   style={styles.stampItem}
-                  onPress={() => navigation.navigate("StampDetails", { stamp, region })}
+                  onPress={() => navigation.navigate("StampDetails", { stamp, region, categoryId })}
                 >
                   <View style={styles.stampCircle}>
                     <StampBadge stampName={stamp} tier={tier} size="list" />
@@ -159,6 +222,47 @@ export default function StampScreen() {
             </Text>
           </View>
         )}
+
+        <TouchableOpacity
+          style={styles.generateButton}
+          onPress={handleGenerateQuestion}
+          disabled={isGenerating}
+          activeOpacity={0.8}
+        >
+          {isGenerating ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <MaterialIcons name="auto-awesome" size={20} color="#fff" />
+          )}
+          <Text style={styles.generateButtonText}>
+            {isGenerating ? "Exploring..." : "Explore region"}
+          </Text>
+        </TouchableOpacity>
+
+        <QuestionInputModal
+          visible={showQuestionModal}
+          question={generatedQuestion}
+          onSubmitText={(text) => {
+            void handleRegionSubmit(generatedQuestion, text);
+          }}
+          onClose={() => {
+            setShowQuestionModal(false);
+            setGeneratedQuestion("");
+          }}
+          onSelectInputType={() => {}}
+          onNewQuestion={() => {
+            setShowQuestionModal(false);
+            setGeneratedQuestion("");
+            handleGenerateQuestion();
+          }}
+          onNewTopic={() => {
+            setShowQuestionModal(false);
+            setGeneratedQuestion("");
+            // Stay on this region screen and just generate another region-focused
+            // question rather than handing off to the dashboard.
+            void handleGenerateQuestion();
+          }}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -277,5 +381,21 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
     paddingHorizontal: 40,
+  },
+
+  generateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.accent.sky,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 24,
+    gap: 10,
+  },
+  generateButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

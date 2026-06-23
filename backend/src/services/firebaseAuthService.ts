@@ -1,6 +1,8 @@
 import axios from "axios";
 import { firebaseAuthSchema } from "@/validation/firebaseAuthSchema";
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 import { db as firestore } from "@/services/firestore";
 
 const CLIENT_FIREBASE_API_KEY = process.env.CLIENT_FIREBASE_API_KEY;

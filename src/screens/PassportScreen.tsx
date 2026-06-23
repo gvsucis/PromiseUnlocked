@@ -14,10 +14,13 @@ import {
   ensureAllMappedCategoriesHaveStamps,
 } from "../services/categoryStorageService";
 import { getCurrentAuthSession } from "../services/auth/authSessionService";
+import { getActiveSessionId } from "../services/sessionManager";
 import type { MappedCategory } from "../services/categoryTaxonomyService";
+import { getCategoryIdFromName } from "../services/categoryTaxonomyService";
 import { colors } from "../styles/global";
 import { useAuth } from "../context/AuthContext";
-import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+import { useDialogue } from "../context/DialogueContext";
+import { useLogout } from "../hooks/useLogout";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
@@ -40,28 +43,12 @@ const radarLabels: string[] = REGIONS.map((region) => radarLabelMap[region] ?? r
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
 
-  const { session, logoutToGuest } = useAuth();
+  const { session } = useAuth();
+  const { reset } = useDialogue();
+  const { confirmAndLogout } = useLogout();
 
   const handleLogout = () => {
-    Alert.alert(
-      "Switch to Guest",
-      "You will keep this account's saved progress, and the app will continue in guest mode.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Continue",
-          onPress: () => {
-            logoutToGuest()
-              .then(() => navigation.navigate("Welcome"))
-              .catch(() => Alert.alert("Error", "Failed to switch to guest mode."));
-          },
-        },
-      ]
-    );
-  };
-
-  const handleReset = () => {
-    dialogueBridgeRef.current?.handleReset?.();
+    confirmAndLogout(() => navigation.navigate("Welcome"));
   };
 
   const [radarData, setRadarData] = useState<number[]>(REGIONS.map(() => 0));
@@ -77,17 +64,28 @@ export default function PassportScreen() {
         const session = getCurrentAuthSession();
         if (session.mode === "authenticated" && session.uid) {
           try {
+            const activeSessionId = await getActiveSessionId();
+            if (!activeSessionId) return;
             const snapshot = await getDocs(
-              collection(db, "participants", session.uid, "skillPassport")
+              collection(
+                db,
+                "participants",
+                session.uid,
+                "sessions",
+                activeSessionId,
+                "skillPassport"
+              )
             );
             if (!snapshot.empty) {
               mappedCategories = snapshot.docs.map((doc) => {
                 const data = doc.data();
+                const categoryId = (data.categoryId as string) ?? doc.id;
                 const stamps = data.unlockedStamps as
-                  | Record<string, { timesUnlocked?: number }>
+                  | Record<string, { timesUnlocked?: number; category?: string }>
                   | undefined;
                 return {
                   category: (data.category as string) ?? doc.id,
+                  categoryId,
                   justification:
                     (data.mappings as Array<{ justification?: string }> | undefined)?.at(-1)
                       ?.justification ?? "",
@@ -97,6 +95,8 @@ export default function PassportScreen() {
                   unlockedStamps: stamps
                     ? Object.entries(stamps).map(([name, s]) => ({
                         name,
+                        category: s.category ?? (data.category as string) ?? doc.id,
+                        categoryId,
                         timesUnlocked: s.timesUnlocked ?? 1,
                       }))
                     : [],
@@ -140,7 +140,7 @@ export default function PassportScreen() {
               color={colors.brand.primary}
             />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleReset} style={styles.floatingButton}>
+          <TouchableOpacity onPress={reset} style={styles.floatingButton}>
             <MaterialIcons name="refresh" size={24} color={colors.brand.primary} />
           </TouchableOpacity>
         </View>
@@ -191,7 +191,10 @@ export default function PassportScreen() {
                 <TouchableOpacity
                   key={region}
                   style={styles.regionItem}
-                  onPress={() => navigation.navigate("Stamps", { region })}
+                  onPress={() => {
+                    const catId = getCategoryIdFromName(region);
+                    navigation.navigate("Stamps", { region, categoryId: catId });
+                  }}
                 >
                   <View style={styles.iconContainer}>
                     <MaterialIcons

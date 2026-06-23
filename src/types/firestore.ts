@@ -1,12 +1,12 @@
-import { Timestamp } from "firebase/firestore";
+import { FieldValue, Timestamp } from "firebase/firestore";
 
 export type InteractionMappingOutcome = "mapped" | "already_mapped" | "weak_fit" | "invalid";
 
 export interface UserDocument {
   email: string | null;
   displayName: string | null;
-  createdAt: Timestamp;
-  lastActiveAt: Timestamp;
+  createdAt: Timestamp | FieldValue;
+  lastActiveAt: Timestamp | FieldValue;
   isAnonymous: boolean;
 }
 
@@ -28,9 +28,11 @@ export interface InteractionDocument {
   inputMethod: "text" | "voice" | "image";
   mappingOutcome: InteractionMappingOutcome;
   mappedCategory: string | null;
+  categoryId: string | null;
   isWeakFit: boolean;
   isAlreadyMapped: boolean;
   justification: string;
+  specificStamp?: string | null;
   matchedToCategory: string | null;
   matchedToSequenceIndex: number | null;
   timestamp: Timestamp;
@@ -40,6 +42,8 @@ export interface PassportCategoryMapping {
   sessionId: string;
   interactionId: string;
   justification: string;
+  specificStamp?: string | null;
+  categoryId?: string | null;
   timestamp: Timestamp;
 }
 
@@ -47,10 +51,13 @@ export interface UnlockedStampEntry {
   timesUnlocked: number;
   firstUnlockedAt: Timestamp;
   lastUnlockedAt: Timestamp;
+  category?: string;
+  categoryId?: string;
 }
 
 export interface SkillPassportDocument {
   category: string;
+  categoryId: string;
   firstMappedAt: Timestamp;
   lastMappedAt: Timestamp;
   totalMappings: number;

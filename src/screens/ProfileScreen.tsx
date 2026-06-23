@@ -16,16 +16,19 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
+import { auth } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
+import { useDialogue } from "../context/DialogueContext";
+import { useLogout } from "../hooks/useLogout";
 import {
   fetchProfile,
   updateProfile,
   buildLocalProfile,
   type UserProfile,
 } from "../services/profileService";
-import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -52,9 +55,8 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [savingBio, setSavingBio] = useState(false);
 
-  const handleReset = () => {
-    dialogueBridgeRef.current?.handleReset?.();
-  };
+  const { reset } = useDialogue();
+  const { confirmAndLogout } = useLogout();
 
   useFocusEffect(
     useCallback(() => {
@@ -77,48 +79,37 @@ export default function ProfileScreen() {
   );
 
   const navigation = useNavigation<ProfileNav>();
-  const { session, logoutToGuest } = useAuth();
+  const { session } = useAuth();
   const [bio, setBio] = useState("");
   const [editingBio, setEditingBio] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert(
-      "Switch to Guest",
-      "You will keep this account's saved progress, and the app will continue in guest mode.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Switch to Guest",
-          onPress: () => {
-            logoutToGuest()
-              .then(() => {
-                navigation.replace("Welcome");
-              })
-              .catch(() => {
-                Alert.alert("Error", "Failed to switch to guest mode.");
-              });
-          },
-        },
-      ]
-    );
+    confirmAndLogout(() => navigation.replace("Welcome"), "Switch to Guest");
   };
 
+  const displayName = useMemo(() => {
+    return profile?.fullName || profile?.displayName || "Your Profile";
+  }, [profile]);
+
+  const photoUrl = profile?.photoURL || auth.currentUser?.photoURL || null;
+
   const highSchool = useMemo(() => {
-    const value = profile?.metadata.highSchool;
-    return typeof value === "string" && value.trim().length > 0 ? value : "Hometown High School";
+    return profile?.schoolName?.trim();
   }, [profile]);
 
   const handleSaveBio = async () => {
     if (!profile) return;
     setSavingBio(true);
     try {
-      const updatedProfile = await updateProfile({ metadata: { ...profile.metadata, bio } });
-      setProfile(updatedProfile);
-      const nextBio = updatedProfile.metadata.bio;
-      setBio(typeof nextBio === "string" ? nextBio : "");
+      const result = await updateProfile({ metadata: { ...profile.metadata, bio } });
+      console.log("[ProfileScreen] Bio save result:", JSON.stringify(result, null, 2));
+      console.log("[ProfileScreen] Bio save result.metadata.bio:", result.metadata.bio);
+
+      setProfile((prev) => (prev ? { ...prev, metadata: { ...prev.metadata, bio } } : prev));
+
       setEditingBio(false);
     } catch (error) {
-      console.log("Failed to update profile:", error);
+      console.warn("[ProfileScreen] Failed to update profile:", error);
     } finally {
       setSavingBio(false);
     }
@@ -129,6 +120,7 @@ export default function ProfileScreen() {
     { label: "About Me", complete: bio.trim().length > 0 },
     { label: "Upload Photos", complete: false },
     { label: "Complete Background Info", complete: false },
+    { label: "Full Name", complete: displayName !== "Your Profile" },
   ];
 
   const progressPercent = Math.round(
@@ -140,20 +132,20 @@ export default function ProfileScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={globalStyles.screen}>
+      <SafeAreaView style={globalStyles.screen}>
+        <View style={styles.floatingButtons} pointerEvents="box-none">
+          <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+            <MaterialIcons
+              name={session.mode === "authenticated" ? "logout" : "person"}
+              size={24}
+              color={colors.background.card}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={reset} style={styles.floatingButton}>
+            <MaterialIcons name="refresh" size={24} color={colors.background.card} />
+          </TouchableOpacity>
+        </View>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.floatingButtons} pointerEvents="box-none">
-            <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
-              <MaterialIcons
-                name={session.mode === "authenticated" ? "logout" : "person"}
-                size={24}
-                color={colors.background.card}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleReset} style={styles.floatingButton}>
-              <MaterialIcons name="refresh" size={24} color={colors.background.card} />
-            </TouchableOpacity>
-          </View>
           <View style={styles.bannerContainer}>
             <View style={styles.bannerClip}>
               <View style={styles.banner} />
@@ -161,8 +153,8 @@ export default function ProfileScreen() {
 
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarCircle}>
-                {profile?.photoURL ? (
-                  <Image source={{ uri: profile.photoURL }} style={styles.avatarImage} />
+                {photoUrl ? (
+                  <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
                 ) : (
                   <MaterialIcons name="person" size={40} color={colors.text.inverse} />
                 )}
@@ -171,9 +163,12 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.identitySection}>
-            <Text style={styles.studentName}>{profile?.displayName ?? "Your Profile"}</Text>
+            <Text style={styles.studentName}>{displayName}</Text>
             <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
             <Text style={styles.meta}>{highSchool}</Text>
+            {profile?.schoolAddress?.trim() ? (
+              <Text style={styles.meta}>{profile.schoolAddress}</Text>
+            ) : null}
             {profile?.pageUrl && (
               <Text style={[styles.meta, { color: colors.accent.sky, marginTop: 4 }]}>
                 {profile.pageUrl}
@@ -269,7 +264,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }

@@ -11,11 +11,14 @@ import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { computeDerivedSkills } from "../config/stampTaxonomy";
-import { DEFAULT_TIER } from "../config/stampConstants";
+import { DEFAULT_TIER, TIER_CONFIG } from "../config/stampConstants";
 import StampBadge from "../components/stamps/StampBadge";
+import { getActiveSessionId } from "../services/sessionManager";
 import {
   getUnlockedStampsForCategory,
-  getMappedCategory,
+  getConversationHistory,
+  syncFromFirestore,
+  fetchPassportJustifications,
 } from "../services/categoryStorageService";
 
 import { colors } from "../styles/global";
@@ -29,7 +32,7 @@ type StampDetailNavigationProp = StackNavigationProp<RootStackParamList, "StampD
 export default function StampDetailScreen() {
   const navigation = useNavigation<StampDetailNavigationProp>();
   const route = useRoute<StampDetailRouteProp>();
-  const { stamp, region } = route.params;
+  const { stamp, region, categoryId } = route.params;
   const allStamps = DERIVED_SKILLS[region] ?? [];
 
   const [unlockInfo, setUnlockInfo] = useState<{
@@ -37,7 +40,7 @@ export default function StampDetailScreen() {
     timesUnlocked: number;
     tier?: number;
   } | null>(null);
-  const [justification, setJustification] = useState<string | null>(null);
+  const [justifications, setJustifications] = useState<Array<{ justification: string }>>([]);
   const [unlockedNames, setUnlockedNames] = useState<Set<string>>(new Set());
   const unlockedStamps = allStamps.filter((s) => {
     if (unlockedNames.has(s)) return true;
@@ -50,20 +53,42 @@ export default function StampDetailScreen() {
     currentIndex < unlockedStamps.length - 1 ? unlockedStamps[currentIndex + 1] : null;
 
   const tier = unlockInfo?.tier ?? DEFAULT_TIER;
+  const tierCfg = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG[DEFAULT_TIER];
 
   const loadUnlockInfo = useCallback(async () => {
-    const unlocks = await getUnlockedStampsForCategory(region);
+    const unlocks = await getUnlockedStampsForCategory(categoryId);
     const found = unlocks.find((u) => u.name === stamp);
     setUnlockInfo(found ?? null);
     setUnlockedNames(new Set(unlocks.map((u) => u.name)));
 
+    const activeSessionId = await getActiveSessionId();
+
     try {
-      const mc = await getMappedCategory(region);
-      setJustification(mc?.justification ?? null);
+      // Source 1: passport justifications filtered by this specific stamp
+      const stampPassportItems = (
+        await fetchPassportJustifications(categoryId, activeSessionId ?? undefined, stamp)
+      ).map((j) => ({ justification: j }));
+      if (stampPassportItems.length > 0) {
+        setJustifications(stampPassportItems);
+        return;
+      }
+
+      // Source 2: conversation history filtered by specificStamp field
+      await syncFromFirestore();
+      const history = await getConversationHistory();
+      const stampHistoryItems = history
+        .filter((i) => i.specificStamp === stamp && i.justification)
+        .map((i) => ({ justification: i.justification! }));
+      if (stampHistoryItems.length > 0) {
+        setJustifications(stampHistoryItems);
+        return;
+      }
+
+      setJustifications([]);
     } catch {
-      setJustification(null);
+      setJustifications([]);
     }
-  }, [region, stamp]);
+  }, [categoryId, stamp]);
 
   useFocusEffect(
     useCallback(() => {
@@ -76,6 +101,7 @@ export default function StampDetailScreen() {
     navigation.replace("StampDetails", {
       stamp: previousStamp,
       region,
+      categoryId,
     });
   }
 
@@ -84,6 +110,7 @@ export default function StampDetailScreen() {
     navigation.replace("StampDetails", {
       stamp: nextStamp,
       region,
+      categoryId,
     });
   }
 
@@ -123,6 +150,12 @@ export default function StampDetailScreen() {
         <View style={styles.badgeContainer}>
           <View style={styles.badgeCircle}>{badgeContent}</View>
 
+          {unlockInfo && (
+            <View style={[styles.tierBadge, { backgroundColor: tierCfg.color }]}>
+              <Text style={styles.tierText}>{tierCfg.label}</Text>
+            </View>
+          )}
+
           <Text style={styles.title}>{stamp}</Text>
 
           <Text style={styles.subtitle}>{region}</Text>
@@ -135,13 +168,23 @@ export default function StampDetailScreen() {
           )}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Justification</Text>
-
-          <Text style={styles.justificationText}>
-            {justification || "No justification recorded for this stamp."}
-          </Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Justifications</Text>
         </View>
+
+        {justifications.length > 0 ? (
+          justifications.map((item, index) => (
+            <View key={index}>
+              {index > 0 && <View style={styles.justificationSeparator} />}
+              <View style={styles.justificationCard}>
+                <View style={styles.justificationAccent} />
+                <Text style={styles.justificationText}>{item.justification}</Text>
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.justificationEmpty}>No justification recorded for this stamp.</Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -212,6 +255,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
+  tierBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+
+  tierText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+
   unlockedBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -229,26 +286,47 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 
-  card: {
-    backgroundColor: colors.background.card,
-    borderRadius: 20,
-    padding: 18,
-    shadowColor: colors.accent.sky,
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  sectionHeader: {
+    marginBottom: 12,
   },
 
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: colors.text.primary,
-    marginBottom: 12,
+  },
+
+  justificationCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+
+  justificationAccent: {
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: colors.accent.sky,
+    marginRight: 12,
+    alignSelf: "stretch",
+    minHeight: 22,
   },
 
   justificationText: {
+    flex: 1,
     fontSize: 14,
     color: colors.text.primary,
     lineHeight: 22,
+  },
+
+  justificationSeparator: {
+    height: 1,
+    backgroundColor: colors.background.card,
+    marginVertical: 12,
+    marginLeft: 15,
+  },
+
+  justificationEmpty: {
+    fontSize: 14,
+    color: colors.text.muted,
+    fontStyle: "italic",
   },
 });

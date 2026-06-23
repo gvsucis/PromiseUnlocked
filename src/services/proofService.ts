@@ -1,7 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
-import * as ImageManipulator from "expo-image-manipulator";
-import { auth } from "../config/firebase";
 import { CONFIG } from "../config/env";
+import { getAuthHeaders } from "./uploadService";
+import { compressImage } from "../utils/compressImage";
 
 const PROOF_MAX_DIMENSION = 1280;
 const PROOF_REDUCED_DIMENSION = 1024;
@@ -25,11 +25,6 @@ export interface ProofStatusResponse {
   errorMessage?: string | null;
 }
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const token = await auth.currentUser?.getIdToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function getFileSizeBytes(uri: string): Promise<number | null> {
   try {
     const info = await FileSystem.getInfoAsync(uri);
@@ -51,40 +46,32 @@ async function compressProofImage(
     console.log("[ProofUpload] Original image", { imageUri, sizeBytes: originalSizeBytes });
 
   try {
-    let compressed = await ImageManipulator.manipulateAsync(
-      imageUri,
-      [{ resize: { width: PROOF_MAX_DIMENSION, height: PROOF_MAX_DIMENSION } }],
-      {
-        compress: PROOF_PRIMARY_QUALITY,
-        format: ImageManipulator.SaveFormat.JPEG,
-      }
-    );
+    let compressedUri = await compressImage(imageUri, {
+      maxDimension: PROOF_MAX_DIMENSION,
+      quality: PROOF_PRIMARY_QUALITY,
+    });
 
-    let compressedSizeBytes = await getFileSizeBytes(compressed.uri);
+    let compressedSizeBytes = await getFileSizeBytes(compressedUri);
 
     if (compressedSizeBytes && compressedSizeBytes > PROOF_TARGET_MAX_BYTES) {
-      compressed = await ImageManipulator.manipulateAsync(
-        compressed.uri,
-        [{ resize: { width: PROOF_REDUCED_DIMENSION, height: PROOF_REDUCED_DIMENSION } }],
-        {
-          compress: PROOF_SECONDARY_QUALITY,
-          format: ImageManipulator.SaveFormat.JPEG,
-        }
-      );
-      compressedSizeBytes = await getFileSizeBytes(compressed.uri);
+      compressedUri = await compressImage(compressedUri, {
+        maxDimension: PROOF_REDUCED_DIMENSION,
+        quality: PROOF_SECONDARY_QUALITY,
+      });
+      compressedSizeBytes = await getFileSizeBytes(compressedUri);
     }
 
     if (__DEV__)
       console.log("[ProofUpload] Compressed image", {
-        compressedUri: compressed.uri,
+        compressedUri,
         sizeBytes: compressedSizeBytes,
         targetMaxBytes: PROOF_TARGET_MAX_BYTES,
       });
 
-    return { uri: compressed.uri, sizeBytes: compressedSizeBytes };
+    return { uri: compressedUri, sizeBytes: compressedSizeBytes };
   } catch (error) {
     if (__DEV__) console.warn("[ProofUpload] Compression failed, using original image", error);
-    return { uri: imageUri, sizeBytes: originalSizeBytes };
+    return { uri: imageUri, sizeBytes: originalSizeBytes ?? null };
   }
 }
 

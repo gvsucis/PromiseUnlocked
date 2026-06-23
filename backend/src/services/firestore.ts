@@ -125,6 +125,7 @@ export function normalizeInteraction(
     isWeakFit: data?.isWeakFit ?? false,
     isAlreadyMapped: data?.isAlreadyMapped ?? false,
     justification: data?.justification ?? "",
+    specificStamp: data?.specificStamp ?? undefined,
     matchedToCategory: data?.matchedToCategory ?? null,
     matchedToSequenceIndex: data?.matchedToSequenceIndex ?? null,
     ...normalizeTimestamps(data!, ["timestamp"]),
@@ -141,8 +142,17 @@ const userConverter: FirestoreDataConverter<UserProfile> = {
       displayName: data.displayName,
       photoURL: data.photoURL,
       createdAt: data.createdAt,
-      updatedAt: data.lastActivityAt,
+      updatedAt: data.updatedAt ?? data.lastActivityAt,
       isAnonymous: data.isAnonymous,
+      fullName: data.fullName ?? null,
+      schoolName: data.schoolName ?? null,
+      schoolAddress: data.schoolAddress ?? null,
+      phone: data.phone ?? null,
+      address: data.address ?? null,
+      dateOfBirth: data.dateOfBirth ?? null,
+      gender: data.gender ?? null,
+      ethnicity: data.ethnicity ?? null,
+      pageUrl: data.pageUrl ?? null,
       metadata: data.metadata ?? {},
     };
   },
@@ -159,7 +169,14 @@ const sessionConverter: FirestoreDataConverter<SessionRecord> = {
       status: data.status,
       startedAt: data.startedAt,
       endedAt: data.endedAt,
-      metadata: data.metadata ?? {},
+      alreadyMappedCount: data.alreadyMappedCount ?? 0,
+      categoriesMapped: data.categoriesMapped ?? [],
+      categoriesMappedCount: data.categoriesMappedCount ?? 0,
+      completedAt: data.completedAt ?? null,
+      lastActiveAt: data.lastActiveAt ?? null,
+      weakFitCount: data.weakFitCount ?? 0,
+      totalInteractions: data.totalInteractions ?? 0,
+      interactions: data.interactions ?? [],
     };
   },
 };
@@ -179,9 +196,19 @@ const interactionConverter: FirestoreDataConverter<InteractionRecord> = {
       isWeakFit: data.isWeakFit ?? false,
       isAlreadyMapped: data.isAlreadyMapped ?? false,
       justification: data.justification ?? "",
+      specificStamp: data.specificStamp ?? undefined,
       matchedToCategory: data.matchedToCategory ?? null,
       matchedToSequenceIndex: data.matchedToSequenceIndex ?? null,
       timestamp: data.timestamp ?? null,
+      proofJobId: data.proofJobId ?? null,
+      proofStatus: data.proofStatus ?? null,
+      proofStoragePath: data.proofStoragePath ?? null,
+      proofUploadedAt: data.proofUploadedAt ?? null,
+      proofAnalyzedAt: data.proofAnalyzedAt ?? null,
+      proofTier: data.proofTier ?? null,
+      proofConfidence: data.proofConfidence ?? null,
+      proofFeedbackMessage: data.proofFeedbackMessage ?? null,
+      proofRequiredAction: data.proofRequiredAction ?? null,
     };
   },
 };
@@ -203,11 +230,11 @@ export const participantSessionInteractionsCollection = (uid: string, sessionId:
     .collection("interactions")
     .withConverter(interactionConverter);
 
-export const participantPassportCollection = (uid: string) =>
-  participantDoc(uid).collection("skillPassport");
+export const participantPassportCollection = (uid: string, sessionId: string) =>
+  participantSessionDoc(uid, sessionId).collection("skillPassport");
 
-export const participantPassportDoc = (uid: string, categoryId: string) =>
-  participantPassportCollection(uid).doc(categoryId);
+export const participantPassportDoc = (uid: string, sessionId: string, categoryId: string) =>
+  participantPassportCollection(uid, sessionId).doc(categoryId);
 
 export function normalizePassport(
   doc: FirebaseFirestore.DocumentSnapshot

@@ -22,7 +22,7 @@ const buildProfileFromRecord = (
   return {
     uid: userRecord.uid,
     email: userRecord.email ?? "",
-    displayName: userRecord.displayName ?? null,
+    fullName: userRecord.displayName ?? null,
     photoURL: userRecord.photoURL ?? null,
     createdAt: now,
     updatedAt: now,
@@ -46,7 +46,7 @@ const fetchOrCreateProfile = async (uid: string): Promise<UserProfile> => {
 
 export class ParticipantsController {
   static async createParticipant(req: Request, res: Response) {
-    const { email, password, displayName, photoURL, metadata = {} } = req.body ?? {};
+    const { email, password, fullName, photoURL, metadata = {} } = req.body ?? {};
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password are required" });
     }
@@ -54,13 +54,13 @@ export class ParticipantsController {
       const userRecord = await admin.auth().createUser({
         email,
         password,
-        displayName,
+        displayName: fullName ?? null, // Firebase Auth uses displayName internally, but we map it to fullName in our profile
         photoURL,
       });
       const baseProfile = buildProfileFromRecord(userRecord, metadata);
       const profile: UserProfile = {
         ...baseProfile,
-        displayName: displayName === "undefined" ? baseProfile.displayName : displayName,
+        fullName: fullName === "undefined" ? baseProfile.fullName : fullName,
         photoURL: photoURL === "undefined" ? baseProfile.photoURL : photoURL,
       };
       await participantsCollection.doc(userRecord.uid).set(profile);
@@ -111,12 +111,11 @@ export class ParticipantsController {
     if (!parsed.success) {
       return res.status(400).json({
         error: "Invalid profile fields",
-        details: parsed.error.flatten().fieldErrors,
+        details: parsed.error.issues,
       });
     }
 
     const {
-      displayName,
       email,
       photoURL,
       pageUrl,
@@ -128,6 +127,7 @@ export class ParticipantsController {
       gender,
       ethnicity,
       address: rawAddress,
+      metadata: incomingMetadata,
     } = parsed.data;
 
     try {
@@ -135,37 +135,36 @@ export class ParticipantsController {
 
       const src = rawAddress ?? currentProfile.address;
       const address = src
-          ? {
-              street: src.street ?? null,
-              city: src.city ?? null,
-              state: src.state ?? null,
-              postalCode: src.postalCode ?? null,
-              country: src.country ?? null,
-            } as Address
-          : null;
+        ? ({
+            street: src.street ?? null,
+            city: src.city ?? null,
+            state: src.state ?? null,
+            postalCode: src.postalCode ?? null,
+            country: src.country ?? null,
+          } as Address)
+        : null;
 
       const nextProfile: UserProfile = {
         uid: currentProfile.uid,
         email: email ?? currentProfile.email,
-        displayName: displayName ?? (currentProfile.displayName ?? null),
-        photoURL: photoURL ?? (currentProfile.photoURL ?? null),
-        pageUrl: pageUrl ?? (currentProfile.pageUrl ?? null),
-        fullName: fullName ?? (currentProfile.fullName ?? null),
-        schoolName: schoolName ?? (currentProfile.schoolName ?? null),
-        schoolAddress: schoolAddress ?? (currentProfile.schoolAddress ?? null),
-        phone: phone ?? (currentProfile.phone ?? null),
-        dateOfBirth: dateOfBirth ?? (currentProfile.dateOfBirth ?? null),
-        gender: gender ?? (currentProfile.gender ?? null),
-        ethnicity: ethnicity ?? (currentProfile.ethnicity ?? null),
+        fullName: fullName ?? currentProfile.fullName ?? null,
+        photoURL: photoURL ?? currentProfile.photoURL ?? null,
+        pageUrl: pageUrl ?? currentProfile.pageUrl ?? null,
+        schoolName: schoolName ?? currentProfile.schoolName ?? null,
+        schoolAddress: schoolAddress ?? currentProfile.schoolAddress ?? null,
+        phone: phone ?? currentProfile.phone ?? null,
+        dateOfBirth: dateOfBirth ?? currentProfile.dateOfBirth ?? null,
+        gender: gender ?? currentProfile.gender ?? null,
+        ethnicity: ethnicity ?? currentProfile.ethnicity ?? null,
         address,
-        metadata: currentProfile.metadata,
+        metadata: { ...currentProfile.metadata, ...incomingMetadata },
         updatedAt: Date.now(),
         createdAt: currentProfile.createdAt ?? Date.now(),
       };
 
       const authUpdates: { displayName?: string; email?: string; photoURL?: string } = {};
-      if (typeof displayName === "string") {
-        authUpdates.displayName = displayName;
+      if (typeof fullName === "string") {
+        authUpdates.displayName = fullName;
       }
       if (typeof email === "string") {
         authUpdates.email = email;
@@ -258,16 +257,20 @@ export class ParticipantsController {
   static async getPassport(req: Request, res: Response) {
     const requester = (req as AuthenticatedRequest).user;
     const { uid } = req.params as { uid: string };
+    const sessionId = req.query.sessionId as string | undefined;
     if (!uid) {
       return res.status(400).json({ error: "Missing participant uid" });
+    }
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId query param is required" });
     }
     try {
       if (!(await canAccessParticipant(requester, uid))) {
         return res.status(403).json({ error: "Forbidden" });
       }
-      const snapshot = await participantPassportCollection(uid).get();
+      const snapshot = await participantPassportCollection(uid, sessionId).get();
       const passport = snapshot.docs.map((doc) => normalizePassport(doc));
-      return res.json({ passport });
+      return res.json({ passport, sessionId });
     } catch (error) {
       console.error("Error fetching passport:", error);
       return res.status(500).json({ error: "Failed to fetch passport" });
@@ -293,28 +296,50 @@ export class ParticipantsController {
       const result = await Promise.all(
         participantsSnapshot.docs.map(async (doc) => {
           const profile = normalizeUser(doc) as Record<string, unknown>;
-          const passportSnapshot = await participantPassportCollection(doc.id).get();
-          const passport = passportSnapshot.docs.map((p) => {
-            const n = normalizePassport(p) as Record<string, unknown>;
-            const stamps = n.unlockedStamps as Record<string, { timesUnlocked?: number }> | undefined;
-            let unlockedStampCount = 0;
-            if (stamps) {
-              unlockedStampCount = Object.keys(stamps).length;
+          const sessionsSnapshot = await participantSessionsCollection(doc.id)
+            .select("status")
+            .get();
+          const allPassportDocs: Array<Record<string, unknown>> = [];
+          for (const sessionDoc of sessionsSnapshot.docs) {
+            const passportSnapshot = await participantPassportCollection(
+              doc.id,
+              sessionDoc.id
+            ).get();
+            for (const p of passportSnapshot.docs) {
+              allPassportDocs.push(normalizePassport(p) ?? {});
             }
-            return {
-              category: n.category,
-              totalMappings: n.totalMappings,
-              unlockedStampCount,
-            };
-          });
+          }
+          const aggregated = allPassportDocs.reduce<Record<string, unknown>>(
+            (acc, p) => {
+              const category = p.category as string;
+              if (!category) return acc;
+              if (!acc[category]) {
+                acc[category] = { category, totalMappings: 0, unlockedStampCount: 0 };
+              }
+              const stamps = p.unlockedStamps as
+                | Record<string, { timesUnlocked?: number }>
+                | undefined;
+              const stampCount = stamps ? Object.keys(stamps).length : 0;
+              (acc[category] as Record<string, unknown>).totalMappings =
+                ((acc[category] as Record<string, unknown>).totalMappings as number) +
+                ((p.totalMappings as number) ?? 0);
+              (acc[category] as Record<string, unknown>).unlockedStampCount =
+                ((acc[category] as Record<string, unknown>).unlockedStampCount as number) +
+                stampCount;
+              return acc;
+            },
+            {} as Record<string, unknown>
+          );
+          const passport = Object.values(aggregated) as Array<{
+            category: string;
+            totalMappings: number;
+            unlockedStampCount: number;
+          }>;
           const totalStampsUnlocked = passport.reduce(
             (sum, c) => sum + (c.unlockedStampCount as number),
             0
           );
-          const totalMappings = passport.reduce(
-            (sum, c) => sum + (c.totalMappings as number),
-            0
-          );
+          const totalMappings = passport.reduce((sum, c) => sum + (c.totalMappings as number), 0);
           return {
             uid: doc.id,
             displayName: profile.displayName ?? null,

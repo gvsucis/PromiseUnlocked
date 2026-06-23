@@ -14,6 +14,9 @@ import {
   arrayUnion,
   increment,
   serverTimestamp,
+  query,
+  where,
+  limit,
   Timestamp,
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
@@ -179,6 +182,20 @@ export async function getSessionStatus(
   }
 }
 
+/**
+ * Find the user's current in_progress session, if any.
+ * A user has at most one in_progress session at a time, shared across every
+ * device, so Firestore — not local storage — is the source of truth for which
+ * session is active. Returns null when there is no in_progress session, and
+ * rethrows on read failure so callers can distinguish "none" from "offline".
+ */
+export async function getInProgressSession(userId: string): Promise<string | null> {
+  const sessionsRef = collection(db, "participants", userId, "sessions");
+  const q = query(sessionsRef, where("status", "==", "in_progress"), limit(1));
+  const snapshot = await getDocs(q);
+  return snapshot.empty ? null : snapshot.docs[0].id;
+}
+
 export async function fetchSessionInteractions(
   userId: string,
   sessionId: string
@@ -214,9 +231,11 @@ export async function saveInteraction(
     inputMethod: InputMethod;
     mappingOutcome: InteractionMappingOutcome;
     mappedCategory: string | null;
+    categoryId: string | null;
     isWeakFit: boolean;
     isAlreadyMapped: boolean;
     justification: string;
+    specificStamp?: string;
     matchedToCategory: string | null;
     matchedToSequenceIndex: number | null;
   }
@@ -235,7 +254,19 @@ export async function saveInteraction(
       resolvedInteractionId
     );
     const interactionDoc: InteractionDocument = {
-      ...interaction,
+      sequenceIndex: interaction.sequenceIndex,
+      question: interaction.question,
+      answer: interaction.answer,
+      inputMethod: interaction.inputMethod,
+      mappingOutcome: interaction.mappingOutcome,
+      mappedCategory: interaction.mappedCategory,
+      categoryId: interaction.categoryId,
+      isWeakFit: interaction.isWeakFit,
+      isAlreadyMapped: interaction.isAlreadyMapped,
+      justification: interaction.justification,
+      specificStamp: interaction.specificStamp ?? null,
+      matchedToCategory: interaction.matchedToCategory,
+      matchedToSequenceIndex: interaction.matchedToSequenceIndex,
       timestamp: serverTimestamp() as unknown as Timestamp,
     };
     await setDoc(interactionRef, interactionDoc);
@@ -275,18 +306,36 @@ export async function savePassportMapping(
   sessionId: string,
   interactionId: string,
   category: string,
-  justification: string
+  categoryId: string,
+  justification: string,
+  specificStamp?: string
 ): Promise<void> {
   try {
     await ensureSessionDocument(userId, sessionId);
 
-    const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-    const passportRef = doc(db, "participants", userId, "skillPassport", categoryId);
+    const passportRef = doc(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport",
+      categoryId
+    );
 
-    const mapping = {
+    const mapping: {
+      sessionId: string;
+      interactionId: string;
+      justification: string;
+      specificStamp?: string | null;
+      categoryId?: string | null;
+      timestamp: Timestamp;
+    } = {
       sessionId,
       interactionId,
       justification,
+      specificStamp: specificStamp ?? null,
+      categoryId,
       // Field transforms are not allowed inside arrayUnion payloads.
       timestamp: Timestamp.now(),
     };
@@ -295,6 +344,7 @@ export async function savePassportMapping(
       passportRef,
       {
         category,
+        categoryId,
         firstMappedAt: serverTimestamp(),
         lastMappedAt: serverTimestamp(),
         totalMappings: increment(1),
@@ -324,13 +374,21 @@ export async function savePassportMapping(
  */
 export async function saveStampUnlock(
   userId: string,
-  category: string,
+  sessionId: string,
+  categoryId: string,
   stampName: string,
   tier: number = 1
 ): Promise<void> {
   try {
-    const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-    const passportRef = doc(db, "participants", userId, "skillPassport", categoryId);
+    const passportRef = doc(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport",
+      categoryId
+    );
 
     const stampKey = `unlockedStamps.${stampName.replaceAll(/[.[\]/]/g, "_")}`;
     const existing = await getDoc(passportRef);
@@ -343,14 +401,15 @@ export async function saveStampUnlock(
     await setDoc(
       passportRef,
       {
-        category,
+        categoryId,
         [stampKey]: hasStamp
-          ? { timesUnlocked: increment(1), lastUnlockedAt: serverTimestamp(), tier }
+          ? { timesUnlocked: increment(1), lastUnlockedAt: serverTimestamp(), tier, categoryId }
           : {
               timesUnlocked: 1,
               firstUnlockedAt: serverTimestamp(),
               lastUnlockedAt: serverTimestamp(),
               tier,
+              categoryId,
             },
       },
       { merge: true }
@@ -362,26 +421,29 @@ export async function saveStampUnlock(
 }
 
 export async function fetchPassportMappings(
-  userId: string
-): Promise<{ category: string; firstMappedAt: Date; totalMappings: number }[]> {
+  userId: string,
+  sessionId: string
+): Promise<{ category: string; categoryId: string; firstMappedAt: Date; totalMappings: number }[]> {
   try {
-    const passportRef = collection(db, "participants", userId, "skillPassport");
+    const passportRef = collection(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport"
+    );
     const snapshot = await getDocs(passportRef);
-    const mappings: { category: string; firstMappedAt: Date; totalMappings: number }[] = [];
 
-    snapshot.forEach((doc) => {
+    return snapshot.docs.map((doc) => {
       const data = doc.data();
-      const category = data.category as string | undefined;
-      if (!category) return;
-
-      mappings.push({
-        category,
+      return {
+        category: (data.category as string) ?? doc.id,
+        categoryId: (data.categoryId as string) ?? doc.id,
         firstMappedAt: data.firstMappedAt?.toDate?.() ?? new Date(),
         totalMappings: (data.totalMappings as number) ?? 1,
-      });
+      };
     });
-
-    return mappings;
   } catch (err) {
     console.error("[Firestore] Failed to fetch passport mappings:", err);
     return [];

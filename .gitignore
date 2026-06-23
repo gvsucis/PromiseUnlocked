@@ -42,3 +42,9 @@ plans/
 
 # typescript
 *.tsbuildinfo
+env.*
+
+# agent skills config
+AGENTS.md
+docs/agents/
+.scratch/

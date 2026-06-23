@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -7,9 +7,12 @@ import {
   StyleSheet,
   TextInput,
   Image,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Text } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
+import { colors } from "@/src/styles/global";
 
 export type InputMethod = "text" | "voice" | "image";
 
@@ -30,6 +33,8 @@ interface Props {
   question: string;
   textValue?: string;
   onTextChange?: (text: string) => void;
+  /** Pre-fills the input when the modal opens (uncontrolled mode only). */
+  seedText?: string;
   onSelectInputType: (method: Exclude<InputMethod, "text">) => void;
   onSubmitText: (text: string) => void;
   onSubmitTextAndImage?: (text: string, imageUri: string) => void;
@@ -38,6 +43,8 @@ interface Props {
   onRemoveAttachedImage?: () => void;
   onClose: () => void;
   onBackdropDismiss?: () => void;
+  onNewQuestion?: () => void;
+  onNewTopic?: () => void;
 }
 
 export function QuestionInputModal({
@@ -45,6 +52,7 @@ export function QuestionInputModal({
   question,
   textValue: controlledText,
   onTextChange,
+  seedText,
   onSelectInputType,
   onSubmitText,
   onSubmitTextAndImage,
@@ -53,10 +61,25 @@ export function QuestionInputModal({
   onRemoveAttachedImage,
   onClose,
   onBackdropDismiss,
+  onNewQuestion,
+  onNewTopic,
 }: Readonly<Props>) {
   const [internalText, setInternalText] = useState("");
   const textValue = controlledText ?? internalText;
   const setTextValue = onTextChange ?? setInternalText;
+
+  // In uncontrolled mode, pre-fill the input from `seedText` when the modal
+  // opens for a *new* question. Keying off the question (not just visibility)
+  // means reopening the same question — e.g. resuming after a backdrop dismiss
+  // — preserves the in-progress draft instead of overwriting it, while a new
+  // question still seeds fresh. Never re-seeds on keystroke-driven re-renders.
+  const seededQuestionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (visible && controlledText === undefined && seededQuestionRef.current !== question) {
+      setInternalText(seedText ?? "");
+      seededQuestionRef.current = question;
+    }
+  }, [visible, question, seedText, controlledText]);
 
   const resetText = () => {
     setTextValue("");
@@ -102,80 +125,99 @@ export function QuestionInputModal({
       statusBarTranslucent
       onRequestClose={handleBackdropDismiss}
     >
-      <TouchableWithoutFeedback onPress={handleBackdropDismiss}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <View style={styles.container}>
-              <Text style={styles.heading}>Question</Text>
-              <Text style={styles.question}>{question}</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <TouchableWithoutFeedback onPress={handleBackdropDismiss}>
+          <View style={styles.overlay}>
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <View style={styles.container}>
+                <TouchableOpacity style={styles.closeIconButton} onPress={handleClose}>
+                  <Ionicons name="close-circle" size={28} color="#FF6B6B" />
+                </TouchableOpacity>
+                <Text style={styles.heading}>Question</Text>
+                <Text style={styles.question}>{question}</Text>
 
-              <TextInput
-                style={styles.textInput}
-                placeholder="Type your answer..."
-                placeholderTextColor="#aaa"
-                multiline
-                numberOfLines={5}
-                value={textValue}
-                onChangeText={setTextValue}
-                textAlignVertical="top"
-              />
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Type your answer..."
+                  placeholderTextColor="#aaa"
+                  multiline
+                  numberOfLines={5}
+                  value={textValue}
+                  onChangeText={setTextValue}
+                  textAlignVertical="top"
+                />
 
-              {attachedImageUri && (
-                <View style={styles.imagePreviewRow}>
-                  <Image source={{ uri: attachedImageUri }} style={styles.imagePreview} />
+                {attachedImageUri && (
+                  <View style={styles.imagePreviewRow}>
+                    <Image source={{ uri: attachedImageUri }} style={styles.imagePreview} />
+                    <TouchableOpacity
+                      style={styles.removeImageButton}
+                      onPress={() => onRemoveAttachedImage?.()}
+                    >
+                      <Ionicons name="close-circle" size={22} color="#FF6B6B" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Alt input options — right-aligned below text input */}
+                <View style={styles.altInputRow}>
+                  {ALT_INPUT_OPTIONS.map(({ method, label, icon, color }) => (
+                    <TouchableOpacity
+                      key={method}
+                      style={styles.altInputButton}
+                      onPress={() => handleAltInput(method)}
+                    >
+                      <View style={[styles.altIconCircle, { backgroundColor: color }]}>
+                        <Ionicons name={icon} size={20} color="white" />
+                      </View>
+                      <Text style={styles.altInputLabel}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={styles.actionRow}>
                   <TouchableOpacity
-                    style={styles.removeImageButton}
-                    onPress={() => onRemoveAttachedImage?.()}
+                    style={styles.newQuestionButton}
+                    onPress={() => {
+                      onNewQuestion?.();
+                      handleClose();
+                    }}
                   >
-                    <Ionicons name="close-circle" size={22} color="#FF6B6B" />
+                    <Text style={styles.newQuestionText}>Skip</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.newTopicButton}
+                    onPress={() => {
+                      onNewTopic?.();
+                      handleClose();
+                    }}
+                  >
+                    <Text style={styles.newTopicText}>New Region</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.submitButton, !hasContent && styles.submitButtonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={!hasContent}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.submitText}>Submit</Text>
                   </TouchableOpacity>
                 </View>
-              )}
-
-              {/* Alt input options — right-aligned below text input */}
-              <View style={styles.altInputRow}>
-                {ALT_INPUT_OPTIONS.map(({ method, label, icon, color }) => (
-                  <TouchableOpacity
-                    key={method}
-                    style={styles.altInputButton}
-                    onPress={() => handleAltInput(method)}
-                  >
-                    <View style={[styles.altIconCircle, { backgroundColor: color }]}>
-                      <Ionicons name={icon} size={18} color="white" />
-                    </View>
-                    <Text style={styles.altInputLabel}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
               </View>
-
-              <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.submitButton, !hasContent && styles.submitButtonDisabled]}
-                  onPress={handleSubmit}
-                  disabled={!hasContent}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.submitText}>Submit</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
@@ -188,7 +230,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   heading: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     letterSpacing: 1.8,
     textTransform: "uppercase",
@@ -260,18 +302,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: "#eee",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelText: {
-    color: "#667eea",
-    fontWeight: "bold",
-  },
   imagePreviewRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -287,5 +317,37 @@ const styles = StyleSheet.create({
   },
   removeImageButton: {
     marginLeft: 8,
+  },
+  closeIconButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+  },
+  newQuestionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: colors.accent.sky,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  newQuestionText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 12,
+  },
+  newTopicButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#e8e0ff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  newTopicText: {
+    color: "#7c4dff",
+    fontWeight: "bold",
+    fontSize: 12,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Alert,
   ScrollView,
@@ -8,24 +8,25 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  ActivityIndicator,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
-import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import { states } from "states-us";
-import { updateProfile } from "../services/profileService";
-import { colors, typography, spacing, radius } from "../styles/global";
+import { fetchProfile, updateProfile } from "../services/profileService";
+import { colors, spacing, radius } from "../styles/global";
 
 type EditProfileFormState = {
   dob: Date | null;
   gender: string;
   ethnicity: string;
+  fullName: string;
+  displayName: string;
   phone: string;
   email: string;
   pageUrl: string;
@@ -33,13 +34,16 @@ type EditProfileFormState = {
   city: string;
   state: string;
   postalCode: string;
+  country: string;
   schoolName: string;
   schoolAddress: string;
 };
 
 function buildUpdatePayload(formState: EditProfileFormState) {
+  const name = formState.fullName.trim() || undefined;
   return {
-    email: formState.email.trim() || undefined,
+    fullName: name,
+    displayName: name,
     pageUrl: formState.pageUrl.trim() || undefined,
     gender: formState.gender || undefined,
     ethnicity: formState.ethnicity || undefined,
@@ -48,22 +52,23 @@ function buildUpdatePayload(formState: EditProfileFormState) {
     schoolAddress: formState.schoolAddress || undefined,
     dateOfBirth: formState.dob ? formState.dob.toISOString().split("T")[0] : undefined,
     address:
-      formState.street || formState.city || formState.state || formState.postalCode
+      formState.street ||
+      formState.city ||
+      formState.state ||
+      formState.postalCode ||
+      formState.country
         ? {
             street: formState.street || undefined,
             city: formState.city || undefined,
             state: formState.state || undefined,
             postalCode: formState.postalCode || undefined,
+            country: formState.country || undefined,
           }
         : undefined,
   };
 }
 
 function validateProfileForm(formState: EditProfileFormState): string | null {
-  if (formState.email && !/^\S+@\S+\.\S+$/.test(formState.email)) {
-    return "Please enter a valid email address.";
-  }
-
   if (formState.postalCode && formState.postalCode.length !== 5) {
     return "ZIP code must be 5 digits.";
   }
@@ -74,8 +79,9 @@ function validateProfileForm(formState: EditProfileFormState): string | null {
 // NOSONAR
 export default function EditProfileScreen() {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
 
+  const [fullName, setFullName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [dob, setDob] = useState<Date | null>(null);
   const [showDobPicker, setShowDobPicker] = useState(false);
   const [gender, setGender] = useState("");
@@ -87,12 +93,42 @@ export default function EditProfileScreen() {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [postalCode, setPostalCode] = useState("");
-  const [schoolName, setSchoolName] = useState("Hometown High School");
+  const [country, setCountry] = useState("");
+  const [schoolName, setSchoolName] = useState("");
   const [schoolAddress, setSchoolAddress] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showEthnicityPicker, setShowEthnicityPicker] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsLoading(true);
+      fetchProfile()
+        .then((profile) => {
+          setFullName(profile.fullName ?? "");
+          setDisplayName(profile.displayName ?? "");
+          setDob(profile.dateOfBirth ? new Date(profile.dateOfBirth + "T00:00:00") : null);
+          setGender(profile.gender ?? "");
+          setEthnicity(profile.ethnicity ?? "");
+          setPhone(profile.phone ?? "");
+          setEmail(profile.email ?? "");
+          setPageUrl(profile.pageUrl ?? "");
+          setStreet(profile.address?.street ?? "");
+          setCity(profile.address?.city ?? "");
+          setState(profile.address?.state ?? "");
+          setPostalCode(profile.address?.postalCode ?? "");
+          setCountry(profile.address?.country ?? "");
+          setSchoolName(profile.schoolName ?? "");
+          setSchoolAddress(profile.schoolAddress ?? "");
+        })
+        .catch((error) => {
+          console.warn("[EditProfile] Failed to fetch profile:", error);
+        })
+        .finally(() => setIsLoading(false));
+    }, [])
+  );
 
   const genderOptions = [
     { label: "Select gender", value: "" },
@@ -132,6 +168,8 @@ export default function EditProfileScreen() {
       dob,
       gender,
       ethnicity,
+      fullName,
+      displayName,
       phone,
       email,
       pageUrl,
@@ -139,6 +177,7 @@ export default function EditProfileScreen() {
       city,
       state,
       postalCode,
+      country,
       schoolName,
       schoolAddress,
     };
@@ -164,207 +203,122 @@ export default function EditProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.flex1}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={styles.container}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.accent.skyDark} />
-          </TouchableOpacity>
-
-          <View style={styles.header}>
-            <MaterialIcons name="person" size={40} color={colors.accent.skyDark} />
-            <Text style={styles.title}>Personal Information</Text>
-            <Text style={styles.subtitle}>Update your personal information</Text>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.accent.sky} />
           </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <MaterialIcons name="arrow-back" size={24} color={colors.accent.skyDark} />
+            </TouchableOpacity>
 
-          {/* Personal Info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>PERSONAL INFO</Text>
-
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>Date of birth</Label>
-              <TouchableOpacity style={styles.pickerWrapper} onPress={() => setShowDobPicker(true)}>
-                <Text style={dob ? styles.pickerText : styles.pickerPlaceholder}>
-                  {dob
-                    ? `${String(dob.getMonth() + 1).padStart(2, "0")}/${String(dob.getDate()).padStart(2, "0")}/${dob.getFullYear()}`
-                    : "MM/DD/YYYY"}
-                </Text>
-              </TouchableOpacity>
-              {Platform.OS === "android" && showDobPicker && (
-                <DateTimePicker
-                  value={dob ?? new Date()}
-                  mode="date"
-                  display="default"
-                  maximumDate={new Date()}
-                  onChange={(event, selectedDate) => {
-                    setShowDobPicker(false);
-                    if (event.type === "set" && selectedDate) {
-                      setDob(selectedDate);
-                    }
-                  }}
-                />
-              )}
+            <View style={styles.header}>
+              <MaterialIcons name="person" size={40} color={colors.accent.skyDark} />
+              <Text style={styles.title}>Personal Information</Text>
+              <Text style={styles.subtitle}>Update your personal information</Text>
             </View>
 
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>Gender</Label>
-              {Platform.OS === "ios" ? (
+            {/* Personal Info */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>PERSONAL INFO</Text>
+
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>Date of birth</Label>
                 <TouchableOpacity
                   style={styles.pickerWrapper}
-                  onPress={() => setShowGenderPicker(true)}
+                  onPress={() => setShowDobPicker(true)}
                 >
-                  <Text style={gender ? styles.pickerText : styles.pickerPlaceholder}>
-                    {gender ? getLabel(genderOptions, gender) : "Select gender"}
+                  <Text style={dob ? styles.pickerText : styles.pickerPlaceholder}>
+                    {dob
+                      ? `${String(dob.getMonth() + 1).padStart(2, "0")}/${String(dob.getDate()).padStart(2, "0")}/${dob.getFullYear()}`
+                      : "MM/DD/YYYY"}
                   </Text>
                 </TouchableOpacity>
-              ) : (
-                <View style={styles.pickerWrapper}>
-                  <Picker
-                    selectedValue={gender}
-                    onValueChange={(value) => setGender(value)}
-                    style={styles.picker}
-                  >
-                    {genderOptions.map((opt) => (
-                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                    ))}
-                  </Picker>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>Ethnicity</Label>
-              {Platform.OS === "ios" ? (
-                <TouchableOpacity
-                  style={styles.pickerWrapper}
-                  onPress={() => setShowEthnicityPicker(true)}
-                >
-                  <Text style={ethnicity ? styles.pickerText : styles.pickerPlaceholder}>
-                    {ethnicity ? getLabel(ethnicityOptions, ethnicity) : "Select ethnicity"}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.pickerWrapper}>
-                  <Picker
-                    selectedValue={ethnicity}
-                    onValueChange={(value) => setEthnicity(value)}
-                    style={styles.picker}
-                  >
-                    {ethnicityOptions.map((opt) => (
-                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                    ))}
-                  </Picker>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Contact */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>CONTACT</Text>
-
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>Phone</Label>
-              <View style={styles.inputWrapper}>
-                <Input
-                  placeholder="555-555-5555"
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  className="h-10 px-0 text-sm bg-white border-0"
-                  style={{ flex: 1 }}
-                />
+                {Platform.OS === "android" && showDobPicker && (
+                  <DateTimePicker
+                    value={dob ?? new Date()}
+                    mode="date"
+                    display="default"
+                    maximumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowDobPicker(false);
+                      if (event.type === "set" && selectedDate) {
+                        setDob(selectedDate);
+                      }
+                    }}
+                  />
+                )}
               </View>
-            </View>
 
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>Email</Label>
-              <View style={styles.inputWrapper}>
-                <Input
-                  placeholder="student@email.com"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  className="h-10 px-0 text-sm bg-white border-0"
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>Portfolio / Profile URL</Label>
-              <View style={styles.inputWrapper}>
-                <Input
-                  placeholder="linkedin.com/in/username or personal website"
-                  value={pageUrl}
-                  onChangeText={setPageUrl}
-                  keyboardType="url"
-                  autoCapitalize="none"
-                  className="h-10 px-0 text-sm bg-white border-0"
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Address */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>ADDRESS</Text>
-
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>Street address</Label>
-              <View style={styles.inputWrapper}>
-                <Input
-                  placeholder="123 Main St"
-                  value={street}
-                  onChangeText={setStreet}
-                  className="h-10 px-0 text-sm bg-white border-0"
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldHalf}>
-                <Label style={styles.label}>City</Label>
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>Full Name</Label>
                 <View style={styles.inputWrapper}>
                   <Input
-                    placeholder="City"
-                    value={city}
-                    onChangeText={setCity}
+                    placeholder="Your full name"
+                    value={fullName}
+                    onChangeText={setFullName}
+                    autoCapitalize="words"
                     className="h-10 px-0 text-sm bg-white border-0"
-                    style={{ flex: 1 }}
+                    style={styles.flex1}
                   />
                 </View>
               </View>
 
-              <View style={styles.fieldHalf}>
-                <Label style={styles.label}>State</Label>
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>Gender</Label>
                 {Platform.OS === "ios" ? (
                   <TouchableOpacity
                     style={styles.pickerWrapper}
-                    onPress={() => setShowStatePicker(true)}
+                    onPress={() => setShowGenderPicker(true)}
                   >
-                    <Text style={state ? styles.pickerText : styles.pickerPlaceholder}>
-                      {state || "Select state"}
+                    <Text style={gender ? styles.pickerText : styles.pickerPlaceholder}>
+                      {gender ? getLabel(genderOptions, gender) : "Select gender"}
                     </Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.pickerWrapper}>
                     <Picker
-                      selectedValue={state}
-                      onValueChange={(value) => setState(value)}
+                      selectedValue={gender}
+                      onValueChange={(value) => setGender(value)}
                       style={styles.picker}
                     >
-                      {stateOptions.map((opt) => (
+                      {genderOptions.map((opt) => (
+                        <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                      ))}
+                    </Picker>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>Ethnicity</Label>
+                {Platform.OS === "ios" ? (
+                  <TouchableOpacity
+                    style={styles.pickerWrapper}
+                    onPress={() => setShowEthnicityPicker(true)}
+                  >
+                    <Text style={ethnicity ? styles.pickerText : styles.pickerPlaceholder}>
+                      {ethnicity ? getLabel(ethnicityOptions, ethnicity) : "Select ethnicity"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.pickerWrapper}>
+                    <Picker
+                      selectedValue={ethnicity}
+                      onValueChange={(value) => setEthnicity(value)}
+                      style={styles.picker}
+                    >
+                      {ethnicityOptions.map((opt) => (
                         <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
                       ))}
                     </Picker>
@@ -373,49 +327,168 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>ZIP code</Label>
-              <View style={styles.inputWrapper}>
-                <Input
-                  placeholder="49512"
-                  value={postalCode}
-                  onChangeText={setPostalCode}
-                  keyboardType="number-pad"
-                  maxLength={5}
-                  className="h-10 px-0 text-sm bg-white border-0"
-                  style={{ flex: 1 }}
-                />
+            {/* Contact */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>CONTACT</Text>
+
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>Phone</Label>
+                <View style={styles.inputWrapper}>
+                  <Input
+                    placeholder="555-555-5555"
+                    value={phone}
+                    onChangeText={setPhone}
+                    keyboardType="phone-pad"
+                    className="h-10 px-0 text-sm bg-white border-0"
+                    style={styles.flex1}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>Portfolio / Profile URL</Label>
+                <View style={styles.inputWrapper}>
+                  <Input
+                    placeholder="linkedin.com/in/username or personal website"
+                    value={pageUrl}
+                    onChangeText={setPageUrl}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                    className="h-10 px-0 text-sm bg-white border-0"
+                    style={styles.flex1}
+                  />
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* School */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>SCHOOL</Text>
+            {/* Address */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>ADDRESS</Text>
 
-            <View style={styles.fieldGroup}>
-              <Label style={styles.label}>High school</Label>
-              <View style={styles.inputWrapper}>
-                <Input
-                  placeholder="Hometown High School"
-                  value={schoolName}
-                  onChangeText={setSchoolName}
-                  className="h-10 px-0 text-sm bg-white border-0"
-                  style={{ flex: 1 }}
-                />
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>Street address</Label>
+                <View style={styles.inputWrapper}>
+                  <Input
+                    placeholder="123 Main St"
+                    value={street}
+                    onChangeText={setStreet}
+                    className="h-10 px-0 text-sm bg-white border-0"
+                    style={styles.flex1}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldRow}>
+                <View style={styles.fieldHalf}>
+                  <Label style={styles.label}>City</Label>
+                  <View style={styles.inputWrapper}>
+                    <Input
+                      placeholder="City"
+                      value={city}
+                      onChangeText={setCity}
+                      className="h-10 px-0 text-sm bg-white border-0"
+                      style={styles.flex1}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.fieldHalf}>
+                  <Label style={styles.label}>State</Label>
+                  {Platform.OS === "ios" ? (
+                    <TouchableOpacity
+                      style={styles.pickerWrapper}
+                      onPress={() => setShowStatePicker(true)}
+                    >
+                      <Text style={state ? styles.pickerText : styles.pickerPlaceholder}>
+                        {state || "Select state"}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.pickerWrapper}>
+                      <Picker
+                        selectedValue={state}
+                        onValueChange={(value) => setState(value)}
+                        style={styles.picker}
+                      >
+                        {stateOptions.map((opt) => (
+                          <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+                        ))}
+                      </Picker>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>ZIP code</Label>
+                <View style={styles.inputWrapper}>
+                  <Input
+                    placeholder="49512"
+                    value={postalCode}
+                    onChangeText={setPostalCode}
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    className="h-10 px-0 text-sm bg-white border-0"
+                    style={styles.flex1}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>Country</Label>
+                <View style={styles.inputWrapper}>
+                  <Input
+                    placeholder="United States"
+                    value={country}
+                    onChangeText={setCountry}
+                    autoCapitalize="words"
+                    className="h-10 px-0 text-sm bg-white border-0"
+                    style={styles.flex1}
+                  />
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Buttons */}
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-            <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save changes"}</Text>
-          </TouchableOpacity>
+            {/* School */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>SCHOOL</Text>
 
-          <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </ScrollView>
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>High school</Label>
+                <View style={styles.inputWrapper}>
+                  <Input
+                    placeholder="Hometown High School"
+                    value={schoolName}
+                    onChangeText={setSchoolName}
+                    className="h-10 px-0 text-sm bg-white border-0"
+                    style={styles.flex1}
+                  />
+                </View>
+              </View>
+              <View style={styles.fieldGroup}>
+                <Label style={styles.label}>School address</Label>
+                <View style={styles.inputWrapper}>
+                  <Input
+                    placeholder="123 Education Ave"
+                    value={schoolAddress}
+                    onChangeText={setSchoolAddress}
+                    className="h-10 px-0 text-sm bg-white border-0"
+                    style={styles.flex1}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Buttons */}
+            <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
+              <Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save changes"}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
 
         {/* iOS Modal Pickers */}
         {Platform.OS === "ios" && (
@@ -517,10 +590,20 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Stable reference so memoized <Input> fields don't re-render on every
+  // keystroke just because an inline `{ flex: 1 }` object changes identity.
+  flex1: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     paddingTop: 60,
     backgroundColor: colors.background.subtle,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   backButton: {
     marginBottom: 8,

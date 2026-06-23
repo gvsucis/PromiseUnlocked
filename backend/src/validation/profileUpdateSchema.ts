@@ -22,24 +22,23 @@ const ethnicityValues = [
   "other",
 ] as const;
 
-export const profileUpdateSchema = z
-  .object({
-    email: z.email().optional(),
-    displayName: z.string().optional(),
-    photoURL: z.string().optional(),
-    pageUrl: z.string().optional(),
-    fullName: z.string().optional(),
-    schoolName: z.string().optional(),
-    schoolAddress: z.string().optional(),
-    phone: z.string().optional(),
-    dateOfBirth: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
-      .optional(),
-    gender: z.enum(genderValues).optional(),
-    ethnicity: z.enum(ethnicityValues).optional(),
-    address: addressSchema.optional(),
-  })
-  .strict();
+export const profileUpdateSchema = z.object({
+  email: z.email().optional(),
+  displayName: z.string().optional(),
+  photoURL: z.string().optional(),
+  pageUrl: z.string().optional(),
+  fullName: z.string().optional(),
+  schoolName: z.string().optional(),
+  schoolAddress: z.string().optional(),
+  phone: z.string().optional(),
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD")
+    .optional(),
+  gender: z.enum(genderValues).optional(),
+  ethnicity: z.enum(ethnicityValues).optional(),
+  address: addressSchema.optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
 
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;

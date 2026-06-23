@@ -7,3 +7,20 @@ export interface AppAuthSession {
   email: string | null;
   displayName: string | null;
 }
+
+export type PassportEntry = {
+  category: string;
+  categoryId: string;
+  justification: string;
+  dateIdentified: string;
+  timesMapped: number;
+  unlockedStamps: StampEntry[] | undefined;
+};
+
+export type StampEntry = {
+  name: string;
+  category: string;
+  categoryId: string;
+  timesUnlocked: number;
+  tier?: number;
+};

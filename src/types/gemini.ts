@@ -34,6 +34,12 @@ export interface QuestionSynthesisContext {
   latestQuestion?: string;
   latestAnswer?: string;
   embeddingHistorySummary?: string;
+  /**
+   * "New Topic" mode: pivot to a fresh dimension instead of building on the
+   * most recent answer. The synthesis ignores the latest turn and is steered
+   * toward still-unmapped categories.
+   */
+  newTopic?: boolean;
 }
 
 export interface MappedCategory {
@@ -48,5 +54,7 @@ export interface MapAnswerResponse {
   suggestArtifactUpload?: boolean;
   artifactUploadReason?: string;
   specificStamp?: string;
+  initialTier?: number;
+  proofTier?: number;
   [key: string]: unknown;
 }

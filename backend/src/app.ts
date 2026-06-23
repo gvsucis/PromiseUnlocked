@@ -12,6 +12,7 @@ import authRouter from "@/api/auth";
 import profileEmbeddingsRouter from "@/api/profileEmbeddings";
 import skillsRouter from "@/api/skills";
 import usersRouter from "@/api/users";
+import helpRouter from "@/api/helpRoutes";
 import { authenticateToken } from "@/middleware/auth";
 import { createRateLimitMiddleware } from "@/middleware/rateLimit";
 import { InteractionsController } from "@/controllers/InteractionsController";
@@ -56,7 +57,12 @@ app.use("/users", publicRateLimit, usersRouter);
 app.use("/chat", authenticateToken, protectedRateLimit, chatRoutes, proofRoutes);
 app.use("/participants", authenticateToken, protectedRateLimit, participantsRouter);
 app.use("/participants/me/stamps", authenticateToken, protectedRateLimit, stampsRouter);
-app.post("/participants/me/interactions", authenticateToken, protectedRateLimit, InteractionsController.saveInteraction);
+app.post(
+  "/participants/me/interactions",
+  authenticateToken,
+  protectedRateLimit,
+  InteractionsController.saveInteraction
+);
 app.use(
   "/participants/:participantId/sessions",
   authenticateToken,
@@ -69,6 +75,7 @@ app.use(
   protectedRateLimit,
   interactionsRouter
 );
+app.use("/help", authenticateToken, protectedRateLimit, helpRouter);
 
 app.use((req, res) => {
   console.warn("[App] 404 — route not found", {

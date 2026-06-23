@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { waitForAuthReady } from "../services/auth/authSessionService";
+import {
+  waitForAuthReady,
+  hydratePassportMappings,
+  getCurrentAuthSession,
+} from "../services/auth/authSessionService";
 import { Alert } from "react-native";
 import {
   MappedCategory,
@@ -8,6 +12,7 @@ import {
   INITIAL_PROMPT,
   NO_OP_CATEGORY,
   getTaxonomyString,
+  getFilteredTaxonomyString,
   findValidCategory,
 } from "../services/categoryTaxonomyService";
 import {
@@ -25,13 +30,21 @@ import {
 import { GeminiService } from "../services/geminiService";
 import { STAMPS_LIST } from "../config/stampConstants";
 import { searchPdfContext } from "../services/profileEmbeddingService";
-import { endSession } from "../services/sessionManager";
+import { endSession, getUserId, getActiveSessionId } from "../services/sessionManager";
+import { savePassportMapping } from "../services/firebase/firestoreService";
 import { RegExpMatcher, englishDataset } from "obscenity";
 import {
   saveDialogueState,
   loadDialogueState,
   clearDialogueState,
 } from "../services/dialogueStateStorage";
+import { useProofWorkflow } from "./useProofWorkflow";
+
+// Build the profanity matcher once for the app's lifetime. englishDataset.build()
+// is an expensive synchronous compile; doing it inside the component (e.g. via
+// useRef(new RegExpMatcher(...))) rebuilds it on every render and janks the JS
+// thread during the rapid re-renders of question generation.
+const profanityMatcher = new RegExpMatcher(englishDataset.build());
 
 export type UIState =
   | "idle"
@@ -57,14 +70,29 @@ export interface DialogueState {
   contentWarning: boolean;
   savedQuestion: string;
   savedAnswer: string;
+  pdfContextText: string;
   showConfetti: boolean;
+  newStampUnlock: {
+    stamp: string;
+    category: string;
+    categoryId: string;
+    tier: number;
+  } | null;
   pendingProofRequest: {
     question: string;
     answer: string;
     interactionId: string;
     category: string;
+    categoryId?: string;
     stampName?: string;
     artifactUploadReason?: string;
+    proofTier?: number;
+  } | null;
+  pendingProofNotification: {
+    artifactUploadReason: string;
+    stampName: string;
+    proofTier: number;
+    category: string;
   } | null;
 
   // Setters needed by screen for controlled inputs and UI transitions
@@ -77,16 +105,27 @@ export interface DialogueState {
   // Business logic
   loadData: () => Promise<void>;
   resetData: () => Promise<void>;
-  mapAnswerToCategory: (question: string, answer: string) => Promise<DialogueMapResult>;
+  mapAnswerToCategory: (
+    question: string,
+    answer: string,
+    targetRegion?: string
+  ) => Promise<DialogueMapResult>;
   handleStartButtonPress: () => Promise<void>;
+  handleForceNewQuestion: () => Promise<void>;
   handleTextInputPress: () => void;
   handleVoiceInputPress: () => void;
   prepareImageQuestion: () => boolean;
   handleSubmitAnswer: () => void;
   handleWeakFitTryAgain: () => void;
   handleWeakFitNewQuestion: () => Promise<void>;
+  handleNewTopic: (region?: string) => Promise<void>;
   dismissAnswerModal: () => void;
   clearPendingProofRequest: () => void;
+  clearStampUnlock: () => void;
+  continueAfterStampUnlock: () => void;
+  clearProofNotification: () => void;
+  activateProofFromNotification: () => void;
+  clearDeferredState: () => void;
 }
 
 export type DialogueMapResult =
@@ -109,10 +148,33 @@ export function useDialogueState(): DialogueState {
   const [savedQuestion, setSavedQuestion] = useState("");
   const [savedAnswer, setSavedAnswer] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
-  const [pendingProofRequest, setPendingProofRequest] =
-    useState<DialogueState["pendingProofRequest"]>(null);
+  const [newStampUnlock, setNewStampUnlock] = useState<{
+    stamp: string;
+    category: string;
+    categoryId: string;
+    tier: number;
+  } | null>(null);
+  const [deferredNextQuestion, setDeferredNextQuestion] = useState<string | null>(null);
+  const [deferredCheckCompletion, setDeferredCheckCompletion] = useState(false);
+
+  // Proof-request workflow lives behind its own deep module; this hook only
+  // hands off requests and reads back the active request / notification.
+  const proof = useProofWorkflow();
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const deferredAdvanceOptsRef = useRef<{
+    interactions: ConversationInteraction[];
+    mappedCategories: Array<{ category: string }>;
+    taxonomyString: string;
+    latestQuestion: string;
+    latestAnswer: string;
+    targetRegion?: string;
+  } | null>(null);
+
+  // Personality profile context — fetched once per session, reused for every question.
+  // The profile is immutable during a session so per-question fetching is wasteful.
+  const pdfContextRef = useRef<string | undefined>(undefined);
+  const pdfContextFetchRef = useRef<Promise<string> | null>(null);
 
   const cancelPendingOperation = useCallback(() => {
     if (abortControllerRef.current) {
@@ -123,12 +185,22 @@ export function useDialogueState(): DialogueState {
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistState = useCallback(
-    async (prompt: string, savedQ: string, answer: string, savedA: string, state: UIState) => {
+    async (
+      prompt: string,
+      savedQ: string,
+      answer: string,
+      savedA: string,
+      state: UIState,
+      prefetched: string | null
+    ) => {
       if (state === "complete") {
         await clearDialogueState();
         return;
       }
-      if (state === "idle" && !prompt) {
+      // Keep the saved state alive whenever there's an un-answered question the
+      // user already paid tokens for — either shown (prompt) or waiting to be
+      // shown (prefetched). Only clear when there's genuinely nothing pending.
+      if (state === "idle" && !prompt && !prefetched) {
         await clearDialogueState();
         return;
       }
@@ -138,6 +210,7 @@ export function useDialogueState(): DialogueState {
         userAnswer: answer,
         savedAnswer: savedA,
         uiState: state,
+        prefetchedQuestion: prefetched,
       });
     },
     []
@@ -148,14 +221,21 @@ export function useDialogueState(): DialogueState {
       clearTimeout(persistTimerRef.current);
     }
     persistTimerRef.current = setTimeout(() => {
-      void persistState(currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState);
+      void persistState(
+        currentPrompt,
+        savedQuestion,
+        userAnswer,
+        savedAnswer,
+        uiState,
+        prefetchedQuestion
+      );
     }, 500);
     return () => {
       if (persistTimerRef.current) {
         clearTimeout(persistTimerRef.current);
       }
     };
-  }, [currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState]);
+  }, [currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState, prefetchedQuestion]);
 
   useEffect(() => {
     loadData();
@@ -188,25 +268,47 @@ export function useDialogueState(): DialogueState {
   };
 
   useEffect(() => {
-    if (mappedCategories.length === TOTAL_CATEGORIES) {
+    if (mappedCategories.length === TOTAL_CATEGORIES && !deferredCheckCompletion) {
       void endSession("completed");
       setUiState("complete");
       setPrefetchedQuestion(null);
       setIsPrefetching(false);
     }
-  }, [mappedCategories.length]);
+  }, [mappedCategories.length, deferredCheckCompletion]);
 
   const loadData = async () => {
     try {
       // Resolve auth once so the three storage reads below don't each
       // independently trip through waitForAuthReady() → AsyncStorage.
       await waitForAuthReady();
+
+      // Kick off the personality profile fetch in the background so it's
+      // ready (or close to ready) by the time the user submits their first answer.
+      if (pdfContextRef.current === undefined && !pdfContextFetchRef.current) {
+        pdfContextFetchRef.current = searchPdfContext(
+          "personality skills traits strengths experience"
+        )
+          .then((ctx) => {
+            pdfContextRef.current = ctx;
+            return ctx;
+          })
+          .catch(() => {
+            pdfContextRef.current = "";
+            return "";
+          });
+      }
+
       await syncFromFirestore();
-      const [mapped, history, persisted] = await Promise.all([
-        getMappedCategories(),
-        getConversationHistory(),
-        loadDialogueState(),
-      ]);
+
+      // Sync passport data from Firestore for authenticated users
+      const currentSession = getCurrentAuthSession();
+      if (currentSession.mode === "authenticated" && currentSession.uid) {
+        await hydratePassportMappings(currentSession.uid);
+      }
+
+      const mapped = await getMappedCategories();
+      const history = await getConversationHistory();
+      const persisted = await loadDialogueState();
       setMappedCategories(mapped);
       setInteractions(history);
 
@@ -215,6 +317,7 @@ export function useDialogueState(): DialogueState {
         setSavedQuestion(persisted.savedQuestion);
         setUserAnswer(persisted.userAnswer);
         setSavedAnswer(persisted.savedAnswer);
+        setPrefetchedQuestion(persisted.prefetchedQuestion ?? null);
 
         if (
           persisted.uiState === "answering" ||
@@ -249,9 +352,66 @@ export function useDialogueState(): DialogueState {
     setUiState("idle");
   };
 
+  const maybeUnlockStamp = async (
+    categoryId: string,
+    stamp: string | null | undefined,
+    tier: number = 1
+  ) => {
+    if (!stamp) return;
+    if (stamp in STAMPS_LIST) {
+      await addStampUnlock(categoryId, stamp, tier);
+    } else if (__DEV__) {
+      console.warn(
+        `Invalid stamp name "${stamp}" for category "${categoryId}" — not in STAMPS_LIST, skipping unlock`
+      );
+    }
+  };
+
+  const advanceToNextQuestion = async (
+    presetQuestion: string | null | undefined,
+    opts: {
+      interactions: ConversationInteraction[];
+      mappedCategories: Array<{ category: string }>;
+      taxonomyString: string;
+      latestQuestion: string;
+      latestAnswer: string;
+      targetRegion?: string;
+      signal: AbortSignal;
+    }
+  ) => {
+    setUiState("loading");
+    setUserAnswer("");
+    setLoadingMessage("Generating next question...");
+    try {
+      const newQuestion =
+        presetQuestion ||
+        (await GeminiService.synthesizeNextQuestion(
+          opts.interactions,
+          opts.mappedCategories,
+          opts.taxonomyString,
+          {
+            latestQuestion: opts.latestQuestion,
+            latestAnswer: opts.latestAnswer,
+            embeddingHistorySummary: pdfContextRef.current,
+          },
+          opts.signal,
+          opts.targetRegion
+        ));
+      setPrefetchedQuestion(newQuestion);
+      setIsPrefetching(false);
+      setLoadingMessage("");
+      setUiState("idle");
+    } catch (err) {
+      console.error("Error generating next question:", err);
+      setError(getFriendlyDialogueErrorMessage(err));
+      setUiState("idle");
+    }
+  };
+
   const mapAnswerToCategory = async (
     question: string,
-    answer: string
+    answer: string,
+    targetRegion?: string
   ): Promise<DialogueMapResult> => {
     setUiState("loading");
     setLoadingMessage("Analyzing your response...");
@@ -265,41 +425,36 @@ export function useDialogueState(): DialogueState {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const advanceToNextQuestion = async (presetQuestion?: string | null) => {
-      setUserAnswer("");
-      setLoadingMessage("Generating next question...");
-      try {
-        const newQuestion =
-          presetQuestion ||
-          (await GeminiService.synthesizeNextQuestion(
-            interactions,
-            mappedCategories,
-            getTaxonomyString(),
-            { latestQuestion: question, latestAnswer: answer },
-            controller.signal
-          ));
-
-        setPrefetchedQuestion(newQuestion);
-        setIsPrefetching(false);
-        setLoadingMessage("");
-
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        setUiState("idle");
-      } catch (err) {
-        console.error("Error generating next question:", err);
-        setError(getFriendlyDialogueErrorMessage(err));
-        setUiState("idle");
-      }
+    const taxonomyString = targetRegion
+      ? getFilteredTaxonomyString(targetRegion)
+      : getTaxonomyString();
+    const advanceOpts = {
+      interactions,
+      mappedCategories,
+      taxonomyString,
+      latestQuestion: question,
+      latestAnswer: answer,
+      targetRegion,
+      signal: controller.signal,
+    };
+    deferredAdvanceOptsRef.current = {
+      interactions,
+      mappedCategories,
+      taxonomyString,
+      latestQuestion: question,
+      latestAnswer: answer,
+      targetRegion,
     };
 
     try {
-      const taxonomyString = getTaxonomyString();
-
       let pdfContextText = "";
-      try {
-        pdfContextText = await searchPdfContext(`${question} ${answer}`);
-      } catch {
-        pdfContextText = "";
+      if (pdfContextRef.current !== undefined) {
+        pdfContextText = pdfContextRef.current;
+      } else if (pdfContextFetchRef.current) {
+        pdfContextText = await Promise.race([
+          pdfContextFetchRef.current,
+          new Promise<string>((resolve) => setTimeout(() => resolve(""), 2000)),
+        ]);
       }
 
       const result = await GeminiService.mapAnswerAndGenerateNextQuestion(
@@ -309,24 +464,28 @@ export function useDialogueState(): DialogueState {
         mappedCategories,
         taxonomyString,
         pdfContextText,
-        controller.signal
+        controller.signal,
+        targetRegion
       );
 
-      const { category: rawCategory, justification, nextQuestion, specificStamp } = result;
+      const {
+        category: rawCategory,
+        justification,
+        nextQuestion,
+        specificStamp,
+        initialTier,
+      } = result;
       const validCategory = findValidCategory(rawCategory);
       const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
+      const categoryIdToCheck = validCategory ? validCategory.id : rawCategory;
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
-        const isInappropriate = justification?.startsWith("INAPPROPRIATE_CONTENT:");
-        if (isInappropriate) {
-          setWeakFitJustification(
-            justification?.replace("INAPPROPRIATE_CONTENT:", "").trim() ?? ""
-          );
+        if (justification?.startsWith("INAPPROPRIATE_CONTENT:")) {
+          setWeakFitJustification(justification.replace("INAPPROPRIATE_CONTENT:", "").trim());
           setContentWarning(true);
           setUiState("weak-fit");
           return { mapped: false as const, category: null, interactionId: "" };
         }
-
         const interaction: ConversationInteraction = {
           question,
           answer,
@@ -336,137 +495,151 @@ export function useDialogueState(): DialogueState {
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        const interactionId = await saveConversationInteraction(interaction);
+        const interactionId = await saveConversationInteraction(interaction, justification ?? "");
         setInteractions((prev) => [...prev, interaction]);
         setWeakFitJustification(justification ?? "");
         setUiState("weak-fit");
         return { mapped: false as const, category: null, interactionId };
-      } else if (validCategory && !(await isCategoryMapped(categoryNameToCheck))) {
+      }
+
+      if (validCategory && !(await isCategoryMapped(categoryIdToCheck))) {
         const newMappedCategory: MappedCategory = {
           category: categoryNameToCheck,
+          categoryId: categoryIdToCheck,
           justification: justification ?? "",
           dateIdentified: new Date().toISOString(),
           timesMapped: 1,
         };
-
         await saveMappedCategory(newMappedCategory);
         const newMappedCategories = [...mappedCategories, newMappedCategory];
         setMappedCategories(newMappedCategories);
-
-        if (__DEV__)
-          console.log(
-            `NEW ${categoryNameToCheck} category added: counter = ${newMappedCategory.timesMapped}`
-          );
-
-        if (specificStamp) {
-          if (specificStamp in STAMPS_LIST) {
-            await addStampUnlock(categoryNameToCheck, specificStamp, 2);
-          } else if (__DEV__) {
-            console.warn(
-              `Invalid stamp name "${specificStamp}" for category "${categoryNameToCheck}" — not in STAMPS_LIST, skipping unlock`
-            );
-          }
-        }
+        await maybeUnlockStamp(categoryIdToCheck, specificStamp, initialTier ?? 1);
 
         const interaction: ConversationInteraction = {
           question,
           answer,
           mappedCategory: categoryNameToCheck,
+          categoryId: categoryIdToCheck,
           timestamp: new Date().toISOString(),
           mappingOutcome: "mapped",
           matchedToCategory: null,
           matchedToSequenceIndex: null,
+          specificStamp: specificStamp ?? undefined,
         };
         const interactionId = await saveConversationInteraction(interaction, justification ?? "");
+        if (justification) {
+          savePassportMappingToFirestore(
+            interactionId,
+            categoryNameToCheck,
+            categoryIdToCheck,
+            justification,
+            specificStamp ?? undefined
+          );
+        }
         setInteractions((prev) => [...prev, interaction]);
-
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
 
-        if (newMappedCategories.length === TOTAL_CATEGORIES) {
-          await endSession("completed");
-          setUserAnswer("");
-          setUiState("complete");
-          return { mapped: true as const, category: categoryNameToCheck, interactionId };
-        }
-
-        if (result.suggestArtifactUpload) {
-          setPendingProofRequest({
-            question,
-            answer,
-            interactionId,
+        if (specificStamp) {
+          setNewStampUnlock({
+            stamp: specificStamp,
             category: categoryNameToCheck,
-            stampName: specificStamp ?? undefined,
-            artifactUploadReason: result.artifactUploadReason,
+            categoryId: categoryIdToCheck,
+            tier: initialTier ?? 1,
           });
+
+          setDeferredNextQuestion(nextQuestion ?? null);
+          setDeferredCheckCompletion(newMappedCategories.length === TOTAL_CATEGORIES);
+          setUiState("idle");
+          if (result.suggestArtifactUpload) {
+            proof.deferAfterUnlock({
+              question,
+              answer,
+              interactionId,
+              category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
+              stampName: specificStamp ?? undefined,
+              artifactUploadReason: result.artifactUploadReason,
+              proofTier: result.proofTier ?? 3,
+            });
+          }
+        } else {
+          if (newMappedCategories.length === TOTAL_CATEGORIES) {
+            await endSession("completed");
+            setUserAnswer("");
+            setUiState("complete");
+            return { mapped: true as const, category: categoryNameToCheck, interactionId };
+          }
+          if (result.suggestArtifactUpload) {
+            proof.requestNow({
+              question,
+              answer,
+              interactionId,
+              category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
+              stampName: specificStamp ?? undefined,
+              artifactUploadReason: result.artifactUploadReason,
+              proofTier: result.proofTier ?? 3,
+            });
+          }
+          await advanceToNextQuestion(nextQuestion, advanceOpts);
         }
-        await advanceToNextQuestion(nextQuestion);
 
         return { mapped: true as const, category: categoryNameToCheck, interactionId };
-      } else if (await isCategoryMapped(categoryNameToCheck)) {
-        if (__DEV__)
-          console.log(`Category "${categoryNameToCheck}" already mapped, generating new question`);
+      }
+
+      if (await isCategoryMapped(categoryNameToCheck)) {
         const mappedCategory = await getMappedCategory(categoryNameToCheck);
         const updatedMappedCategory = await updateMappedCategoryCounter({
           ...mappedCategory,
           justification: justification || mappedCategory.justification,
         });
-
-        if (specificStamp) {
-          if (specificStamp in STAMPS_LIST) {
-            await addStampUnlock(categoryNameToCheck, specificStamp, 2);
-          } else if (__DEV__) {
-            console.warn(
-              `Invalid stamp name "${specificStamp}" for category "${categoryNameToCheck}" — not in STAMPS_LIST, skipping unlock`
-            );
-          }
-        }
-
-        // ensures no duplicate categories are added to array of mapped categories
-        const dedupedMappedCategories = mappedCategories.map((c) =>
-          c.category === updatedMappedCategory.category ? updatedMappedCategory : c
+        await maybeUnlockStamp(categoryIdToCheck, specificStamp, initialTier ?? 1);
+        setMappedCategories(
+          mappedCategories.map((c) =>
+            c.categoryId === updatedMappedCategory.categoryId ? updatedMappedCategory : c
+          )
         );
-
-        setMappedCategories(dedupedMappedCategories);
-
-        if (__DEV__)
-          console.log(
-            `${updatedMappedCategory.category} category counter updated: counter = ${updatedMappedCategory.timesMapped}`
-          );
-
         const interaction: ConversationInteraction = {
           question,
           answer,
           mappedCategory: categoryNameToCheck,
+          categoryId: categoryIdToCheck,
           timestamp: new Date().toISOString(),
           mappingOutcome: "already_mapped",
           matchedToCategory: categoryNameToCheck,
           matchedToSequenceIndex: null,
+          specificStamp: specificStamp ?? undefined,
         };
-        const interactionId = await saveConversationInteraction(interaction);
+        const interactionId = await saveConversationInteraction(interaction, justification ?? "");
+        savePassportMappingToFirestore(
+          interactionId,
+          categoryNameToCheck,
+          categoryIdToCheck,
+          justification || mappedCategory.justification,
+          specificStamp ?? undefined
+        );
         setInteractions((prev) => [...prev, interaction]);
-        await advanceToNextQuestion(nextQuestion);
+        await advanceToNextQuestion(nextQuestion, advanceOpts);
         return { mapped: false as const, category: categoryNameToCheck, interactionId };
-      } else {
-        if (__DEV__) console.log(`Unexpected category "${rawCategory}", generating new question`);
-        const interaction: ConversationInteraction = {
-          question,
-          answer,
-          mappedCategory: "INVALID CATEGORY (RETRY)",
-          timestamp: new Date().toISOString(),
-          mappingOutcome: "invalid",
-          matchedToCategory: null,
-          matchedToSequenceIndex: null,
-        };
-        const interactionId = await saveConversationInteraction(interaction);
-        setInteractions((prev) => [...prev, interaction]);
-        await advanceToNextQuestion(nextQuestion);
-        return { mapped: false as const, category: null, interactionId };
       }
+
+      const interaction: ConversationInteraction = {
+        question,
+        answer,
+        mappedCategory: "INVALID CATEGORY (RETRY)",
+        timestamp: new Date().toISOString(),
+        mappingOutcome: "invalid",
+        matchedToCategory: null,
+        matchedToSequenceIndex: null,
+      };
+      const interactionId = await saveConversationInteraction(interaction, justification ?? "");
+      setInteractions((prev) => [...prev, interaction]);
+      await advanceToNextQuestion(nextQuestion, advanceOpts);
+      return { mapped: false as const, category: null, interactionId };
     } catch (err) {
       console.error("Error mapping answer:", err);
-      const errorMessage = getFriendlyDialogueErrorMessage(err);
-      setError(errorMessage);
+      setError(getFriendlyDialogueErrorMessage(err));
       setUserAnswer("");
       setCurrentPrompt("");
       setUiState("idle");
@@ -503,7 +676,11 @@ export function useDialogueState(): DialogueState {
         interactions,
         mappedCategories,
         getTaxonomyString(),
-        { latestQuestion: savedQuestion, latestAnswer: savedAnswer },
+        {
+          latestQuestion: savedQuestion,
+          latestAnswer: savedAnswer,
+          embeddingHistorySummary: pdfContextRef.current,
+        },
         controller.signal
       );
       setCurrentPrompt(newQuestion);
@@ -516,6 +693,14 @@ export function useDialogueState(): DialogueState {
       setLoadingMessage("");
     }
   };
+
+  const handleForceNewQuestion = useCallback(async () => {
+    setUiState("idle");
+    setError("");
+    setLoadingMessage("");
+    await new Promise((r) => setTimeout(r, 50));
+    await handleStartButtonPress();
+  }, [handleStartButtonPress]);
 
   const handleTextInputPress = () => {
     setError("");
@@ -574,8 +759,6 @@ export function useDialogueState(): DialogueState {
     }
   };
 
-  const matcherRef = useRef(new RegExpMatcher(englishDataset.build()));
-
   const REGEX_BYPASS_PATTERNS = [
     /\bf\s*[\W_]*u\s*[\W_]*c\s*[\W_]*k\b/i,
     /\bs\s*[\W_]*h\s*[\W_]*i\s*[\W_]*t\b/i,
@@ -593,10 +776,7 @@ export function useDialogueState(): DialogueState {
     }
 
     const trimmed = userAnswer.trim();
-    if (
-      matcherRef.current.hasMatch(trimmed) ||
-      REGEX_BYPASS_PATTERNS.some((r) => r.test(trimmed))
-    ) {
+    if (profanityMatcher.hasMatch(trimmed) || REGEX_BYPASS_PATTERNS.some((r) => r.test(trimmed))) {
       Alert.alert(
         "Inappropriate Content",
         "Please keep your response respectful and appropriate so I can help you identify your skills."
@@ -666,6 +846,34 @@ export function useDialogueState(): DialogueState {
     }
   };
 
+  const handleNewTopic = async (region?: string) => {
+    if (uiState !== "idle") return;
+    setError("");
+    setUiState("loading");
+    setLoadingMessage("Synthesizing a new question...");
+    cancelPendingOperation();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    try {
+      const question = await GeminiService.synthesizeNextQuestion(
+        interactions,
+        mappedCategories,
+        region ? getFilteredTaxonomyString(region) : getTaxonomyString(),
+        { embeddingHistorySummary: pdfContextRef.current, newTopic: true },
+        controller.signal,
+        region
+      );
+      setCurrentPrompt(question);
+      setUiState("idle");
+      setLoadingMessage("");
+    } catch (err) {
+      console.error("Error synthesizing question for region:", err);
+      setError("Failed to generate question. Please try again.");
+      setUiState("idle");
+      setLoadingMessage("");
+    }
+  };
+
   const dismissAnswerModal = () => {
     setCurrentPrompt("");
     setUserAnswer("");
@@ -673,9 +881,75 @@ export function useDialogueState(): DialogueState {
     setUiState("idle");
   };
 
-  const clearPendingProofRequest = () => {
-    setPendingProofRequest(null);
+  const clearStampUnlock = () => {
+    setNewStampUnlock(null);
   };
+
+  const continueAfterStampUnlock = () => {
+    const nextQuestion = deferredNextQuestion;
+    const isComplete = deferredCheckCompletion;
+
+    setDeferredNextQuestion(null);
+    setDeferredCheckCompletion(false);
+
+    if (isComplete) {
+      proof.clearDeferred();
+      void endSession("completed");
+      setUserAnswer("");
+      setUiState("complete");
+      return;
+    }
+
+    proof.surfaceDeferred();
+
+    if (nextQuestion) {
+      setUiState("loading");
+      setLoadingMessage("Preparing your next question...");
+      setTimeout(() => {
+        setPrefetchedQuestion(nextQuestion);
+        setUiState("idle");
+      }, 600);
+    } else {
+      void advanceToNextQuestion(null, {
+        ...deferredAdvanceOptsRef.current!,
+        signal: abortControllerRef.current?.signal ?? new AbortController().signal,
+      });
+    }
+  };
+
+  const clearDeferredState = () => {
+    setDeferredNextQuestion(null);
+    setDeferredCheckCompletion(false);
+    proof.clearDeferred();
+  };
+
+  const savePassportMappingToFirestore = useCallback(
+    async (
+      interactionId: string,
+      category: string,
+      categoryId: string,
+      justification: string,
+      specificStamp?: string
+    ) => {
+      try {
+        const [userId, sessionId] = await Promise.all([getUserId(), getActiveSessionId()]);
+        if (userId && sessionId) {
+          await savePassportMapping(
+            userId,
+            sessionId,
+            interactionId,
+            category,
+            categoryId,
+            justification,
+            specificStamp
+          );
+        }
+      } catch {
+        // Firestore write is best-effort — guest users and transient errors are expected
+      }
+    },
+    []
+  );
 
   return {
     mappedCategories,
@@ -692,8 +966,11 @@ export function useDialogueState(): DialogueState {
     contentWarning,
     savedQuestion,
     savedAnswer,
+    pdfContextText: pdfContextRef.current ?? "",
     showConfetti,
-    pendingProofRequest,
+    newStampUnlock,
+    pendingProofRequest: proof.proofRequest,
+    pendingProofNotification: proof.proofNotification,
     setUserAnswer,
     setUiState,
     setLoadingMessage,
@@ -703,13 +980,20 @@ export function useDialogueState(): DialogueState {
     resetData,
     mapAnswerToCategory,
     handleStartButtonPress,
+    handleForceNewQuestion,
     handleTextInputPress,
     handleVoiceInputPress,
     prepareImageQuestion,
     handleSubmitAnswer,
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
+    handleNewTopic,
     dismissAnswerModal,
-    clearPendingProofRequest,
+    clearPendingProofRequest: proof.clearRequest,
+    clearStampUnlock,
+    continueAfterStampUnlock,
+    clearProofNotification: proof.clearNotification,
+    activateProofFromNotification: proof.activateFromNotification,
+    clearDeferredState,
   };
 }

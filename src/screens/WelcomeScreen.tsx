@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Text } from "react-native";
+import { View, StyleSheet, Text, Alert } from "react-native";
 import { Button } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -14,13 +14,22 @@ interface Props {
 }
 
 export default function WelcomeScreen({ navigation }: Readonly<Props>) {
-  const { session } = useAuth();
+  const { session, continueAsGuest } = useAuth();
 
   React.useEffect(() => {
     if (session.mode === "authenticated") {
       navigation.replace("MainTabs");
     }
   }, [navigation, session.mode]);
+
+  const handleContinueAsGuest = async () => {
+    try {
+      await continueAsGuest();
+      navigation.replace("MainTabs");
+    } catch {
+      Alert.alert("Unable to continue as guest");
+    }
+  };
 
   const handleSignIn = () => {
     navigation.navigate("Login");
@@ -45,7 +54,7 @@ export default function WelcomeScreen({ navigation }: Readonly<Props>) {
       <View style={styles.actionsContainer}>
         <Button
           mode="contained"
-          disabled={true}
+          onPress={handleContinueAsGuest}
           style={styles.primaryButton}
           contentStyle={styles.primaryButtonContent}
           labelStyle={styles.primaryButtonLabel}

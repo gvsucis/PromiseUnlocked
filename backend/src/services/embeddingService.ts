@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { GoogleGenAI } from "@google/genai";
+import { EMBEDDING_DIMENSIONALITY } from "@/workers/embeddingWorker";
 
 const FALLBACK_MODEL = "gemini-embedding-2";
-const DEFAULT_OUTPUT_DIMENSIONALITY = 768;
+const DEFAULT_OUTPUT_DIMENSIONALITY = EMBEDDING_DIMENSIONALITY;
 
 export type EmbeddingVector = number[];
 

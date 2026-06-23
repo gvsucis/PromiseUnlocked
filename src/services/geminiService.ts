@@ -13,6 +13,7 @@ import {
   MappedCategory,
   QuestionSynthesisContext,
 } from "../types/gemini";
+import { Alert } from "react-native";
 
 export class GeminiService {
   private static readonly MODEL_NAME = CONFIG.TEXT_MODEL;
@@ -61,6 +62,24 @@ export class GeminiService {
     return url.replaceAll(/key=[^&]*/g, "key=***");
   }
 
+  // Shared rate-limit backoff budget, keyed by the AbortSignal that flows
+  // through one logical operation (e.g. a single dialogue answer: map ->
+  // synthesize -> strict retry). Without this, each chained requestGemini call
+  // runs its own multi-attempt backoff, so a sustained 429 could stack ~60s of
+  // waiting before failing. The first retry to need it establishes a deadline;
+  // every chained call sharing the signal then draws down the same budget.
+  private static readonly retryDeadlines = new WeakMap<AbortSignal, number>();
+  private static readonly TOTAL_RETRY_BUDGET_MS = 20000;
+
+  private static retryDeadlineFor(signal?: AbortSignal): number {
+    if (!signal) return Number.POSITIVE_INFINITY;
+    const existing = this.retryDeadlines.get(signal);
+    if (existing !== undefined) return existing;
+    const deadline = Date.now() + this.TOTAL_RETRY_BUDGET_MS;
+    this.retryDeadlines.set(signal, deadline);
+    return deadline;
+  }
+
   /**
    * Helper: Retry with exponential backoff for rate limits
    */
@@ -82,6 +101,10 @@ export class GeminiService {
         if (this.isCancellation(error)) throw error;
         const delay = this.computeRetryDelay(error, attempt, initialDelay);
         if (delay < 0) throw error;
+        // Stop stacking backoff once this operation's shared budget is spent.
+        if (Date.now() + delay > this.retryDeadlineFor(signal)) {
+          throw error;
+        }
         console.log(
           `Rate limit/service busy. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`
         );
@@ -549,10 +572,12 @@ Return only the final answer text.`,
     mappedCategories: MappedCategory[],
     taxonomyString: string,
     pdfContextText?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    targetRegion?: string
   ): Promise<MapAnswerResponse> {
     // Limit history to last 5 interactions to reduce prompt size and prevent token overflow
     const recentInteractions = interactions.slice(-5);
+
     const history = recentInteractions
       .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
       .join("\n");
@@ -560,12 +585,13 @@ Return only the final answer text.`,
       .map((c) => c.category + (c.timesMapped ? " (count: " + c.timesMapped + ")" : ""))
       .join(", ");
 
-    console.log("🔵 Using model:", this.MODEL_NAME);
-
     const contextBlock = pdfContextText
       ? `\n\n=== USER BACKGROUND CONTEXT ===\n${pdfContextText}\n\nUse this as secondary background to personalize questions and follow-ups. Never mention it directly or imply you have access to private files.`
       : "";
 
+    const regionHint = targetRegion
+      ? `\n13. The user is exploring the "${targetRegion}" region. If the answer fits this category, prefer mapping to "${targetRegion}" over other categories.`
+      : "";
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
 Your task is to map the answer to exactly one skill stamp taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
 Rules:
@@ -581,7 +607,11 @@ Rules:
 10. Pick the single most specific stamp name from the category's "Available Stamps" list. Set specificStamp only if the answer clearly and directly indicates that exact stamp. If no specific stamp is evident, set specificStamp to null — do not guess or default.
 11. Before mapping, perform a confidence self-check: "Would an impartial observer clearly agree this answer belongs in this category?" If the connection requires more than one logical step, use NO_MAP_WEAK_FIT instead.
 12. Consider the QUESTION's intent alongside the answer. The question is designed to probe specific categories. If the question targets a particular type of experience and the answer aligns with it, treat that as supporting evidence for that category.
-${contextBlock}`;
+13. Organically assign an initialTier (1 or 2) based on the richness and depth of the user's answer:
+    - Tier 1: Basic, one sentence, shallow or generic response.
+    - Tier 2: Detailed, multi-sentence, specific personal experience or reflection.
+    If suggestArtifactUpload is true, also set proofTier to 3 or 4 based on how much stronger the stamp would become with verified proof (3 = meaningful proof, 4 = exceptional/certifiable proof).
+${contextBlock}${regionHint}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
@@ -603,8 +633,10 @@ ${contextBlock}`;
                 suggestArtifactUpload: { type: "boolean" },
                 artifactUploadReason: { type: "string" },
                 specificStamp: { type: "string" },
+                initialTier: { type: "number" },
+                proofTier: { type: "number" },
               },
-              required: ["category", "justification", "suggestArtifactUpload"],
+              required: ["category", "justification", "suggestArtifactUpload", "initialTier"],
             },
           },
         },
@@ -644,7 +676,8 @@ ${contextBlock}`;
         interactions,
         mappedCategories,
         taxonomyString,
-        { latestQuestion: question, latestAnswer: answer }
+        { latestQuestion: question, latestAnswer: answer },
+        signal
       );
       return parsed;
     } catch (error) {
@@ -671,7 +704,8 @@ ${contextBlock}`;
     interactions: DialogueInteraction[],
     mappedCategories: MappedCategory[],
     taxonomyString: string,
-    context?: QuestionSynthesisContext
+    context?: QuestionSynthesisContext,
+    signal?: AbortSignal
   ): Promise<MapAnswerResponse> {
     let parsed: MapAnswerResponse;
     try {
@@ -706,7 +740,8 @@ ${contextBlock}`;
       interactions,
       mappedCategories,
       taxonomyString,
-      context
+      context,
+      signal
     );
     return parsed;
   }
@@ -845,17 +880,32 @@ ${contextBlock}`;
     taxonomyString: string,
     mappedCategoriesList: string,
     strict: boolean,
-    context?: QuestionSynthesisContext
+    context?: QuestionSynthesisContext,
+    targetRegion?: string
   ): string {
+    // In "New Topic" mode we deliberately drop the latest turn so the question
+    // pivots to a new dimension instead of continuing the current thread.
     const latestTurnBlock =
-      context?.latestQuestion || context?.latestAnswer
+      !context?.newTopic && (context?.latestQuestion || context?.latestAnswer)
         ? `\nLATEST_TURN:\nQ: ${context.latestQuestion ?? ""}\nA: ${context.latestAnswer ?? ""}\n`
         : "\n";
     const embeddingHistoryBlock = context?.embeddingHistorySummary
       ? `\nEMBEDDING_HISTORY (background only):\n${context.embeddingHistorySummary}\n`
       : "";
+    const regionBlock = targetRegion
+      ? `\nTARGET REGION: ${targetRegion} — focus the question on this specific area.\n`
+      : "";
 
-    return `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strict ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)." : ""} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic. CRITICAL: Always center the question on the user — ask about their actions, choices, feelings, or role. You may reference other people (teammates, coaches, teachers), but the question's subject must remain the user's own experience. Never ask about someone else's isolated actions or strategies. Never repeat or quote offensive, profane, or inappropriate language from the user's answer — paraphrase in general terms if needed.
+    const strictClause = strict
+      ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)."
+      : "";
+    const userCenterClause = ` CRITICAL: Always center the question on the user — ask about their actions, choices, feelings, or role. You may reference other people (teammates, coaches, teachers), but the question's subject must remain the user's own experience. Never ask about someone else's isolated actions or strategies. Never repeat or quote offensive, profane, or inappropriate language from the user's answer — paraphrase in general terms if needed.`;
+
+    const leadInstruction = context?.newTopic
+      ? `Based on the taxonomy (including the NO_OP category as a mapping option) and the categories already mapped to me, synthesize a clear, specific new question that DELIBERATELY CHANGES THE TOPIC to a fresh dimension. Do NOT build on, reference, or continue the most recent answer or the current thread — start a genuinely new line of conversation. Choose a dimension likely to surface one of the categories NOT yet mapped to me. The question must end with a "?".${strictClause} Use any embedding/background context about me to pick a new dimension that fits my experience.${userCenterClause}`
+      : `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strictClause} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.${userCenterClause}`;
+
+    return `${leadInstruction}
 HISTORY:
 ${history}
 
@@ -863,7 +913,7 @@ ${latestTurnBlock}TAXONOMY:
 ${taxonomyString}
 
 CATEGORIES MAPPED: ${mappedCategoriesList}
-
+${regionBlock}
 ${embeddingHistoryBlock}
 RESPOND ONLY with the text of the new question. Do not include any other text, explanation, or formatting.`;
   }
@@ -908,26 +958,33 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
 
   private static shouldRetryQuestionStrict(
     question: string,
-    text: string,
+    _text: string,
     finishReason?: string
   ): boolean {
-    const isIncomplete = finishReason === "MAX_TOKENS" || text.length > 250;
+    // Retry strictly only when the question is genuinely weak or the response
+    // was actually truncated (MAX_TOKENS). A long-but-complete question that
+    // already passes isQuestionStrong is fine — retrying it just adds a wasted
+    // Gemini round-trip to the user's "Generating next question…" wait.
+    const isIncomplete = finishReason === "MAX_TOKENS";
     return !this.isQuestionStrong(question) || isIncomplete;
   }
 
   private static throwSynthesisError(error: unknown): never {
     if (axios.isAxiosError(error)) {
       if (error.response?.status === 429) {
-        throw new Error("System busy at the moment. Please try again later.");
+        Alert.alert("System busy", "System busy at the moment. Please try again later.");
+        console.warn("System busy at the moment. Please try again later.");
       }
       if (error.response?.status === 403) {
-        throw new Error("API key invalid or missing. Check your .env file.");
+        Alert.alert("Invalid Key", "API key invalid or missing. Check your .env file.");
+        console.warn("API key invalid or missing. Check your .env file.");
       }
       if (error.response) {
         throw new Error(`API Error: ${error.response.status} - ${error.response.statusText}`);
       }
       if (error.request) {
-        throw new Error("Network error. Please check your internet connection.");
+        Alert.alert("Network Error", "Network error. Please check your internet connection.");
+        console.warn("Network error. Please check your internet connection.");
       }
     }
 
@@ -946,7 +1003,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
     mappedCategories: Array<{ category: string }>,
     taxonomyString: string,
     context?: QuestionSynthesisContext,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    targetRegion?: string
   ): Promise<string> {
     try {
       const history = interactions
@@ -960,21 +1018,16 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
         taxonomyString,
         mappedCategoriesList,
         false,
-        context
+        context,
+        targetRegion
       );
-
-      // log the actual prompt sent to the model for debugging
-      console.log("Synthesizing next question with prompt:");
 
       const response = await this.fetchSynthesizedQuestion(prompt, false, signal);
       const { text, finishReason } = this.readQuestionResponse(response);
 
-      // if the model stopped because it hit our maxOutputTokens limit, log a warning
       if (finishReason === "MAX_TOKENS") {
         console.warn("Gemini response finished with MAX_TOKENS – question may be truncated.");
       }
-
-      console.log("this is the response you get: ", response);
 
       let question = this.normalizeQuestion(text);
 
@@ -987,7 +1040,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
           taxonomyString,
           mappedCategoriesList,
           true,
-          context
+          context,
+          targetRegion
         );
         const strictResponse = await this.fetchSynthesizedQuestion(strictPrompt, true, signal);
         const { text: strictText } = this.readQuestionResponse(strictResponse);
@@ -996,8 +1050,6 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
           question = this.normalizeQuestion(strictText);
         }
       }
-
-      console.log("Synthesized question:", question);
 
       return question;
     } catch (error) {

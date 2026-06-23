@@ -45,8 +45,9 @@ export interface UserFileEmbedding {
   fileSizeBytes: number;
   contentType: string;
   extractedText: string;
-  embedding: number[];
+  embedding: number[] | null;
   embeddingModel: string;
+  checksum: string;
   createdAt: FirebaseFirestore.FieldValue;
 }
 
@@ -105,6 +106,7 @@ export interface InteractionRecord {
   isWeakFit: boolean;
   isAlreadyMapped: boolean;
   justification: string;
+  specificStamp?: string | null;
   matchedToCategory: string | null;
   matchedToSequenceIndex: number | null;
   timestamp: FirestoreDateValue;
