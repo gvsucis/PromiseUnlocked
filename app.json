@@ -1,9 +1,10 @@
 {
   "expo": {
     "name": "promiseUnlocked",
-    "slug": "promise-unlock-for-sure",
+    "slug": "promise-unlock-app",
     "scheme": "promiseunlocked",
     "version": "1.0.0",
+    "owner": "gvsu-blue-nucleus",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -52,7 +53,10 @@
               "scheme": "com.googleusercontent.apps.26141705792-ulrjshvjas4g8akq5n466dpc9n5c5tu9"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -74,12 +78,12 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "4232b656-a2b9-40b3-a281-ce1362c73382"
+        "projectId": "62341192-c723-4426-aeb9-7f9186e2accb"
       }
     },
     "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://u.expo.dev/4232b656-a2b9-40b3-a281-ce1362c73382",
+      "url": "https://u.expo.dev/62341192-c723-4426-aeb9-7f9186e2accb",
       "enabled": true,
       "fallbackToCacheTimeout": 0,
       "requestHeaders": {
