@@ -43,7 +43,7 @@ export function StampUnlockModal({
                 color={colors.accent.yellow}
                 style={styles.celebrationIcon}
               />
-              <Text style={styles.title}>Congratulation!</Text>
+              <Text style={styles.title}>Congratulations!</Text>
 
               <View style={styles.stampContainer}>
                 <StampBadge stampName={stampName} tier={tier} size="detail" />
