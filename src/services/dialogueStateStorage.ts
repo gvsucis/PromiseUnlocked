@@ -9,6 +9,7 @@ export interface PersistedDialogueState {
   userAnswer: string;
   savedAnswer: string;
   uiState: string;
+  prefetchedQuestion?: string | null;
 }
 
 export async function saveDialogueState(state: PersistedDialogueState): Promise<void> {

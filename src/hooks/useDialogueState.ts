@@ -40,6 +40,12 @@ import {
 } from "../services/dialogueStateStorage";
 import { useProofWorkflow } from "./useProofWorkflow";
 
+// Build the profanity matcher once for the app's lifetime. englishDataset.build()
+// is an expensive synchronous compile; doing it inside the component (e.g. via
+// useRef(new RegExpMatcher(...))) rebuilds it on every render and janks the JS
+// thread during the rapid re-renders of question generation.
+const profanityMatcher = new RegExpMatcher(englishDataset.build());
+
 export type UIState =
   | "idle"
   | "answering"
@@ -179,12 +185,22 @@ export function useDialogueState(): DialogueState {
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistState = useCallback(
-    async (prompt: string, savedQ: string, answer: string, savedA: string, state: UIState) => {
+    async (
+      prompt: string,
+      savedQ: string,
+      answer: string,
+      savedA: string,
+      state: UIState,
+      prefetched: string | null
+    ) => {
       if (state === "complete") {
         await clearDialogueState();
         return;
       }
-      if (state === "idle" && !prompt) {
+      // Keep the saved state alive whenever there's an un-answered question the
+      // user already paid tokens for — either shown (prompt) or waiting to be
+      // shown (prefetched). Only clear when there's genuinely nothing pending.
+      if (state === "idle" && !prompt && !prefetched) {
         await clearDialogueState();
         return;
       }
@@ -194,6 +210,7 @@ export function useDialogueState(): DialogueState {
         userAnswer: answer,
         savedAnswer: savedA,
         uiState: state,
+        prefetchedQuestion: prefetched,
       });
     },
     []
@@ -204,14 +221,21 @@ export function useDialogueState(): DialogueState {
       clearTimeout(persistTimerRef.current);
     }
     persistTimerRef.current = setTimeout(() => {
-      void persistState(currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState);
+      void persistState(
+        currentPrompt,
+        savedQuestion,
+        userAnswer,
+        savedAnswer,
+        uiState,
+        prefetchedQuestion
+      );
     }, 500);
     return () => {
       if (persistTimerRef.current) {
         clearTimeout(persistTimerRef.current);
       }
     };
-  }, [currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState]);
+  }, [currentPrompt, savedQuestion, userAnswer, savedAnswer, uiState, prefetchedQuestion]);
 
   useEffect(() => {
     loadData();
@@ -293,6 +317,7 @@ export function useDialogueState(): DialogueState {
         setSavedQuestion(persisted.savedQuestion);
         setUserAnswer(persisted.userAnswer);
         setSavedAnswer(persisted.savedAnswer);
+        setPrefetchedQuestion(persisted.prefetchedQuestion ?? null);
 
         if (
           persisted.uiState === "answering" ||
@@ -734,8 +759,6 @@ export function useDialogueState(): DialogueState {
     }
   };
 
-  const matcherRef = useRef(new RegExpMatcher(englishDataset.build()));
-
   const REGEX_BYPASS_PATTERNS = [
     /\bf\s*[\W_]*u\s*[\W_]*c\s*[\W_]*k\b/i,
     /\bs\s*[\W_]*h\s*[\W_]*i\s*[\W_]*t\b/i,
@@ -753,10 +776,7 @@ export function useDialogueState(): DialogueState {
     }
 
     const trimmed = userAnswer.trim();
-    if (
-      matcherRef.current.hasMatch(trimmed) ||
-      REGEX_BYPASS_PATTERNS.some((r) => r.test(trimmed))
-    ) {
+    if (profanityMatcher.hasMatch(trimmed) || REGEX_BYPASS_PATTERNS.some((r) => r.test(trimmed))) {
       Alert.alert(
         "Inappropriate Content",
         "Please keep your response respectful and appropriate so I can help you identify your skills."
