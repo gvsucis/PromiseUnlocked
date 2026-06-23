@@ -47,7 +47,7 @@ export const dialogueBridgeRef = {
     handleForceNewQuestion: () => void;
     handleReset: () => void;
     handleNewTopic: (region?: string) => void;
-    handleRegionAnswer: (question: string, answer: string, region?: string) => void;
+    handleRegionAnswer: (question: string, answer: string, region?: string) => Promise<void> | void;
     interactions: ConversationInteraction[];
     mappedCategories: MappedCategory[];
     pdfContextText: string;
@@ -671,8 +671,11 @@ export default function DialogueDashboardScreen() {
       handleNewTopic: (region?: string) => {
         handleNewTopic(region);
       },
-      handleRegionAnswer: (question: string, answer: string, region?: string) => {
-        mapAnswerToCategory(question, answer, region);
+      handleRegionAnswer: async (question: string, answer: string, region?: string) => {
+        await mapAnswerToCategory(question, answer, region);
+        clearStampUnlock();
+        clearDeferredState();
+        clearPendingProofRequest();
       },
       interactions,
       mappedCategories,
@@ -919,12 +922,15 @@ export default function DialogueDashboardScreen() {
         {error}
       </Snackbar>
 
-      <LoadingModal visible={uiState === "loading"} message={loadingMessage} />
+      <LoadingModal visible={isFocused && uiState === "loading"} message={loadingMessage} />
 
-      <CompletionModal visible={uiState === "complete"} onDismiss={() => setUiState("idle")} />
+      <CompletionModal
+        visible={isFocused && uiState === "complete"}
+        onDismiss={() => setUiState("idle")}
+      />
 
       <WeakFitModal
-        visible={uiState === "weak-fit"}
+        visible={isFocused && uiState === "weak-fit"}
         justification={weakFitJustification}
         isContentWarning={contentWarning}
         onTryAgain={handleWeakFitTryAgain}
@@ -932,7 +938,7 @@ export default function DialogueDashboardScreen() {
       />
 
       <AnswerModal
-        visible={uiState === "answering"}
+        visible={isFocused && uiState === "answering"}
         currentPrompt={currentPrompt}
         userAnswer={userAnswer}
         selectedImage={selectedImage}
@@ -954,7 +960,7 @@ export default function DialogueDashboardScreen() {
       />
 
       <VoiceRecordingModal
-        visible={uiState === "voice-recording"}
+        visible={isFocused && uiState === "voice-recording"}
         currentPrompt={currentPrompt}
         isRecording={isRecording}
         recordingDuration={recordingDuration}
@@ -971,7 +977,7 @@ export default function DialogueDashboardScreen() {
       />
 
       <StampUnlockModal
-        visible={!!newStampUnlock}
+        visible={isFocused && !!newStampUnlock}
         stampName={newStampUnlock?.stamp ?? ""}
         tier={newStampUnlock?.tier ?? 1}
         region={newStampUnlock?.category ?? ""}
@@ -990,7 +996,7 @@ export default function DialogueDashboardScreen() {
       />
 
       <QuestionInputModal
-        visible={showQuestionInputModal && !!pendingQuestion}
+        visible={isFocused && showQuestionInputModal && !!pendingQuestion}
         question={pendingQuestion || ""}
         seedText={userAnswer}
         onSelectInputType={handleInputTypeSelect}
@@ -1069,7 +1075,7 @@ export default function DialogueDashboardScreen() {
         </View>
       )}
 
-      {showConfetti && (
+      {isFocused && showConfetti && (
         <ConfettiCannon
           count={200}
           origin={{ x: width / 2, y: 0 }}

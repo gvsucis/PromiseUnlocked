@@ -135,6 +135,26 @@ export default function StampScreen() {
     }
   }, [region]);
 
+  const handleRegionSubmit = useCallback(
+    async (question: string, answerText: string) => {
+      setShowQuestionModal(false);
+      setGeneratedQuestion("");
+      const bridge = dialogueBridgeRef.current;
+      // Map + persist the answer (saves to storage/Firebase, unlocks stamps) in
+      // the background, then refresh the grid so any newly unlocked stamp shows
+      // here — that grid update is the local unlock feedback.
+      if (bridge) {
+        Promise.resolve(bridge.handleRegionAnswer(question, answerText, region))
+          .then(() => loadUnlocked())
+          .catch((err) => console.error("Failed to map region answer:", err));
+      }
+      // Stay on this screen and loop: immediately offer the next region-focused
+      // question in this screen's own modal.
+      await handleGenerateQuestion();
+    },
+    [region, loadUnlocked, handleGenerateQuestion]
+  );
+
   const allStamps = DERIVED_SKILLS[region] ?? [];
   const unlockedList = allStamps.filter((s) => {
     if (unlockedStamps.has(s)) return true;
@@ -215,7 +235,7 @@ export default function StampScreen() {
             <MaterialIcons name="auto-awesome" size={20} color="#fff" />
           )}
           <Text style={styles.generateButtonText}>
-            {isGenerating ? "Generating..." : "Generate Question"}
+            {isGenerating ? "Exploring..." : "Explore region"}
           </Text>
         </TouchableOpacity>
 
@@ -223,12 +243,7 @@ export default function StampScreen() {
           visible={showQuestionModal}
           question={generatedQuestion}
           onSubmitText={(text) => {
-            setShowQuestionModal(false);
-            const bridge = dialogueBridgeRef.current;
-            if (bridge) {
-              bridge.handleRegionAnswer(generatedQuestion, text, region);
-            }
-            navigation.getParent()?.navigate("MainTabs", { screen: "Dashboard" });
+            void handleRegionSubmit(generatedQuestion, text);
           }}
           onClose={() => {
             setShowQuestionModal(false);
@@ -243,8 +258,9 @@ export default function StampScreen() {
           onNewTopic={() => {
             setShowQuestionModal(false);
             setGeneratedQuestion("");
-            dialogueBridgeRef.current?.handleNewTopic(region);
-            navigation.getParent()?.navigate("MainTabs", { screen: "Dashboard" });
+            // Stay on this region screen and just generate another region-focused
+            // question rather than handing off to the dashboard.
+            void handleGenerateQuestion();
           }}
         />
       </ScrollView>

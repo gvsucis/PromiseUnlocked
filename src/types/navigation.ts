@@ -1,11 +1,20 @@
+import { NavigatorScreenParams } from "@react-navigation/native";
 import { AnalysisResult } from "./index";
+
+export type MainTabParamList = {
+  Dashboard: undefined;
+  Profile: undefined;
+  Chat: undefined;
+  Passport: undefined;
+  Help: undefined;
+};
 
 export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   Register: undefined;
   Welcome: undefined;
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList>;
   EditProfile: undefined;
   Passport: undefined;
   Stamps: { region: string; categoryId: string };
