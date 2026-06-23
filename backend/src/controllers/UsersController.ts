@@ -8,6 +8,9 @@ import {
   participantSessionsCollection,
 } from "@/services/firestore";
 import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
+import { DEFAULT_ROLE, isAdminUser, isSuperAdmin, isValidRole } from "@/utils/authz";
+import { parsePagination } from "@/utils/pagination";
+import { normalizeSearchTerm, searchParticipantDocs } from "@/utils/participantSearch";
 
 const buildProfileFromRecord = (
   userRecord: admin.auth.UserRecord,
@@ -113,15 +116,77 @@ export class UsersController {
     }
   }
 
-  static async getAllUsers(_req: Request, res: Response) {
+  static async getAllUsers(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    if (!isAdminUser(requester)) {
+      return res.status(403).json({ error: "Forbidden — admin access required" });
+    }
     try {
-      const snapshot = await participantsCollection.get();
+      const { page, pageSize, offset } = parsePagination(req.query, 20, 100);
+      const term = normalizeSearchTerm(req.query.search);
+
+      if (term) {
+        const snapshot = await participantsCollection.get();
+        const matched = searchParticipantDocs(snapshot.docs, term);
+        const paginated = matched.slice(offset, offset + pageSize);
+        return res.json({ users: paginated, page, pageSize, total: matched.length });
+      }
+
+      const totalSnapshot = await participantsCollection.count().get();
+      const total = totalSnapshot.data().count;
+
+      const snapshot = await participantsCollection
+        .orderBy("createdAt", "desc")
+        .offset(offset)
+        .limit(pageSize)
+        .get();
       const users = snapshot.docs.map((doc) => normalizeUser(doc));
-      console.log("Fetched users:", users);
-      return res.json({ users });
+      return res.json({ users, page, pageSize, total });
     } catch (error) {
       console.error("Error fetching users:", error);
       return res.status(500).json({ error: "Failed to fetch users" });
+    }
+  }
+
+  static async updateUserRole(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    if (!isSuperAdmin(requester)) {
+      return res.status(403).json({ error: "Forbidden — super admin access required" });
+    }
+
+    const { uid } = req.params;
+    if (typeof uid !== "string" || !uid) {
+      return res.status(400).json({ error: "Invalid user id" });
+    }
+    if (uid === requester.uid) {
+      return res.status(400).json({ error: "You cannot change your own role" });
+    }
+
+    const role = req.body?.role ?? DEFAULT_ROLE;
+    if (!isValidRole(role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    try {
+      const userRecord = await admin.auth().getUser(uid).catch(() => null);
+      if (!userRecord) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Custom claims drive isAdminUser/isSuperAdmin; the token must be refreshed
+      // by the client before the new role takes effect.
+      await admin.auth().setCustomUserClaims(uid, {
+        ...userRecord.customClaims,
+        role,
+        admin: role === "admin" || role === "superadmin",
+      });
+
+      await participantsCollection.doc(uid).set({ role, updatedAt: Date.now() }, { merge: true });
+
+      return res.json({ uid, role });
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      return res.status(500).json({ error: "Failed to update user role" });
     }
   }
 

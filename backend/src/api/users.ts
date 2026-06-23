@@ -14,6 +14,8 @@ router.post("/me/profile-picture", authenticateToken, ProfilePictureController.u
 
 router.get("/all", authenticateToken, UsersController.getAllUsers);
 
+router.patch("/:uid/role", authenticateToken, UsersController.updateUserRole);
+
 router.get("/:uid", authenticateToken, UsersController.getUserById);
 
 router.get("/:uid/sessions", authenticateToken, UsersController.getUserSessions);

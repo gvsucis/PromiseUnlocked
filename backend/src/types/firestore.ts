@@ -24,6 +24,7 @@ export interface UserProfile {
   ethnicity?: string | null;
   pageUrl?: string | null;
   phone?: string | null;
+  role?: string | null;
   metadata: Record<string, unknown>;
 }
 export type ProofStatus =

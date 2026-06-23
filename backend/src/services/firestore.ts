@@ -103,6 +103,7 @@ export function normalizeUser(
     gender: data?.gender ?? null,
     ethnicity: data?.ethnicity ?? null,
     pageUrl: data?.pageUrl ?? null,
+    role: data?.role ?? null,
     metadata: data?.metadata ?? {},
     ...normalizeTimestamps(data!, ["createdAt", "updatedAt", "lastActiveAt"]),
   };
@@ -153,6 +154,7 @@ const userConverter: FirestoreDataConverter<UserProfile> = {
       gender: data.gender ?? null,
       ethnicity: data.ethnicity ?? null,
       pageUrl: data.pageUrl ?? null,
+      role: data.role ?? null,
       metadata: data.metadata ?? {},
     };
   },

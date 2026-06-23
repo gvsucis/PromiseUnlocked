@@ -6,10 +6,21 @@ type AdminCapableUser = AuthenticatedRequest["user"] & {
   role?: string;
 };
 
-const ADMIN_ROLES = new Set(["admin", "superadmin"]);
+export const VALID_ROLES = ["user", "admin", "superadmin"] as const;
+export type UserRole = (typeof VALID_ROLES)[number];
+
+/** Role assigned by the role-update endpoint when the request omits one. */
+export const DEFAULT_ROLE: UserRole = "admin";
+
+const ADMIN_ROLES = new Set<string>(["admin", "superadmin"]);
 
 export const isAdminUser = (user: AdminCapableUser): boolean =>
   user.admin === true || (typeof user.role === "string" && ADMIN_ROLES.has(user.role));
+
+export const isSuperAdmin = (user: AdminCapableUser): boolean => user.role === "superadmin";
+
+export const isValidRole = (value: unknown): value is UserRole =>
+  typeof value === "string" && (VALID_ROLES as readonly string[]).includes(value);
 
 export const canAccessParticipant = async (
   requester: AuthenticatedRequest["user"],

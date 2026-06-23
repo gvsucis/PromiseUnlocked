@@ -8,4 +8,11 @@ router.get("/", authenticateToken, SessionsController.listSessions);
 
 router.get("/:sessionId", authenticateToken, SessionsController.getSessionById);
 
+const adminRouter = express.Router();
+
+adminRouter.get("/", authenticateToken, SessionsController.getAllSessions);
+
+adminRouter.get("/:sessionId", authenticateToken, SessionsController.getSessionDetail);
+
+export { adminRouter };
 export default router;

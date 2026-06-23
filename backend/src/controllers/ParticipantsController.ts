@@ -13,6 +13,7 @@ import type { Address, AuthenticatedRequest, UserProfile } from "@/types/firesto
 import { canAccessParticipant, isAdminUser } from "@/utils/authz";
 import { profileUpdateSchema } from "@/validation/profileUpdateSchema";
 import { parsePagination } from "@/utils/pagination";
+import { normalizeSearchTerm, searchParticipantDocs } from "@/utils/participantSearch";
 
 const buildProfileFromRecord = (
   userRecord: admin.auth.UserRecord,
@@ -75,14 +76,26 @@ export class ParticipantsController {
     const requester = (req as AuthenticatedRequest).user;
     try {
       if (isAdminUser(requester)) {
-        const { page, pageSize } = parsePagination(req.query, 20, 100);
+        const { page, pageSize, offset } = parsePagination(req.query, 20, 100);
+        const term = normalizeSearchTerm(req.query.search);
+
+        if (term) {
+          const snapshot = await participantsCollection.get();
+          const matched = searchParticipantDocs(snapshot.docs, term);
+          const paginated = matched.slice(offset, offset + pageSize);
+          return res.json({ participants: paginated, page, pageSize, total: matched.length });
+        }
+
+        const totalSnapshot = await participantsCollection.count().get();
+        const total = totalSnapshot.data().count;
+
         const snapshot = await participantsCollection
           .orderBy("createdAt", "desc")
           .offset((page - 1) * pageSize)
           .limit(pageSize)
           .get();
         const participants = snapshot.docs.map((doc) => normalizeUser(doc));
-        return res.json({ participants, page, pageSize });
+        return res.json({ participants, page, pageSize, total });
       }
       const profile = await fetchOrCreateProfile(requester.uid);
       const participants = [normalizeUser(profile)];
