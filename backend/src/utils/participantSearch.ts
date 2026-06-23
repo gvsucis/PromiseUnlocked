@@ -2,6 +2,9 @@ import { normalizeUser } from "@/services/firestore";
 
 const SEARCH_FIELDS = ["displayName", "fullName", "email", "schoolName"] as const;
 
+/** Any object exposing (a subset of) the searchable participant fields. */
+type SearchableRecord = Partial<Record<(typeof SEARCH_FIELDS)[number], unknown>>;
+
 /**
  * Normalizes a raw `search` query param into a trimmed, lower-cased term.
  * Returns null when there is no usable search term.
@@ -16,7 +19,7 @@ export function normalizeSearchTerm(search: unknown): string | null {
  * Case-insensitive substring match across a participant's searchable fields.
  * `term` must already be trimmed/lower-cased (see {@link normalizeSearchTerm}).
  */
-export function matchesSearchTerm(record: Record<string, unknown>, term: string): boolean {
+export function matchesSearchTerm(record: SearchableRecord, term: string): boolean {
   return SEARCH_FIELDS.some((field) => {
     const value = record[field];
     return typeof value === "string" && value.toLowerCase().includes(term);
