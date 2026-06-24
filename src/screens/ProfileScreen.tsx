@@ -147,11 +147,42 @@ export default function ProfileScreen() {
     }
   };
 
-  const handlePhotoEditorSave = (editedUri: string) => {
-    setLocalPhotoUri(editedUri);
+  const handlePhotoEditorSave = async (editedUri: string) => {
     setShowImageEditor(false);
     setTempImageUri(null);
-    // TODO: call updateProfile({ photoURL: editedUri }) to persist to backend
+
+    setLocalPhotoUri(editedUri);
+
+    try {
+      const response = await fetch(editedUri);
+      const blob = await response.blob();
+
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
+
+      const storage = getStorage();
+
+      const uid = auth.currentUser?.uid;
+
+      if (!uid) {
+        throw new Error("No authenticated user");
+      }
+
+      const storageRef = ref(storage, `profilePhotos/${uid}/avatar.jpg`);
+
+      await uploadBytes(storageRef, blob);
+
+      const hostedUrl = await getDownloadURL(storageRef);
+
+      const updatedProfile = await updateProfile({
+        photoURL: hostedUrl,
+      });
+
+      setProfile(updatedProfile);
+
+      setLocalPhotoUri(null);
+    } catch (error) {
+      console.warn("Failed to upload profile photo:", error);
+    }
   };
 
   const handlePhotoEditorCancel = () => {
