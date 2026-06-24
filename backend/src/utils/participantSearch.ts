@@ -1,4 +1,4 @@
-import { normalizeUser } from "@/services/firestore";
+import { normalizeParticipant } from "@/services/firestore";
 
 const SEARCH_FIELDS = ["displayName", "fullName", "email", "schoolName"] as const;
 
@@ -35,7 +35,7 @@ export function searchParticipantDocs(
   term: string
 ): Record<string, unknown>[] {
   return docs
-    .map((doc) => normalizeUser(doc) as Record<string, unknown>)
+    .map((doc) => normalizeParticipant(doc) as Record<string, unknown>)
     .filter((user) => matchesSearchTerm(user, term))
     .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
 }

@@ -6,6 +6,7 @@ import {
   normalizeUser,
   participantsCollection,
   participantSessionsCollection,
+  usersCollection,
 } from "@/services/firestore";
 import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
 import { DEFAULT_ROLE, isAdminUser, isSuperAdmin, isValidRole } from "@/utils/authz";
@@ -29,16 +30,43 @@ const buildProfileFromRecord = (
 };
 
 const fetchOrCreateProfile = async (uid: string): Promise<UserProfile> => {
-  const snapshot = await participantsCollection.doc(uid).get();
-  if (snapshot.exists) {
-    const data = snapshot.data();
-    if (data) {
-      return data;
+  // First try the users collection
+  const userSnapshot = await usersCollection.doc(uid).get();
+  if (userSnapshot.exists) {
+    const data = userSnapshot.data();
+    if (data) return data;
+  }
+
+  // Attempt migration from legacy participants collection
+  const participantSnapshot = await participantsCollection.doc(uid).get();
+  if (participantSnapshot.exists) {
+    const pData = participantSnapshot.data();
+    if (pData) {
+      const profile: UserProfile = {
+        uid: pData.uid,
+        email: pData.email,
+        displayName: pData.displayName ?? null,
+        photoURL: pData.photoURL ?? null,
+        fullName: pData.fullName ?? null,
+        phone: pData.phone ?? null,
+        address: pData.address ?? null,
+        dateOfBirth: pData.dateOfBirth ?? null,
+        gender: pData.gender ?? null,
+        ethnicity: pData.ethnicity ?? null,
+        pageUrl: pData.pageUrl ?? null,
+        role: pData.role ?? null,
+        metadata: pData.metadata ?? {},
+        createdAt: pData.createdAt ?? Date.now(),
+        updatedAt: pData.updatedAt ?? Date.now(),
+      };
+      await usersCollection.doc(uid).set(profile);
+      return profile;
     }
   }
+  // Fallback to Firebase Auth
   const userRecord = await admin.auth().getUser(uid);
   const profile = buildProfileFromRecord(userRecord);
-  await participantsCollection.doc(uid).set(profile);
+  await usersCollection.doc(uid).set(profile);
   return profile;
 };
 
@@ -61,7 +89,7 @@ export class UsersController {
         displayName: displayName === "undefined" ? baseProfile.displayName : displayName,
         photoURL: photoURL === "undefined" ? baseProfile.photoURL : photoURL,
       };
-      await participantsCollection.doc(userRecord.uid).set(profile);
+      await usersCollection.doc(userRecord.uid).set(profile);
       return res.status(201).json({ user: normalizeUser(profile) });
     } catch (error) {
       console.error("Error creating user:", error);
@@ -107,7 +135,7 @@ export class UsersController {
       if (metadata !== "undefined") {
         updates.metadata = metadata;
       }
-      await participantsCollection.doc(uid).set(updates, { merge: true });
+      await usersCollection.doc(uid).set(updates, { merge: true });
       const profile = await fetchOrCreateProfile(uid);
       return res.json({ user: normalizeUser(profile) });
     } catch (error) {
@@ -126,16 +154,16 @@ export class UsersController {
       const term = normalizeSearchTerm(req.query.search);
 
       if (term) {
-        const snapshot = await participantsCollection.get();
+        const snapshot = await usersCollection.get();
         const matched = searchParticipantDocs(snapshot.docs, term);
         const paginated = matched.slice(offset, offset + pageSize);
         return res.json({ users: paginated, page, pageSize, total: matched.length });
       }
 
-      const totalSnapshot = await participantsCollection.count().get();
+      const totalSnapshot = await usersCollection.count().get();
       const total = totalSnapshot.data().count;
 
-      const snapshot = await participantsCollection
+      const snapshot = await usersCollection
         .orderBy("createdAt", "desc")
         .offset(offset)
         .limit(pageSize)
@@ -168,7 +196,10 @@ export class UsersController {
     }
 
     try {
-      const userRecord = await admin.auth().getUser(uid).catch(() => null);
+      const userRecord = await admin
+        .auth()
+        .getUser(uid)
+        .catch(() => null);
       if (!userRecord) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -181,7 +212,7 @@ export class UsersController {
         admin: role === "admin" || role === "superadmin",
       });
 
-      await participantsCollection.doc(uid).set({ role, updatedAt: Date.now() }, { merge: true });
+      await usersCollection.doc(uid).set({ role, updatedAt: Date.now() }, { merge: true });
 
       return res.json({ uid, role });
     } catch (error) {
@@ -196,11 +227,11 @@ export class UsersController {
       return res.status(400).json({ error: "Invalid user id" });
     }
     try {
-      const sessionSnapshot = await participantsCollection.doc(uid).get();
-      if (!sessionSnapshot.exists) {
+      const userSnapshot = await usersCollection.doc(uid).get();
+      if (!userSnapshot.exists) {
         return res.status(404).json({ error: "User not found" });
       }
-      return res.json({ user: normalizeUser(sessionSnapshot) });
+      return res.json({ user: normalizeUser(userSnapshot) });
     } catch (error) {
       console.error("Error fetching user:", error);
       return res.status(500).json({ error: "Failed to fetch user" });
@@ -222,11 +253,8 @@ export class UsersController {
   static async getCurrentUser(req: Request, res: Response) {
     const { uid } = (req as AuthenticatedRequest).user;
     try {
-      const snapshot = await participantsCollection.get();
-      const users = snapshot.docs
-        .map((doc) => normalizeUser(doc) as UserProfile)
-        .filter((user) => user.uid === uid);
-      return res.json({ users });
+      const profile = await fetchOrCreateProfile(uid);
+      return res.json({ users: [normalizeUser(profile)] });
     } catch (error) {
       console.error("Error fetching users:", error);
       return res.status(500).json({ error: "Failed to fetch users" });

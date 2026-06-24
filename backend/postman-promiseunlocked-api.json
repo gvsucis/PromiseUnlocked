@@ -22,8 +22,14 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/auth/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "auth", "login"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
         }
       },
       "response": [],
@@ -63,8 +69,13 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "participants"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants"
+          ]
         }
       },
       "response": [],
@@ -108,8 +119,14 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants/me",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "participants", "me"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "me"
+          ]
         }
       },
       "response": [],
@@ -149,8 +166,32 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants/me/sessions",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "participants", "me", "sessions"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "me",
+            "sessions"
+          ],
+          "query": [
+            {
+              "key": "status",
+              "value": "in_progress",
+              "description": "Filter by status (in_progress, completed, abandoned)"
+            },
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "pageSize",
+              "value": "20",
+              "description": "Results per page (max 100)"
+            }
+          ]
         }
       },
       "response": [],
@@ -194,8 +235,348 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants/me/sessions/{{sessionId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "participants", "me", "sessions", "{{sessionId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "me",
+            "sessions",
+            "{{sessionId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get My Passport",
+      "request": {
+        "description": "Returns the authenticated participant's aggregated passport across all sessions (in_progress, completed, abandoned).",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/participants/me/passport",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "me",
+            "passport"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/participants/me/passport",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "participants",
+                "me",
+                "passport"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"passport\": [\n    {\n      \"category\": \"Human Skills (Durable)\",\n      \"totalMappings\": 5,\n      \"unlockedStampCount\": 2\n    },\n    {\n      \"category\": \"Creative Expression & Communication\",\n      \"totalMappings\": 3,\n      \"unlockedStampCount\": 1\n    }\n  ],\n  \"totalStampsUnlocked\": 3,\n  \"totalMappings\": 8\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get My User Profile",
+      "request": {
+        "description": "Returns the authenticated user's bio profile (no school fields). Uses the separate `users` Firestore collection.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Users (Admin)",
+      "request": {
+        "description": "Admin-only. Lists all users with pagination (separate `users` collection).",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/all?page=1&pageSize=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "all"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "pageSize",
+              "value": "20",
+              "description": "Results per page (max 100)"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update My Participant Profile",
+      "request": {
+        "description": "Updates the authenticated participant's profile including school fields, address, etc.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"John Doe\",\n  \"schoolName\": \"Springfield High\",\n  \"schoolAddress\": \"123 Main St\",\n  \"phone\": \"555-0123\",\n  \"gender\": \"male\",\n  \"ethnicity\": \"prefer-not-to-say\",\n  \"dateOfBirth\": \"2000-01-15\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/participants/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update My User Profile",
+      "request": {
+        "description": "Updates the authenticated user's bio (displayName, photoURL, metadata). Does not include school fields.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"displayName\": \"John Doe\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "All Passports (Admin)",
+      "request": {
+        "description": "Admin-only. Returns aggregated passport data across all participants (paginated). Includes schoolName in each participant record.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/participants/passport/all?page=1&pageSize=50",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "passport",
+            "all"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "pageSize",
+              "value": "50",
+              "description": "Results per page (max 100)"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Participant Passport",
+      "request": {
+        "description": "Returns a participant's passport for a specific session. Requires `participantId` and `sessionId`.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/participants/{{participantId}}/passport?sessionId={{sessionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "{{participantId}}",
+            "passport"
+          ],
+          "query": [
+            {
+              "key": "sessionId",
+              "value": "{{sessionId}}",
+              "description": "Session ID (required)"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Save Interaction",
+      "request": {
+        "description": "Saves an interaction to the authenticated participant's session. Only participants can save their own interactions.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"interaction\": {\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"The answer shows structured analysis.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/participants/me/interactions",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "me",
+            "interactions"
+          ]
         }
       },
       "response": []
@@ -218,8 +599,14 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants/{{participantId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "participants", "{{participantId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "{{participantId}}"
+          ]
         }
       },
       "response": []
@@ -242,8 +629,32 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "participants", "{{participantId}}", "sessions"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "{{participantId}}",
+            "sessions"
+          ],
+          "query": [
+            {
+              "key": "status",
+              "value": "in_progress",
+              "description": "Filter by status (in_progress, completed, abandoned)"
+            },
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "pageSize",
+              "value": "20",
+              "description": "Results per page (max 100)"
+            }
+          ]
         }
       },
       "response": [],
@@ -287,8 +698,16 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "participants", "{{participantId}}", "sessions", "{{sessionId}}"]
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "participants",
+            "{{participantId}}",
+            "sessions",
+            "{{sessionId}}"
+          ]
         }
       },
       "response": []
@@ -311,7 +730,9 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
-          "host": ["{{baseUrl}}"],
+          "host": [
+            "{{baseUrl}}"
+          ],
           "path": [
             "api",
             "participants",
@@ -337,7 +758,9 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "participants",
@@ -406,7 +829,9 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
-          "host": ["{{baseUrl}}"],
+          "host": [
+            "{{baseUrl}}"
+          ],
           "path": [
             "api",
             "participants",
@@ -426,7 +851,9 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
-              "host": ["{{baseUrl}}"],
+              "host": [
+                "{{baseUrl}}"
+              ],
               "path": [
                 "api",
                 "participants",
@@ -454,11 +881,16 @@
     {
       "name": "Notes - Skills, Stamps, Awarded",
       "request": {
-        "description": "Backend status note: there are currently no Express API routes in `backend/src` for authenticated `me` skills, stamps, awarded items, or dedicated `me` interactions. The available self-service routes today are `/api/participants/me`, `/api/participants/me/sessions`, and `/api/participants/me/sessions/:sessionId`. For interactions, use the existing participant/session route after `Get My Participant Profile` sets `participantId`."
+        "description": "Backend status note: there are currently no Express API routes in `backend/src` for authenticated `me` skills, stamps, awarded items, or dedicated `me` interactions. \n\nAvailable self-service routes:\n- GET /api/participants/me\n- GET /api/users/me\n- GET /api/participants/me/passport (aggregated across all sessions)\n- GET /api/participants/me/sessions?status=in_progress&page=1&pageSize=20\n- GET /api/participants/me/sessions/:sessionId\n- PUT /api/participants/me (update participant profile)\n- PATCH /api/users/me (update user bio)\n- POST /api/participants/me/interactions (save interaction)\n- POST /api/participants/me/profile-picture\n- POST /api/users/me/profile-picture\n\nAdmin-only routes:\n- GET /api/users/all?page=1&pageSize=20 (list users)\n- GET /api/participants/passport/all (all passports)\n- GET /api/participants/:uid/passport?sessionId=xxx\n\nSession status values (Firestore): in_progress | completed | abandoned"
       },
       "response": []
     }
   ],
   "event": [],
-  "variable": [{ "key": "baseUrl", "value": "http://localhost:4000" }]
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    }
+  ]
 }

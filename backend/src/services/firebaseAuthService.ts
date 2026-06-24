@@ -45,9 +45,12 @@ export async function firebaseLogin(email: string, password: string) {
     const userDoc = await firestore.collection("users").doc(userId).get();
     if (!userDoc.exists) {
       await firestore.collection("users").doc(userId).set({
+        uid: userId,
         email,
-        createdAt: new Date().toISOString(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
         role: "user",
+        metadata: {},
       });
     }
     return {
@@ -91,17 +94,21 @@ export async function firebaseRegister(
     });
     // Create user profile in Firestore (users collection)
     const userId = response.data.localId;
-    // Only include firstName/lastName if defined
-    const userProfile: any = {
-      email,
-      firstName,
-      lastName,
-      createdAt: new Date().toISOString(),
-      role: "user",
-    };
-    if (firstName !== undefined) userProfile.firstName = firstName;
-    if (lastName !== undefined) userProfile.lastName = lastName;
-    await firestore.collection("users").doc(userId).set(userProfile);
+    const fullName = [firstName, lastName].filter(Boolean).join(" ") || undefined;
+    await firestore
+      .collection("users")
+      .doc(userId)
+      .set({
+        uid: userId,
+        email,
+        displayName: fullName ?? null,
+        fullName: fullName ?? null,
+        photoURL: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        role: "user",
+        metadata: {},
+      });
     return {
       success: true,
       data: {

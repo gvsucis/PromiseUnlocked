@@ -4,7 +4,12 @@ import type { ServiceAccount } from "firebase-admin";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import type { InteractionRecord, SessionRecord, UserProfile } from "../types/firestore";
+import type {
+  InteractionRecord,
+  ParticipantProfile,
+  SessionRecord,
+  UserProfile,
+} from "../types/firestore";
 
 /**
  * Initialise Firebase Admin.
@@ -26,7 +31,10 @@ function initFirebase() {
 
   // Local dev: load the service-account key file at runtime.
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  const keyPath = resolve(__dirname, "../../promise-unlocked-for-sure-firebase-adminsdk-fbsvc-fb7e582d9b.json");
+  const keyPath = resolve(
+    __dirname,
+    "../../promise-unlocked-for-sure-firebase-adminsdk-fbsvc-fb7e582d9b.json"
+  );
   const serviceAccount = JSON.parse(readFileSync(keyPath, "utf-8")) as ServiceAccount;
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -95,8 +103,6 @@ export function normalizeUser(
     displayName: data?.displayName ?? null,
     photoURL: data?.photoURL ?? null,
     fullName: data?.fullName ?? null,
-    schoolName: data?.schoolName ?? null,
-    schoolAddress: data?.schoolAddress ?? null,
     phone: data?.phone ?? null,
     address: data?.address ?? null,
     dateOfBirth: data?.dateOfBirth ?? null,
@@ -106,6 +112,18 @@ export function normalizeUser(
     role: data?.role ?? null,
     metadata: data?.metadata ?? {},
     ...normalizeTimestamps(data!, ["createdAt", "updatedAt", "lastActiveAt"]),
+  };
+}
+
+export function normalizeParticipant(
+  doc: FirebaseFirestore.DocumentSnapshot | (ParticipantProfile & { id?: string })
+): unknown {
+  const user = normalizeUser(doc) as Record<string, unknown>;
+  const data = "data" in doc ? doc.data() : (doc as unknown as Record<string, unknown>);
+  return {
+    ...user,
+    schoolName: data?.schoolName ?? null,
+    schoolAddress: data?.schoolAddress ?? null,
   };
 }
 
@@ -133,7 +151,7 @@ export function normalizeInteraction(
   };
 }
 
-const userConverter: FirestoreDataConverter<UserProfile> = {
+const participantConverter: FirestoreDataConverter<ParticipantProfile> = {
   toFirestore: (user) => user,
   fromFirestore: (snapshot) => {
     const data = snapshot.data();
@@ -148,6 +166,31 @@ const userConverter: FirestoreDataConverter<UserProfile> = {
       fullName: data.fullName ?? null,
       schoolName: data.schoolName ?? null,
       schoolAddress: data.schoolAddress ?? null,
+      phone: data.phone ?? null,
+      address: data.address ?? null,
+      dateOfBirth: data.dateOfBirth ?? null,
+      gender: data.gender ?? null,
+      ethnicity: data.ethnicity ?? null,
+      pageUrl: data.pageUrl ?? null,
+      role: data.role ?? null,
+      metadata: data.metadata ?? {},
+    };
+  },
+};
+
+const userConverter: FirestoreDataConverter<UserProfile> = {
+  toFirestore: (user) => user,
+  fromFirestore: (snapshot) => {
+    const data = snapshot.data();
+    return {
+      uid: snapshot.id,
+      email: data.email,
+      displayName: data.displayName,
+      photoURL: data.photoURL,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt ?? data.lastActivityAt,
+      isAnonymous: data.isAnonymous,
+      fullName: data.fullName ?? null,
       phone: data.phone ?? null,
       address: data.address ?? null,
       dateOfBirth: data.dateOfBirth ?? null,
@@ -216,8 +259,10 @@ const interactionConverter: FirestoreDataConverter<InteractionRecord> = {
 };
 
 // --- Collection/Doc Helpers ---
-export const participantsCollection = db.collection("participants").withConverter(userConverter);
-export const usersCollection = participantsCollection;
+export const participantsCollection = db
+  .collection("participants")
+  .withConverter(participantConverter);
+export const usersCollection = db.collection("users").withConverter(userConverter);
 
 export const participantDoc = (uid: string) => participantsCollection.doc(uid);
 

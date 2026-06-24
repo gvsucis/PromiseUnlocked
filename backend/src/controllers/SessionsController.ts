@@ -18,9 +18,9 @@ function resolveParticipantId(params: Record<string, any>): string | undefined {
 }
 
 function mapStatusFilter(input: string): string | undefined {
-  if (["active", "completed", "cancelled"].includes(input)) return input;
-  if (input === "in_progress") return "active";
-  if (input === "abandoned") return "cancelled";
+  if (["in_progress", "completed", "abandoned"].includes(input)) return input;
+  if (input === "active") return "in_progress";
+  if (input === "cancelled") return "abandoned";
   return undefined;
 }
 
@@ -37,8 +37,9 @@ export class SessionsController {
       return res.status(403).json({ error: "Forbidden" });
     }
     let query = participantSessionsCollection(participantId).orderBy("startedAt", "desc");
-    if (typeof status === "string" && ["active", "completed", "cancelled"].includes(status)) {
-      query = query.where("status", "==", status);
+    const mappedStatus = typeof status === "string" ? mapStatusFilter(status) : undefined;
+    if (mappedStatus) {
+      query = query.where("status", "==", mappedStatus);
     }
     try {
       const snapshot = await query.offset(offset).limit(pageSize).get();

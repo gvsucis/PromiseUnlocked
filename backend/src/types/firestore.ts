@@ -16,8 +16,6 @@ export interface UserProfile {
   createdAt: number;
   updatedAt: number;
   fullName?: string | null;
-  schoolName?: string | null;
-  schoolAddress?: string | null;
   address?: Address | null;
   dateOfBirth?: string | null;
   gender?: string | null;
@@ -26,6 +24,11 @@ export interface UserProfile {
   phone?: string | null;
   role?: string | null;
   metadata: Record<string, unknown>;
+}
+
+export interface ParticipantProfile extends UserProfile {
+  schoolName?: string | null;
+  schoolAddress?: string | null;
 }
 export type ProofStatus =
   | "pending"
@@ -74,7 +77,7 @@ export interface ProofVerificationJob {
   requiredAction?: string | null;
   errorMessage?: string | null;
 }
-export type SessionStatus = "active" | "completed" | "cancelled";
+export type SessionStatus = "in_progress" | "completed" | "abandoned";
 
 export type FirestoreDateValue = number | string | FirebaseFirestore.Timestamp | null;
 

@@ -2,14 +2,14 @@ import type { Request, Response } from "express";
 import {
   admin,
   normalizeSession,
-  normalizeUser,
+  normalizeParticipant,
   normalizePassport,
   participantSessionDoc,
   participantSessionsCollection,
   participantPassportCollection,
   participantsCollection,
 } from "@/services/firestore";
-import type { Address, AuthenticatedRequest, UserProfile } from "@/types/firestore";
+import type { Address, AuthenticatedRequest, ParticipantProfile } from "@/types/firestore";
 import { canAccessParticipant, isAdminUser } from "@/utils/authz";
 import { profileUpdateSchema } from "@/validation/profileUpdateSchema";
 import { parsePagination } from "@/utils/pagination";
@@ -18,7 +18,7 @@ import { normalizeSearchTerm, searchParticipantDocs } from "@/utils/participantS
 const buildProfileFromRecord = (
   userRecord: admin.auth.UserRecord,
   metadata: Record<string, unknown> = {}
-): UserProfile => {
+): ParticipantProfile => {
   const now = Date.now();
   return {
     uid: userRecord.uid,
@@ -31,7 +31,7 @@ const buildProfileFromRecord = (
   };
 };
 
-const fetchOrCreateProfile = async (uid: string): Promise<UserProfile> => {
+const fetchOrCreateProfile = async (uid: string): Promise<ParticipantProfile> => {
   const snapshot = await participantsCollection.doc(uid).get();
   if (snapshot.exists) {
     const data = snapshot.data();
@@ -59,13 +59,13 @@ export class ParticipantsController {
         photoURL,
       });
       const baseProfile = buildProfileFromRecord(userRecord, metadata);
-      const profile: UserProfile = {
+      const profile: ParticipantProfile = {
         ...baseProfile,
         fullName: fullName === "undefined" ? baseProfile.fullName : fullName,
         photoURL: photoURL === "undefined" ? baseProfile.photoURL : photoURL,
       };
       await participantsCollection.doc(userRecord.uid).set(profile);
-      return res.status(201).json({ participant: normalizeUser(profile) });
+      return res.status(201).json({ participant: normalizeParticipant(profile) });
     } catch (error) {
       console.error("Error creating participant:", error);
       return res.status(500).json({ error: "Failed to create participant" });
@@ -94,11 +94,11 @@ export class ParticipantsController {
           .offset((page - 1) * pageSize)
           .limit(pageSize)
           .get();
-        const participants = snapshot.docs.map((doc) => normalizeUser(doc));
+        const participants = snapshot.docs.map((doc) => normalizeParticipant(doc));
         return res.json({ participants, page, pageSize, total });
       }
       const profile = await fetchOrCreateProfile(requester.uid);
-      const participants = [normalizeUser(profile)];
+      const participants = [normalizeParticipant(profile)];
       return res.json({ participants });
     } catch (error) {
       console.error("Error fetching participants:", error);
@@ -110,7 +110,7 @@ export class ParticipantsController {
     const requester = (req as AuthenticatedRequest).user;
     try {
       const profile = await fetchOrCreateProfile(requester.uid);
-      return res.json({ participant: normalizeUser(profile) });
+      return res.json({ participant: normalizeParticipant(profile) });
     } catch (error) {
       console.error("Error fetching authenticated participant:", error);
       return res.status(500).json({ error: "Failed to fetch participant profile" });
@@ -157,7 +157,7 @@ export class ParticipantsController {
           } as Address)
         : null;
 
-      const nextProfile: UserProfile = {
+      const nextProfile: ParticipantProfile = {
         uid: currentProfile.uid,
         email: email ?? currentProfile.email,
         fullName: fullName ?? currentProfile.fullName ?? null,
@@ -191,7 +191,7 @@ export class ParticipantsController {
       }
 
       await participantsCollection.doc(requester.uid).set(nextProfile, { merge: true });
-      return res.json({ participant: normalizeUser(nextProfile) });
+      return res.json({ participant: normalizeParticipant(nextProfile) });
     } catch (error) {
       console.error("Error updating authenticated participant:", error);
       return res.status(500).json({ error: "Failed to update participant profile" });
@@ -203,7 +203,7 @@ export class ParticipantsController {
     const { status } = req.query;
     const { page, pageSize, offset } = parsePagination(req.query, 20, 100);
     let query = participantSessionsCollection(requester.uid).orderBy("startedAt", "desc");
-    if (typeof status === "string" && ["active", "completed", "cancelled"].includes(status)) {
+    if (typeof status === "string" && ["in_progress", "completed", "abandoned"].includes(status)) {
       query = query.where("status", "==", status);
     }
     try {
@@ -245,7 +245,7 @@ export class ParticipantsController {
       if (!participantSnapshot.exists) {
         return res.status(404).json({ error: "Participant not found" });
       }
-      return res.json({ participant: normalizeUser(participantSnapshot) });
+      return res.json({ participant: normalizeParticipant(participantSnapshot) });
     } catch (error) {
       console.error("Error fetching participant:", error);
       return res.status(500).json({ error: "Failed to fetch participant" });
@@ -290,6 +290,61 @@ export class ParticipantsController {
     }
   }
 
+  static async getMePassport(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    try {
+      const sessionsSnapshot = await participantSessionsCollection(requester.uid).get();
+      const allPassportDocs: Array<Record<string, unknown>> = [];
+      for (const sessionDoc of sessionsSnapshot.docs) {
+        const passportSnapshot = await participantPassportCollection(
+          requester.uid,
+          sessionDoc.id
+        ).get();
+        for (const p of passportSnapshot.docs) {
+          allPassportDocs.push(normalizePassport(p) ?? {});
+        }
+      }
+
+      const aggregated = allPassportDocs.reduce<Record<string, unknown>>(
+        (acc, p) => {
+          const category = p.category as string;
+          if (!category) return acc;
+          if (!acc[category]) {
+            acc[category] = { category, totalMappings: 0, unlockedStampCount: 0 };
+          }
+          const stamps = p.unlockedStamps as
+            | Record<string, { timesUnlocked?: number }>
+            | undefined;
+          const stampCount = stamps ? Object.keys(stamps).length : 0;
+          (acc[category] as Record<string, unknown>).totalMappings =
+            ((acc[category] as Record<string, unknown>).totalMappings as number) +
+            ((p.totalMappings as number) ?? 0);
+          (acc[category] as Record<string, unknown>).unlockedStampCount =
+            ((acc[category] as Record<string, unknown>).unlockedStampCount as number) +
+            stampCount;
+          return acc;
+        },
+        {} as Record<string, unknown>
+      );
+
+      const passport = Object.values(aggregated) as Array<{
+        category: string;
+        totalMappings: number;
+        unlockedStampCount: number;
+      }>;
+      const totalStampsUnlocked = passport.reduce(
+        (sum, c) => sum + (c.unlockedStampCount as number),
+        0
+      );
+      const totalMappings = passport.reduce((sum, c) => sum + (c.totalMappings as number), 0);
+
+      return res.json({ passport, totalStampsUnlocked, totalMappings });
+    } catch (error) {
+      console.error("Error fetching authenticated participant passport:", error);
+      return res.status(500).json({ error: "Failed to fetch participant passport" });
+    }
+  }
+
   static async getAllPassports(req: Request, res: Response) {
     const requester = (req as AuthenticatedRequest).user;
     if (!isAdminUser(requester)) {
@@ -308,7 +363,7 @@ export class ParticipantsController {
 
       const result = await Promise.all(
         participantsSnapshot.docs.map(async (doc) => {
-          const profile = normalizeUser(doc) as Record<string, unknown>;
+          const profile = normalizeParticipant(doc) as Record<string, unknown>;
           const sessionsSnapshot = await participantSessionsCollection(doc.id)
             .select("status")
             .get();
