@@ -176,19 +176,7 @@ export default function ProfileScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <SafeAreaView style={globalStyles.screen}>
-        <View style={styles.floatingButtons} pointerEvents="box-none">
-          <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
-            <MaterialIcons
-              name={session.mode === "authenticated" ? "logout" : "person"}
-              size={24}
-              color={colors.background.card}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={reset} style={styles.floatingButton}>
-            <MaterialIcons name="refresh" size={24} color={colors.background.card} />
-          </TouchableOpacity>
-        </View>
+      <SafeAreaView style={globalStyles.screen} edges={["left", "right", "bottom"]}>
         <View
           style={[
             globalStyles.screen,
@@ -196,6 +184,19 @@ export default function ProfileScreen() {
           ]}
         >
           <ScrollView contentContainerStyle={styles.scrollContent}>
+            <View style={styles.floatingButtons} pointerEvents="box-none">
+              <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+                <MaterialIcons
+                  name={session.mode === "authenticated" ? "logout" : "person"}
+                  size={24}
+                  color={colors.background.card}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={reset} style={styles.floatingButton}>
+                <MaterialIcons name="refresh" size={24} color={colors.background.card} />
+              </TouchableOpacity>
+            </View>
             <View style={styles.bannerContainer}>
               <View style={styles.bannerClip}>
                 <View style={styles.banner} />
@@ -465,6 +466,7 @@ const styles = StyleSheet.create({
   floatingButtons: {
     position: "absolute",
     right: 16,
+    paddingTop: 2,
     flexDirection: "row",
     gap: 8,
     zIndex: 10,
