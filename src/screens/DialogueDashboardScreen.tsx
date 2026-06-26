@@ -30,7 +30,6 @@ import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
 import { StampUnlockModal } from "../components/dialogue/StampUnlockModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
-import { CategoryCard } from "../components/dialogue/CategoryCard";
 import { useDialogueState } from "../hooks/useDialogueState";
 import { useAuth } from "../context/AuthContext";
 import { dialogueResetTarget } from "../context/DialogueContext";
@@ -40,6 +39,7 @@ import { upgradeStampTier } from "../services/categoryStorageService";
 import { getOrStartSession } from "../services/sessionManager";
 import { colors } from "../styles/global";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import StampBadge from "../components/stamps/StampBadge";
 
 // FIXME: POC cross-hierarchy bridge — move to DialogueContext when refactoring
 export const dialogueBridgeRef = {
@@ -609,48 +609,42 @@ export default function DialogueDashboardScreen() {
     continueAfterStampUnlockRef.current();
   };
 
-  // --- UI helpers ---
-
-  const handleCardClick = (categoryName: string) => {
-    const mapped = mappedCategories.find((c) => c.category === categoryName);
-    if (mapped) {
-      Alert.alert(categoryName, `Why you have this trait:\n"${mapped.justification}"`, [
-        { text: "OK" },
-      ]);
-    } else if (mappedCategories.length === 0) {
-      Alert.alert(
-        "Not Yet Mapped",
-        "This trait is not yet mapped to you. Click the 'Start' button to discover new traits!",
-        [{ text: "OK" }]
-      );
-    } else {
-      Alert.alert(
-        "Not Yet Mapped",
-        "This trait is not yet mapped to you. Click the 'Continue' button to discover new traits!",
-        [{ text: "OK" }]
-      );
-    }
-  };
-
-  const renderCategoryCards = () => {
-    const mappedNames = new Map(mappedCategories.map((c) => [c.category, c]));
-
-    return CATEGORY_TAXONOMY.map((item) => (
-      <CategoryCard
-        key={item.category}
-        category={{
-          ...item,
-          example: "",
-          icon: (item.icon ?? "category") as keyof typeof MaterialIcons.glyphMap,
-        }}
-        isMapped={mappedNames.has(item.category)}
-        mappedData={mappedNames.get(item.category)}
-        onPress={() => handleCardClick(item.category)}
-      />
-    ));
-  };
-
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
+  const totalStampsUnlocked = mappedCategories.reduce(
+    (sum, mc) => sum + (mc.unlockedStamps?.length ?? 0),
+    0
+  );
+
+  const regionsExplored = mappedCategories.filter(
+    (mc) => (mc.unlockedStamps?.length ?? 0) > 0
+  ).length;
+
+  // Pick a pseudo-random low-tier stamp to highlight for upgrade
+  const upgradableStamp = React.useMemo(() => {
+    const candidates: {
+      stamp: { name: string; tier?: number };
+      category: string;
+      categoryId: string;
+    }[] = [];
+    for (const mc of mappedCategories) {
+      for (const s of mc.unlockedStamps ?? []) {
+        if ((s.tier ?? 1) <= 2) {
+          candidates.push({ stamp: s, category: mc.category, categoryId: mc.categoryId });
+        }
+      }
+    }
+    if (candidates.length === 0) return null;
+    // Pseudo-random but stable within a render cycle
+    return candidates[Math.floor(Date.now() / 60000) % candidates.length];
+  }, [mappedCategories]);
+
+  // Up to 3 unexplored regions (zero unlocked stamps)
+  const unexploredRegions = React.useMemo(() => {
+    const exploredSet = new Set(
+      mappedCategories.filter((mc) => (mc.unlockedStamps?.length ?? 0) > 0).map((mc) => mc.category)
+    );
+    return CATEGORY_TAXONOMY.filter((cat) => !exploredSet.has(cat.category)).slice(0, 3);
+  }, [mappedCategories]);
 
   React.useEffect(() => {
     dialogueResetTarget.current = handleReset;
@@ -861,20 +855,22 @@ export default function DialogueDashboardScreen() {
           <Card.Content>
             <View style={styles.progressHeader}>
               <MaterialIcons name="trending-up" size={24} color={colors.accent.sky} />
-              <Text style={styles.progressTitle}>Your Progress</Text>
+              <Text style={styles.nextStepsTitle}>Your Progress</Text>
             </View>
             <View style={styles.statsRow}>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{mappedCategories.length}</Text>
-                <Text style={styles.statLabel}>Mapped</Text>
+                <Text style={styles.statNumber}>{totalStampsUnlocked}</Text>
+                <Text style={styles.statLabel}>Stamps Earned</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{TOTAL_CATEGORIES}</Text>
-                <Text style={styles.statLabel}>Total</Text>
+                <Text style={styles.statNumber}>{regionsExplored}</Text>
+                <Text style={styles.statLabel}>Regions Mapped</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{completionPercentage}%</Text>
-                <Text style={styles.statLabel}>Complete</Text>
+                <Text style={styles.statNumber}>
+                  {Math.round((totalStampsUnlocked / 10) * 100)}%
+                </Text>
+                <Text style={styles.statLabel}>Passport Progress</Text>
               </View>
             </View>
             <View style={styles.progressBar}>
@@ -912,8 +908,100 @@ export default function DialogueDashboardScreen() {
             )}
           </Card.Content>
         </Card>
+        {/* Card 1: Upgrade a stamp */}
+        {upgradableStamp && (
+          <Card style={styles.nextStepsCard}>
+            <Card.Content>
+              <View style={styles.nextStepsHeader}>
+                <MaterialIcons name="auto-awesome" size={20} color={colors.accent.sky} />
+                <Text style={styles.nextStepsTitle}>Add More Detail</Text>
+              </View>
+              <View style={styles.stampUpgradeBody}>
+                <View style={styles.stampUpgradeBadgeContainer}>
+                  <StampBadge
+                    stampName={upgradableStamp.stamp.name}
+                    tier={upgradableStamp.stamp.tier ?? 1}
+                    size="detail"
+                  />
+                </View>
+                <Text style={styles.stampUpgradeName}>{upgradableStamp.stamp.name}</Text>
+                <Text style={styles.stampUpgradeRegion}>{upgradableStamp.category}</Text>
+                <TouchableOpacity
+                  style={styles.stampUpgradeButton}
+                  onPress={() =>
+                    navigation.navigate("StampDetails", {
+                      stamp: upgradableStamp.stamp.name,
+                      region: upgradableStamp.category,
+                      categoryId: upgradableStamp.categoryId,
+                    })
+                  }
+                >
+                  <Text style={styles.stampUpgradeButtonText}>View Stamp</Text>
+                </TouchableOpacity>
+              </View>
+            </Card.Content>
+          </Card>
+        )}
 
-        <View style={styles.categoryGrid}>{renderCategoryCards()}</View>
+        {/* Card 2: Explore unexplored regions */}
+        {unexploredRegions.length > 0 && (
+          <Card style={styles.nextStepsCard}>
+            <Card.Content>
+              <View style={styles.nextStepsHeader}>
+                <MaterialIcons name="explore" size={20} color={colors.accent.sky} />
+                <Text style={styles.nextStepsTitle}>Explore New Regions</Text>
+              </View>
+              {unexploredRegions.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={styles.nextStepsRow}
+                  onPress={() =>
+                    navigation.navigate("Stamps", { region: cat.category, categoryId: cat.id })
+                  }
+                >
+                  <View style={styles.nextStepsRowLeft}>
+                    <MaterialIcons
+                      name={(cat.icon as any) ?? "place"}
+                      size={20}
+                      color={colors.accent.sky}
+                    />
+                    <Text style={styles.nextStepsRowTitle}>{cat.category}</Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.text.muted} />
+                </TouchableOpacity>
+              ))}
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* Card 3: Stamp milestones */}
+        {(() => {
+          const next = [
+            { label: "Collect your first stamp", target: 1 },
+            { label: "Collect 5 stamps", target: 5 },
+            { label: "Collect 10 stamps", target: 10 },
+          ].find(({ target }) => totalStampsUnlocked < target);
+          if (!next) return null;
+          return (
+            <Card style={styles.nextStepsCard}>
+              <Card.Content>
+                <View style={styles.nextStepsHeader}>
+                  <MaterialIcons name="military-tech" size={20} color={colors.accent.sky} />
+                  <Text style={styles.nextStepsTitle}>Next Milestone</Text>
+                </View>
+                <View style={styles.stampUpgradeBody}>
+                  <View style={styles.stampUpgradePlaceholder}>
+                    <Text style={styles.milestoneBubbleText}>{totalStampsUnlocked}</Text>
+                  </View>
+                  <Text style={styles.stampUpgradeName}>{next.label}</Text>
+                  <Text style={styles.stampUpgradeRegion}>
+                    {totalStampsUnlocked} / {next.target} stamps
+                  </Text>
+                </View>
+              </Card.Content>
+            </Card>
+          );
+        })()}
       </ScrollView>
 
       <Snackbar
@@ -1158,6 +1246,13 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginTop: 10,
   },
+  stampUpgradeBadgeContainer: {
+    width: 120,
+    height: 120,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   subtitle: {
     fontSize: 16,
     color: colors.text.secondary,
@@ -1172,11 +1267,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     marginBottom: 15,
-  },
-  progressTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
   },
   statsRow: {
     flexDirection: "row",
@@ -1233,11 +1323,6 @@ const styles = StyleSheet.create({
   snackbar: {
     marginBottom: 80,
   },
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
   floatingButtons: {
     position: "absolute",
     right: 16,
@@ -1250,5 +1335,91 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+  nextStepsCard: {
+    marginBottom: 20,
+    elevation: 4,
+  },
+  nextStepsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  nextStepsTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.text.primary,
+  },
+  nextStepsSubtitle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginBottom: 10,
+  },
+  nextStepsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.accent,
+  },
+  nextStepsRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  nextStepsRowTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text.primary,
+  },
+  nextStepsRowSub: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: 1,
+  },
+  milestoneBubbleText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  stampUpgradeBody: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  stampUpgradePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.accent.sky,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  stampUpgradeName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text.primary,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  stampUpgradeRegion: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  stampUpgradeButton: {
+    backgroundColor: colors.accent.teal,
+    paddingVertical: 10,
+    paddingHorizontal: 28,
+    borderRadius: 10,
+  },
+  stampUpgradeButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

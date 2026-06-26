@@ -27,6 +27,7 @@ import { useLogout } from "../hooks/useLogout";
 import {
   fetchProfile,
   updateProfile,
+  uploadProfilePicture,
   buildLocalProfile,
   type UserProfile,
 } from "../services/profileService";
@@ -96,7 +97,7 @@ export default function ProfileScreen() {
   };
 
   const displayName = useMemo(() => {
-    return profile?.fullName || profile?.displayName || "Your Profile";
+    return profile?.fullName || profile?.displayName || "Your Name";
   }, [profile]);
 
   const highSchool = useMemo(() => {
@@ -154,30 +155,14 @@ export default function ProfileScreen() {
     setLocalPhotoUri(editedUri);
 
     try {
-      const response = await fetch(editedUri);
-      const blob = await response.blob();
+      const uploadResult = await uploadProfilePicture(editedUri);
 
-      const { getStorage, ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-
-      const storage = getStorage();
-
-      const uid = auth.currentUser?.uid;
-
-      if (!uid) {
-        throw new Error("No authenticated user");
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error);
       }
 
-      const storageRef = ref(storage, `profilePhotos/${uid}/avatar.jpg`);
-
-      await uploadBytes(storageRef, blob);
-
-      const hostedUrl = await getDownloadURL(storageRef);
-
-      const updatedProfile = await updateProfile({
-        photoURL: hostedUrl,
-      });
-
-      setProfile(updatedProfile);
+      const refreshedProfile = await fetchProfile();
+      setProfile(refreshedProfile);
 
       setLocalPhotoUri(null);
     } catch (error) {
@@ -195,7 +180,7 @@ export default function ProfileScreen() {
     { label: "About Me", complete: bio.trim().length > 0 },
     { label: "Upload Photos", complete: false },
     { label: "Complete Background Info", complete: false },
-    { label: "Full Name", complete: displayName !== "Your Profile" },
+    { label: "Full Name", complete: displayName !== "Your Name" },
   ];
 
   const progressPercent = Math.round(
@@ -207,144 +192,151 @@ export default function ProfileScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <SafeAreaView style={globalStyles.screen} edges={["left", "right", "bottom"]}>
-        <View
-          style={[
-            globalStyles.screen,
-            { paddingTop: insets.top, backgroundColor: colors.accent.sky },
-          ]}
-        >
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            <View style={styles.floatingButtons} pointerEvents="box-none">
-              <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
-                <MaterialIcons
-                  name={session.mode === "authenticated" ? "logout" : "person"}
-                  size={24}
-                  color={colors.background.card}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={reset} style={styles.floatingButton}>
-                <MaterialIcons name="refresh" size={24} color={colors.background.card} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.bannerContainer}>
-              <View style={styles.bannerClip}>
-                <View style={styles.banner} />
-              </View>
-
-              <View style={styles.avatarWrapper}>
-                <View style={styles.avatarCircle}>
-                  {(localPhotoUri ?? profile?.photoURL) ? (
-                    <Image
-                      source={{ uri: localPhotoUri ?? profile?.photoURL ?? "" }}
-                      style={styles.avatarImage}
-                    />
-                  ) : (
-                    <MaterialIcons name="person" size={40} color={colors.text.inverse} />
-                  )}
-                </View>
-                <TouchableOpacity style={styles.avatarEditBadge} onPress={handleEditPhoto}>
-                  <MaterialIcons name="edit" size={16} color={colors.text.inverse} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.identitySection}>
-              <Text style={styles.studentName}>{displayName}</Text>
-              <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
-              <Text style={styles.meta}>{highSchool}</Text>
-              {profile?.schoolAddress?.trim() ? (
-                <Text style={styles.meta}>{profile.schoolAddress}</Text>
-              ) : null}
-              {profile?.pageUrl && (
-                <Text style={[styles.meta, { color: colors.accent.sky, marginTop: 4 }]}>
-                  {profile.pageUrl}
-                </Text>
-              )}
-            </View>
-
-            <View style={globalStyles.card}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.cardTitle}>About Me</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (editingBio) {
-                      void handleSaveBio();
-                      return;
-                    }
-                    setEditingBio(true);
-                  }}
-                  disabled={savingBio}
-                >
-                  <Text style={styles.linkText}>{editingBio ? "Save" : "Edit"}</Text>
-                </TouchableOpacity>
-              </View>
-              {editingBio ? (
-                <TextInput value={bio} onChangeText={setBio} style={styles.bioInput} multiline />
-              ) : (
-                <Text style={styles.bio}>
-                  {bio || "Add a short bio about your goals and interests."}
-                </Text>
-              )}
-            </View>
-
-            <View style={globalStyles.card}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.cardTitle}>Moments & Artifacts</Text>
-              </View>
-              <View style={styles.galleryRow}>
-                <GalleryPlaceholder />
-                <GalleryPlaceholder />
-                <TouchableOpacity style={styles.galleryAddCard}>
-                  <MaterialIcons name="add" size={28} color={colors.accent.sky} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={globalStyles.card}
-              onPress={() => navigation.navigate("EditProfile")}
-            >
-              <View style={[globalStyles.row, { marginBottom: 0 }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>Add Your Personal Information</Text>
-                  <Text style={styles.cardSubtitle}>
-                    Share details about your background and journey.
-                  </Text>
-                </View>
-                <MaterialIcons name="chevron-right" size={24} color={colors.accent.sky} />
-              </View>
+      <View
+        style={[
+          globalStyles.screen,
+          { paddingTop: insets.top, backgroundColor: colors.accent.sky },
+        ]}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.floatingButtons} pointerEvents="box-none">
+            <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+              <MaterialIcons
+                name={session.mode === "authenticated" ? "logout" : "person"}
+                size={24}
+                color={colors.background.card}
+              />
             </TouchableOpacity>
 
-            <View style={globalStyles.card}>
-              <View style={[globalStyles.row, { marginBottom: 14 }]}>
-                <View style={{ flex: 1, paddingRight: 16 }}>
-                  <Text style={styles.cardTitle}>Profile Completion</Text>
-                  <Text style={styles.cardSubtitle}>
-                    Complete your profile to unlock more opportunities.
-                  </Text>
-                </View>
-                <Text style={styles.progressPercent}>{progressPercent}%</Text>
-              </View>
-
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-              </View>
-
-              <View style={styles.progressChecklist}>
-                {checklist.map((item) => (
-                  <ChecklistItem key={item.label} {...item} />
-                ))}
-              </View>
-
-              <Text style={styles.footnote}>
-                Your journey continues beyond profile completion through stamps and experiences.
-              </Text>
+            <TouchableOpacity onPress={reset} style={styles.floatingButton}>
+              <MaterialIcons name="refresh" size={24} color={colors.background.card} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.bannerContainer}>
+            <View style={styles.bannerClip}>
+              <View style={styles.banner} />
             </View>
-          </ScrollView>
-        </View>
-      </SafeAreaView>
+
+            <View style={styles.avatarWrapper}>
+              <View style={styles.avatarCircle}>
+                {(localPhotoUri ?? profile?.photoURL) ? (
+                  <Image
+                    source={{ uri: localPhotoUri ?? profile?.photoURL ?? "" }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <MaterialIcons name="person" size={40} color={colors.text.inverse} />
+                )}
+              </View>
+              <TouchableOpacity style={styles.avatarEditBadge} onPress={handleEditPhoto}>
+                <MaterialIcons name="edit" size={16} color={colors.text.inverse} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.identitySection}
+            onPress={() => navigation.navigate("EditProfile")}
+          >
+            <View style={styles.identityHeader}>
+              <Text style={styles.studentName}>{displayName}</Text>
+              <MaterialIcons name="edit" size={18} color={colors.accent.sky} />
+            </View>
+
+            <Text style={styles.meta}>{profile?.email ?? "yourname@email.com"}</Text>
+            <Text style={styles.meta}>{highSchool}</Text>
+
+            {profile?.schoolAddress?.trim() ? (
+              <Text style={styles.meta}>{profile.schoolAddress}</Text>
+            ) : null}
+
+            {profile?.pageUrl && (
+              <Text style={[styles.meta, { color: colors.accent.sky, marginTop: 4 }]}>
+                {profile.pageUrl}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={globalStyles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.cardTitle}>About Me</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (editingBio) {
+                    void handleSaveBio();
+                    return;
+                  }
+                  setEditingBio(true);
+                }}
+                disabled={savingBio}
+              >
+                <Text style={styles.linkText}>{editingBio ? "Save" : "Edit"}</Text>
+              </TouchableOpacity>
+            </View>
+            {editingBio ? (
+              <TextInput value={bio} onChangeText={setBio} style={styles.bioInput} multiline />
+            ) : (
+              <Text style={styles.bio}>
+                {bio || "Add a short bio about your goals and interests."}
+              </Text>
+            )}
+          </View>
+
+          <View style={globalStyles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.cardTitle}>Moments & Artifacts</Text>
+            </View>
+            <View style={styles.galleryRow}>
+              <GalleryPlaceholder />
+              <GalleryPlaceholder />
+              <TouchableOpacity style={styles.galleryAddCard}>
+                <MaterialIcons name="add" size={28} color={colors.accent.sky} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={globalStyles.card}
+            onPress={() => navigation.navigate("EditProfile")}
+          >
+            <View style={[globalStyles.row, { marginBottom: 0 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>Add Your Personal Information</Text>
+                <Text style={styles.cardSubtitle}>
+                  Share details about your background and journey.
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={24} color={colors.accent.sky} />
+            </View>
+          </TouchableOpacity>
+
+          <View style={globalStyles.card}>
+            <View style={[globalStyles.row, { marginBottom: 14 }]}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={styles.cardTitle}>Profile Completion</Text>
+                <Text style={styles.cardSubtitle}>
+                  Complete your profile to unlock more opportunities.
+                </Text>
+              </View>
+              <Text style={styles.progressPercent}>{progressPercent}%</Text>
+            </View>
+
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+            </View>
+
+            <View style={styles.progressChecklist}>
+              {checklist.map((item) => (
+                <ChecklistItem key={item.label} {...item} />
+              ))}
+            </View>
+
+            <Text style={styles.footnote}>
+              Your journey continues beyond profile completion through stamps and experiences.
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
       {showImageEditor && tempImageUri && (
         <ImageEditor
           imageUri={tempImageUri}
@@ -357,11 +349,11 @@ export default function ProfileScreen() {
 }
 
 const BANNER_HEIGHT = 160;
-const AVATAR_SIZE = 88;
+const AVATAR_SIZE = 110;
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingBottom: spacing.xl,
+    paddingBottom: 120,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.background.subtle,
   },
@@ -416,7 +408,7 @@ const styles = StyleSheet.create({
   identitySection: {
     alignItems: "center",
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl,
   },
   studentName: { ...typography.screenTitle, fontSize: 20 },
   meta: { fontSize: 14, color: colors.text.secondary, marginTop: 2 },
@@ -521,5 +513,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 2,
     borderColor: colors.text.inverse,
+  },
+  identityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
 });
