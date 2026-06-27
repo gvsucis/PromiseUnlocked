@@ -111,9 +111,11 @@ const FB_STORAGE_BASE =
   "https://firebasestorage.googleapis.com/v0/b/promise-unlocked-for-sure.firebasestorage.app/o";
 
 export function getStampBaseImage(stampName: string): { uri: string } {
-  const filename = STAMPS_LIST[stampName] ?? slugify(stampName) + ".png";
+  const filename = STAMPS_LIST[stampName] ?? `${slugify(stampName)}.png`;
+  const encodedPath = encodeURIComponent(`stamp-icons/${filename}`);
+
   return {
-    uri: `${FB_STORAGE_BASE}/${encodeURIComponent(`stamp-icons/${filename}`)}?alt=media`,
+    uri: `${FB_STORAGE_BASE}/${encodedPath}?alt=media`,
   };
 }
 
