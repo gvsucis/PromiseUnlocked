@@ -17,6 +17,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
 import { auth } from "../config/firebase";
@@ -26,9 +27,13 @@ import { useLogout } from "../hooks/useLogout";
 import {
   fetchProfile,
   updateProfile,
+  uploadProfilePicture,
   buildLocalProfile,
   type UserProfile,
 } from "../services/profileService";
+
+import { ImagePickerService } from "../services/imagePickerService";
+import ImageEditor from "../components/ImageEditor";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -57,6 +62,10 @@ export default function ProfileScreen() {
 
   const { reset } = useDialogue();
   const { confirmAndLogout } = useLogout();
+  const [tempImageUri, setTempImageUri] = useState<string | null>(null);
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   useFocusEffect(
     useCallback(() => {
@@ -88,10 +97,8 @@ export default function ProfileScreen() {
   };
 
   const displayName = useMemo(() => {
-    return profile?.fullName || profile?.displayName || "Your Profile";
+    return profile?.fullName || profile?.displayName || "Your Name";
   }, [profile]);
-
-  const photoUrl = profile?.photoURL || auth.currentUser?.photoURL || null;
 
   const highSchool = useMemo(() => {
     return profile?.schoolName?.trim();
@@ -115,12 +122,65 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleEditPhoto = () => {
+    Alert.alert("Update Profile Photo", "Choose how to add your photo.", [
+      { text: "Take Photo", onPress: () => handlePhotoSelection(true) },
+      { text: "Choose from Gallery", onPress: () => handlePhotoSelection(false) },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const handlePhotoSelection = async (useCamera: boolean) => {
+    const hasPermissions = await ImagePickerService.requestPermissions();
+    if (!hasPermissions) {
+      Alert.alert("Permissions Required", "Camera and photo library permissions are required.");
+      return;
+    }
+    const result = useCamera
+      ? await ImagePickerService.takePhotoWithCamera()
+      : await ImagePickerService.pickImageFromGalleryWithOptions(false);
+
+    if (result.success && result.imageUri) {
+      setTempImageUri(result.imageUri);
+      setShowImageEditor(true);
+    } else if (result.error) {
+      Alert.alert("Error", result.error);
+    }
+  };
+
+  const handlePhotoEditorSave = async (editedUri: string) => {
+    setShowImageEditor(false);
+    setTempImageUri(null);
+
+    setLocalPhotoUri(editedUri);
+
+    try {
+      const uploadResult = await uploadProfilePicture(editedUri);
+
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error);
+      }
+
+      const refreshedProfile = await fetchProfile();
+      setProfile(refreshedProfile);
+
+      setLocalPhotoUri(null);
+    } catch (error) {
+      console.warn("Failed to upload profile photo:", error);
+    }
+  };
+
+  const handlePhotoEditorCancel = () => {
+    setShowImageEditor(false);
+    setTempImageUri(null);
+  };
+
   const checklist = [
     { label: "Basic Information", complete: true },
     { label: "About Me", complete: bio.trim().length > 0 },
     { label: "Upload Photos", complete: false },
     { label: "Complete Background Info", complete: false },
-    { label: "Full Name", complete: displayName !== "Your Profile" },
+    { label: "Full Name", complete: displayName !== "Your Name" },
   ];
 
   const progressPercent = Math.round(
@@ -132,20 +192,26 @@ export default function ProfileScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <SafeAreaView style={globalStyles.screen}>
-        <View style={styles.floatingButtons} pointerEvents="box-none">
-          <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
-            <MaterialIcons
-              name={session.mode === "authenticated" ? "logout" : "person"}
-              size={24}
-              color={colors.background.card}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={reset} style={styles.floatingButton}>
-            <MaterialIcons name="refresh" size={24} color={colors.background.card} />
-          </TouchableOpacity>
-        </View>
+      <View
+        style={[
+          globalStyles.screen,
+          { paddingTop: insets.top, backgroundColor: colors.accent.sky },
+        ]}
+      >
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.floatingButtons} pointerEvents="box-none">
+            <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+              <MaterialIcons
+                name={session.mode === "authenticated" ? "logout" : "person"}
+                size={24}
+                color={colors.background.card}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={reset} style={styles.floatingButton}>
+              <MaterialIcons name="refresh" size={24} color={colors.background.card} />
+            </TouchableOpacity>
+          </View>
           <View style={styles.bannerContainer}>
             <View style={styles.bannerClip}>
               <View style={styles.banner} />
@@ -153,28 +219,43 @@ export default function ProfileScreen() {
 
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarCircle}>
-                {photoUrl ? (
-                  <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
+                {(localPhotoUri ?? profile?.photoURL) ? (
+                  <Image
+                    source={{ uri: localPhotoUri ?? profile?.photoURL ?? "" }}
+                    style={styles.avatarImage}
+                  />
                 ) : (
                   <MaterialIcons name="person" size={40} color={colors.text.inverse} />
                 )}
               </View>
+              <TouchableOpacity style={styles.avatarEditBadge} onPress={handleEditPhoto}>
+                <MaterialIcons name="edit" size={16} color={colors.text.inverse} />
+              </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.identitySection}>
-            <Text style={styles.studentName}>{displayName}</Text>
-            <Text style={styles.meta}>{profile?.email ?? "No email yet"}</Text>
+          <TouchableOpacity
+            style={styles.identitySection}
+            onPress={() => navigation.navigate("EditProfile")}
+          >
+            <View style={styles.identityHeader}>
+              <Text style={styles.studentName}>{displayName}</Text>
+              <MaterialIcons name="edit" size={18} color={colors.accent.sky} />
+            </View>
+
+            <Text style={styles.meta}>{profile?.email ?? "yourname@email.com"}</Text>
             <Text style={styles.meta}>{highSchool}</Text>
+
             {profile?.schoolAddress?.trim() ? (
               <Text style={styles.meta}>{profile.schoolAddress}</Text>
             ) : null}
+
             {profile?.pageUrl && (
               <Text style={[styles.meta, { color: colors.accent.sky, marginTop: 4 }]}>
                 {profile.pageUrl}
               </Text>
             )}
-          </View>
+          </TouchableOpacity>
 
           <View style={globalStyles.card}>
             <View style={styles.sectionHeader}>
@@ -203,7 +284,7 @@ export default function ProfileScreen() {
 
           <View style={globalStyles.card}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.cardTitle}>Moments</Text>
+              <Text style={styles.cardTitle}>Moments & Artifacts</Text>
             </View>
             <View style={styles.galleryRow}>
               <GalleryPlaceholder />
@@ -254,27 +335,25 @@ export default function ProfileScreen() {
               Your journey continues beyond profile completion through stamps and experiences.
             </Text>
           </View>
-
-          {session.mode === "authenticated" && (
-            <TouchableOpacity style={globalStyles.card} onPress={handleLogout}>
-              <View style={globalStyles.row}>
-                <MaterialIcons name="logout" size={20} color={colors.status.error} />
-                <Text style={styles.logoutText}>Sign Out</Text>
-              </View>
-            </TouchableOpacity>
-          )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
+      {showImageEditor && tempImageUri && (
+        <ImageEditor
+          imageUri={tempImageUri}
+          onSave={handlePhotoEditorSave}
+          onCancel={handlePhotoEditorCancel}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
 
 const BANNER_HEIGHT = 160;
-const AVATAR_SIZE = 88;
+const AVATAR_SIZE = 110;
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingBottom: spacing.xl,
+    paddingBottom: 120,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.background.subtle,
   },
@@ -329,7 +408,7 @@ const styles = StyleSheet.create({
   identitySection: {
     alignItems: "center",
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl,
   },
   studentName: { ...typography.screenTitle, fontSize: 20 },
   meta: { fontSize: 14, color: colors.text.secondary, marginTop: 2 },
@@ -381,6 +460,7 @@ const styles = StyleSheet.create({
     padding: 10,
     minHeight: 80,
     backgroundColor: colors.background.subtle,
+    textAlignVertical: "top",
   },
 
   galleryRow: { flexDirection: "row", gap: 12 },
@@ -408,8 +488,8 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: 15, fontWeight: "600", color: colors.status.error, marginLeft: 10 },
   floatingButtons: {
     position: "absolute",
-    top: 52,
     right: 16,
+    paddingTop: 2,
     flexDirection: "row",
     gap: 8,
     zIndex: 10,
@@ -419,5 +499,24 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.accent.skyDark,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.text.inverse,
+  },
+  identityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
 });

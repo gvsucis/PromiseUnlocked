@@ -24,7 +24,7 @@ const TAB_CONFIG = [
   {
     name: "Dashboard",
     component: DialogueDashboardScreen,
-    icon: "explore",
+    icon: "dashboard",
     label: "Dashboard",
     size: 32,
   },
@@ -45,7 +45,7 @@ const TAB_CONFIG = [
   {
     name: "Passport",
     component: PassportScreen,
-    icon: "card-travel",
+    icon: "explore",
     label: "Passport",
     size: 32,
   },

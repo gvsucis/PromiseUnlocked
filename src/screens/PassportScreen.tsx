@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from "react";
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -21,6 +20,9 @@ import { colors } from "../styles/global";
 import { useAuth } from "../context/AuthContext";
 import { useDialogue } from "../context/DialogueContext";
 import { useLogout } from "../hooks/useLogout";
+import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DEFAULT_TIER } from "../config/stampConstants";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
@@ -39,6 +41,8 @@ const radarLabelMap: Record<string, string> = {
 };
 
 const radarLabels: string[] = REGIONS.map((region) => radarLabelMap[region] ?? region);
+const TIER_TARGET_PER_REGION = 3;
+const RADAR_FLOOR = 8;
 
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
@@ -51,7 +55,7 @@ export default function PassportScreen() {
     confirmAndLogout(() => navigation.navigate("Welcome"));
   };
 
-  const [radarData, setRadarData] = useState<number[]>(REGIONS.map(() => 0));
+  const [radarData, setRadarData] = useState<number[]>(REGIONS.map(() => RADAR_FLOOR));
   const [regionUnlocks, setRegionUnlocks] = useState<Record<string, string[]>>({});
 
   const loadData = useCallback(async () => {
@@ -81,7 +85,14 @@ export default function PassportScreen() {
                 const data = doc.data();
                 const categoryId = (data.categoryId as string) ?? doc.id;
                 const stamps = data.unlockedStamps as
-                  | Record<string, { timesUnlocked?: number; category?: string }>
+                  | Record<
+                      string,
+                      {
+                        timesUnlocked?: number;
+                        category?: string;
+                        tier?: number;
+                      }
+                    >
                   | undefined;
                 return {
                   category: (data.category as string) ?? doc.id,
@@ -98,6 +109,7 @@ export default function PassportScreen() {
                         category: s.category ?? (data.category as string) ?? doc.id,
                         categoryId,
                         timesUnlocked: s.timesUnlocked ?? 1,
+                        tier: s.tier ?? DEFAULT_TIER,
                       }))
                     : [],
                 };
@@ -110,14 +122,30 @@ export default function PassportScreen() {
       }
 
       const unlocks: Record<string, string[]> = {};
+      const tierPoints: Record<string, number> = {};
+
       for (const mc of mappedCategories) {
         if (mc.unlockedStamps?.length) {
           unlocks[mc.category] = mc.unlockedStamps.map((s) => s.name);
+
+          tierPoints[mc.category] = mc.unlockedStamps.reduce(
+            (sum, stamp) => sum + ((stamp as any).tier ?? DEFAULT_TIER),
+            0
+          );
         }
       }
+
       setRegionUnlocks(unlocks);
 
-      setRadarData(REGIONS.map((region) => (unlocks[region]?.length ? 100 : 0)));
+      setRadarData(
+        REGIONS.map((region) => {
+          const points = tierPoints[region] ?? 0;
+
+          const pct = Math.min(100, (points / TIER_TARGET_PER_REGION) * 100);
+
+          return Math.max(pct, RADAR_FLOOR);
+        })
+      );
     } catch {
       // silently keep zeros
     }
@@ -129,8 +157,10 @@ export default function PassportScreen() {
     }, [loadData])
   );
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.floatingButtons} pointerEvents="box-none">
           <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
@@ -224,14 +254,15 @@ export default function PassportScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.subtle,
+    backgroundColor: colors.background.tinted,
+    paddingTop: 52,
   },
 
   content: {
