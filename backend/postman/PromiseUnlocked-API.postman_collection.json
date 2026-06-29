@@ -1,1177 +1,3018 @@
 {
-  "info": {
-    "_postman_id": "promiseunlocked-api-v2",
-    "name": "PromiseUnlocked API",
-    "description": "Full API collection for PromiseUnlocked backend.\n\nWorkflow:\n1. Register or Login to get a Firebase ID token.\n2. The Login request auto-saves the token as `bearerToken`.\n3. List requests auto-save IDs (`participantId`, `sessionId`, `interactionId`) for chained requests.\n4. Use `/participants/me/*` routes for the authenticated user's own data.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "item": [
-    {
-      "name": "System",
-      "item": [
-        {
-          "name": "Health Check",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["health"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/health",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["health"]
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{ \"status\": \"Server is running\" }"
-            }
-          ]
-        },
-        {
-          "name": "Swagger UI",
-          "request": {
-            "description": "Opens the Swagger/OpenAPI documentation UI.",
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api-docs",
-              "host": ["{{baseUrl}}"],
-              "path": ["api-docs"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "html",
-              "header": [{ "key": "Content-Type", "value": "text/html" }],
-              "body": "<!DOCTYPE html><html><head><title>Swagger UI</title></head><body>Swagger UI</body></html>"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Auth",
-      "item": [
-        {
-          "name": "Register",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
-            }
-          },
-          "response": [
-            {
-              "name": "201 Created",
-              "originalRequest": {
-                "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
-                },
-                "url": {
-                  "raw": "{{baseUrl}}/auth/register",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["auth", "register"]
-                }
-              },
-              "status": "Created",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  if (data.idToken) pm.environment.set('bearerToken', data.idToken);",
-                  "  if (data.localId) pm.environment.set('userId', data.localId);",
-                  "  if (data.email) pm.environment.set('userEmail', data.email);",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Login",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "originalRequest": {
-                "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
-                },
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": ["{{baseUrl}}"],
-                  "path": ["auth", "login"]
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"idToken\": \"eyJhbGciOiJSUzI1NiIs...\",\n  \"refreshToken\": \"AEu4IL3...\",\n  \"expiresIn\": \"3600\",\n  \"localId\": \"abc123\",\n  \"email\": \"test@example.com\"\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  if (data.idToken) pm.environment.set('bearerToken', data.idToken);",
-                  "  if (data.localId) pm.environment.set('userId', data.localId);",
-                  "  if (data.email) pm.environment.set('userEmail', data.email);",
-                  "}"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Participants",
-      "item": [
-        {
-          "name": "Create Participant",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"new@example.com\",\n  \"password\": \"password123\",\n  \"displayName\": \"New User\",\n  \"metadata\": {\"role\": \"participant\"}\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/participants",
-              "host": ["{{baseUrl}}"],
-              "path": ["participants"]
-            }
-          },
-          "response": [
-            {
-              "name": "201 Created",
-              "status": "Created",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"participant\": {\n    \"uid\": \"xyz789\",\n    \"email\": \"new@example.com\",\n    \"displayName\": \"New User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {\"role\": \"participant\"}\n  }\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "  var data = pm.response.json();",
-                  "  if (data.participant && data.participant.uid) {",
-                  "    pm.environment.set('participantId', data.participant.uid);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "List Participants",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants",
-              "host": ["{{baseUrl}}"],
-              "path": ["participants"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"participants\": [\n    {\n      \"uid\": \"abc123\",\n      \"email\": \"test@example.com\",\n      \"displayName\": \"Test User\",\n      \"photoURL\": null,\n      \"createdAt\": 1712345678901,\n      \"updatedAt\": 1712345678901,\n      \"metadata\": {}\n    }\n  ]\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  var list = Array.isArray(data.participants) ? data.participants.filter(function(p) { return p && p.uid; }) : [];",
-                  "  if (list.length > 0) {",
-                  "    var random = list[Math.floor(Math.random() * list.length)];",
-                  "    pm.environment.set('participantId', random.uid);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get My Profile",
-          "request": {
-            "description": "Returns the authenticated user's participant profile. Saves `participantId` to environment.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["participants", "me"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  if (data.participant && data.participant.uid) {",
-                  "    pm.environment.set('participantId', data.participant.uid);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Update My Profile",
-          "request": {
-            "description": "Updates the authenticated user's profile fields.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"displayName\": \"Updated Name\",\n  \"fullName\": \"Updated Full Name\",\n  \"schoolName\": \"New School\",\n  \"metadata\": {\"bio\": \"Updated bio text\"}\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/participants/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["participants", "me"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Updated Name\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {\"bio\": \"Updated bio text\"}\n  }\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  if (data.participant && data.participant.uid) {",
-                  "    pm.environment.set('participantId', data.participant.uid);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Participant",
-          "request": {
-            "description": "Requires `participantId` environment variable.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/{{participantId}}",
-              "host": ["{{baseUrl}}"],
-                "path": ["participants", "{{participantId}}"]
-              }
-            },
-            "response": [
-              {
-                "name": "200 OK",
-                "status": "OK",
-                "code": 200,
-                "_postman_previewlanguage": "json",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  if (data.participant && data.participant.uid) {",
-                    "    pm.environment.set('participantId', data.participant.uid);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "name": "Delete Participant",
-          "request": {
-            "description": "Admin only or self-delete. Returns 204 No Content.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/{{participantId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["participants", "{{participantId}}"]
-            }
-          },
-          "response": [
-            {
-              "name": "204 No Content",
-              "status": "No Content",
-              "code": 204,
-              "_postman_previewlanguage": "json",
-              "header": [],
-              "body": ""
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Sessions",
-      "item": [
-        {
-          "name": "List My Sessions",
-          "request": {
-            "description": "Lists sessions for the authenticated user. Saves a random `sessionId` to environment.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/me/sessions?status=active&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["participants", "me", "sessions"],
-              "query": [
-                {
-                  "key": "status",
-                  "value": "active",
-                  "description": "Optional: active | completed | cancelled"
-                },
-                { "key": "limit", "value": "20", "description": "Optional. Max 100. Default 20." }
-              ]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"sessions\": [\n    {\n      \"id\": \"sess001\",\n      \"status\": \"active\",\n      \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"completedAt\": null,\n      \"taxonomySnapshot\": null\n    }\n  ]\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  var list = Array.isArray(data.sessions) ? data.sessions.filter(function(s) { return s && s.id; }) : [];",
-                  "  if (list.length > 0) {",
-                  "    var random = list[Math.floor(Math.random() * list.length)];",
-                  "    pm.environment.set('sessionId', random.id);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get My Session",
-          "request": {
-            "description": "Requires `sessionId` environment variable.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/me/sessions/{{sessionId}}",
-              "host": ["{{baseUrl}}"],
-                "path": ["participants", "me", "sessions", "{{sessionId}}"]
-              }
-            },
-            "response": [
-              {
-                "name": "200 OK",
-                "status": "OK",
-                "code": 200,
-                "_postman_previewlanguage": "json",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": "{\n  \"session\": {\n    \"id\": \"sess001\",\n    \"status\": \"active\",\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"completedAt\": null,\n    \"taxonomySnapshot\": null\n  }\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  if (data.session && data.session.id) {",
-                    "    pm.environment.set('sessionId', data.session.id);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "name": "List Sessions for Participant",
-          "request": {
-            "description": "Requires `participantId` environment variable.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions?status=active&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["participants", "{{participantId}}", "sessions"],
-              "query": [
-                {
-                  "key": "status",
-                  "value": "active",
-                  "description": "Optional: active | completed | cancelled"
-                },
-                { "key": "limit", "value": "20", "description": "Optional. Max 100. Default 20." }
-              ]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"sessions\": [\n    {\n      \"id\": \"sess001\",\n      \"status\": \"active\",\n      \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"completedAt\": null,\n      \"taxonomySnapshot\": null\n    }\n  ]\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  var list = Array.isArray(data.sessions) ? data.sessions.filter(function(s) { return s && s.id; }) : [];",
-                  "  if (list.length > 0) {",
-                  "    var random = list[Math.floor(Math.random() * list.length)];",
-                  "    pm.environment.set('sessionId', random.id);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Session",
-          "request": {
-            "description": "Requires `participantId` and `sessionId` environment variables.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}",
-              "host": ["{{baseUrl}}"],
-                "path": ["participants", "{{participantId}}", "sessions", "{{sessionId}}"]
-              }
-            },
-            "response": [
-              {
-                "name": "200 OK",
-                "status": "OK",
-                "code": 200,
-                "_postman_previewlanguage": "json",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": "{\n  \"session\": {\n    \"id\": \"sess001\",\n    \"status\": \"active\",\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"completedAt\": null,\n    \"taxonomySnapshot\": null\n  }\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  if (data.session && data.session.id) {",
-                    "    pm.environment.set('sessionId', data.session.id);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      }
-    ,
-    {
-      "name": "Interactions",
-      "item": [
-        {
-          "name": "List Interactions for Session",
-          "request": {
-            "description": "Requires `participantId` and `sessionId`. Saves a random `interactionId` to environment.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
-              "host": ["{{baseUrl}}"],
-              "path": [
-                "participants",
-                "{{participantId}}",
-                "sessions",
-                "{{sessionId}}",
-                "interactions"
-              ],
-              "query": [
-                { "key": "limit", "value": "50", "description": "Optional. Max 200. Default 50." }
-              ]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"interactions\": [\n    {\n      \"id\": \"int001\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"Structured analysis and resolution.\",\n      \"matchedToCategory\": null,\n      \"matchedToSequenceIndex\": null,\n      \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n    }\n  ]\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  var list = Array.isArray(data.interactions) ? data.interactions.filter(function(i) { return i && i.id; }) : [];",
-                  "  if (list.length > 0) {",
-                  "    var random = list[Math.floor(Math.random() * list.length)];",
-                  "    pm.environment.set('interactionId', random.id);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Interaction",
-          "request": {
-            "description": "Requires `participantId`, `sessionId`, and `interactionId` environment variables.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
-              "host": ["{{baseUrl}}"],
-              "path": [
-                "participants",
-                "{{participantId}}",
-                "sessions",
-                "{{sessionId}}",
-                "interactions",
-                "{{interactionId}}"
-              ]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  if (data.interaction && data.interaction.id) {",
-                  "    pm.environment.set('interactionId', data.interaction.id);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get My Interaction",
-          "request": {
-            "description": "Uses the authenticated user's UID as participant. Requires `sessionId` and `interactionId`.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/participants/me/sessions/{{sessionId}}/interactions/me/{{interactionId}}",
-              "host": ["{{baseUrl}}"],
-              "path": [
-                "participants",
-                "me",
-                "sessions",
-                "{{sessionId}}",
-                "interactions",
-                "me",
-                "{{interactionId}}"
-              ]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  var data = pm.response.json();",
-                  "  if (data.interaction && data.interaction.id) {",
-                  "    pm.environment.set('interactionId', data.interaction.id);",
-                  "  }",
-                  "}"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    }
-  ,
-  {
-    "name": "Chat",
-      "item": [
-        {
-          "name": "Save Response & Get Similar",
-          "request": {
-            "description": "Saves a chat response with embedding and returns similar past responses.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"skillId\": \"problem-solving\",\n  \"responseText\": \"I traced logs and isolated the failing service.\",\n  \"question\": \"Tell me about a time you solved a hard problem?\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/chat/respond",
-              "host": ["{{baseUrl}}"],
-              "path": ["chat", "respond"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": "{\n  \"success\": true,\n  \"data\": {\n    \"similarResponses\": [\n      {\n        \"id\": \"resp001\",\n        \"userId\": \"abc123\",\n        \"skillId\": \"problem-solving\",\n        \"excerpt\": \"I debugged a production issue...\",\n        \"createdAt\": \"2026-05-15T08:30:00.000Z\",\n        \"distance\": 0.12\n      }\n    ]\n  },\n  \"error\": null\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  if (data.data && data.data.similarResponses && data.data.similarResponses.length > 0) {",
-                    "    pm.environment.set('responseId', data.data.similarResponses[0].id);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "name": "Get Proof Status",
-            "request": {
-              "description": "Gets the status of a proof upload by job ID. Requires `jobId` environment variable.",
-              "auth": {
-                "type": "bearer",
-                "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-              },
-              "method": "GET",
-              "header": [],
-              "url": {
-                "raw": "{{baseUrl}}/chat/proof/{{jobId}}",
-                "host": ["{{baseUrl}}"],
-                "path": ["chat", "proof", "{{jobId}}"]
-              }
-            },
-            "response": [
-              {
-                "name": "200 OK",
-                "status": "OK",
-                "code": 200,
-                "_postman_previewlanguage": "json",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
-                "body": "{\n  \"jobId\": \"job-uuid-123\",\n  \"status\": \"completed\",\n  \"result\": {}\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  if (data.success && data.data) {",
-                    "    if (data.data.id) pm.environment.set('jobId', data.data.id);",
-                    "    if (data.data.proofStatus) pm.environment.set('proofStatus', data.data.proofStatus);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "name": "Upload Proof",
-            "request": {
-            "description": "Uploads a proof artifact for verification. Returns a jobId for status tracking.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                { "key": "file", "type": "file", "src": "/path/to/proof.pdf" },
-                { "key": "userId", "value": "{{userId}}", "type": "text" }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/chat/proof/upload",
-              "host": ["{{baseUrl}}"],
-              "path": ["chat", "proof", "upload"]
-            }
-          },
-          "response": [
-            {
-              "name": "202 Accepted",
-              "status": "Accepted",
-              "code": 202,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"jobId\": \"job-uuid-123\",\n  \"message\": \"Upload accepted, processing started\"\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 202) {",
-                    "  var data = pm.response.json();",
-                    "  if (data.success && data.data) {",
-                    "    if (data.data.jobId) pm.environment.set('jobId', data.data.jobId);",
-                    "    if (data.data.proofStatus) pm.environment.set('proofStatus', data.data.proofStatus);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          }
-      ]
-    }
-  ,
-  {
-    "name": "Profile Embeddings",
-      "item": [
-        {
-          "name": "Upload PDF",
-          "request": {
-            "description": "Uploads a PDF for profile embedding processing. Returns a jobId for status tracking. Form-data: file (PDF), userId (optional), email (optional).",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                { "key": "file", "type": "file", "src": "/path/to/profile.pdf" },
-                { "key": "userId", "value": "{{userId}}", "type": "text" },
-                { "key": "text", "value": "Optional context text", "type": "text" }
-              ]
-            },
-            "url": {
-              "raw": "{{baseUrl}}/profile-embeddings/upload",
-              "host": ["{{baseUrl}}"],
-              "path": ["profile-embeddings", "upload"]
-            }
-          },
-          "response": [
-            {
-              "name": "201 Created",
-              "status": "Created",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"jobId\": \"job-uuid-123\",\n  \"message\": \"Upload accepted\"\n}"
-            }
-          ],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "  var data = pm.response.json();",
-                  "  if (data.embeddingId) pm.environment.set('embeddingId', data.embeddingId);",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get Job Status",
-          "request": {
-            "description": "Requires `jobId` environment variable.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/profile-embeddings/jobs/{{jobId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["profile-embeddings", "jobs", "{{jobId}}"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"job\": {\n    \"jobId\": \"job-uuid-123\",\n    \"owner\": \"abc123\",\n    \"status\": \"processing\",\n    \"storagePath\": \"/uploads/profile-embeddings/abc123/...\",\n    \"fileName\": \"profile.pdf\"\n  }\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  if (data.job && data.job.jobId) {",
-                    "    pm.environment.set('jobId', data.job.jobId);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "name": "Get Embedding Context",
-          "request": {
-            "description": "Retrieves the context for a specific embedding by ID. Requires `embeddingId` environment variable.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/profile-embeddings/context/{{embeddingId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["profile-embeddings", "context", "{{embeddingId}}"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"embedding\": {\n    \"id\": \"emb-001\",\n    \"content\": \"Extracted text content...\",\n    \"metadata\": {}\n  }\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  if (data.embedding && data.embedding.id) {",
-                    "    pm.environment.set('embeddingId', data.embedding.id);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "name": "List Embeddings",
-          "request": {
-            "description": "Lists all profile embeddings for the authenticated user.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/profile-embeddings/list",
-              "host": ["{{baseUrl}}"],
-              "path": ["profile-embeddings", "list"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"embeddings\": [\n    {\n      \"id\": \"emb-001\",\n      \"fileName\": \"profile.pdf\",\n      \"uploadedAt\": \"2026-06-01T12:00:00.000Z\"\n    }\n  ]\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  var list = Array.isArray(data.embeddings) ? data.embeddings.filter(function(e) { return e && e.id; }) : [];",
-                    "  if (list.length > 0) {",
-                    "    var random = list[Math.floor(Math.random() * list.length)];",
-                    "    pm.environment.set('embeddingId', random.id);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "name": "Search Embeddings",
-          "request": {
-            "description": "Searches profile embeddings by text query. Returns ranked results.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
-            },
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"query\": \"leadership experience\",\n  \"limit\": 10\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/profile-embeddings/search",
-              "host": ["{{baseUrl}}"],
-              "path": ["profile-embeddings", "search"]
-            }
-          },
-          "response": [
-            {
-              "name": "200 OK",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"results\": [\n    {\n      \"embeddingId\": \"emb-001\",\n      \"score\": 0.89,\n      \"snippet\": \"...leadership experience...\"\n    }\n  ]\n}"
-              }
-            ],
-            "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "if (pm.response.code === 200) {",
-                    "  var data = pm.response.json();",
-                    "  var list = Array.isArray(data.results) ? data.results.filter(function(r) { return r && r.embeddingId; }) : [];",
-                    "  if (list.length > 0) {",
-                    "    pm.environment.set('embeddingId', list[0].embeddingId);",
-                    "  }",
-                    "}"
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-    }
-  ],
-  "event": [],
-  "variable": [{ "key": "baseUrl", "value": "http://localhost:4000" }]
+	"info": {
+		"_postman_id": "promiseunlocked-api-v3",
+		"name": "PromiseUnlocked API",
+		"description": "Complete API collection for PromiseUnlocked backend (v3).\n\n## Workflow\n1. Start with **Auth > Register** or **Auth > Login** to get a Firebase ID token.\n2. The **Login** / **Register** request auto-saves the token as `bearerToken` and the UID as `userId`.\n3. List-type requests auto-save IDs (`participantId`, `sessionId`, `interactionId`, etc.) for chained requests.\n4. Use `/participants/me/*` routes for the authenticated user's own data.\n5. Use the `{{baseUrl}}` variable to switch between local dev and deployed environments.\n\n## Environment Variables (auto-populated)\n- `bearerToken` \u2014 Firebase ID token\n- `userId` \u2014 Firebase Auth UID\n- `participantId` \u2014 Participant document UID\n- `sessionId` \u2014 Session document ID\n- `interactionId` \u2014 Interaction document ID\n- `jobId` \u2014 Proof / embedding job UUID\n- `embeddingId` \u2014 Profile embedding document ID\n- `proofStatus` \u2014 Proof verification status\n- `reportId` \u2014 Help report document ID",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "System",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/health",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"health"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{ \"status\": \"Server is running\" }"
+						}
+					]
+				},
+				{
+					"name": "Swagger UI",
+					"request": {
+						"description": "Opens the Swagger / OpenAPI documentation UI.",
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api-docs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api-docs"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "html",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "text/html"
+								}
+							],
+							"body": "<!DOCTYPE html><html><head><title>Swagger UI</title></head><body>Swagger UI</body></html>"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Skills & Taxonomy",
+			"item": [
+				{
+					"name": "Get Taxonomy",
+					"request": {
+						"description": "Returns the full skill taxonomy \u2014 category names, stamp names, and the raw STAMP_TAXONOMY object. Public endpoint, no auth required.",
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/skills/taxonomy",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"skills",
+								"taxonomy"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"categories\": [\"Human Skills (Durable)\", \"Creative Expression & Communication\", ...],\n  \"stamps\": [\"Research: Independent Research Project\", \"Athletics: Team Sport\", ...],\n  \"taxonomy\": {}\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Auth",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				}
+			],
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/auth/register",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"auth",
+										"register"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"idToken\": \"eyJhbGciOiJSUzI1NiIs...\",\n  \"refreshToken\": \"AEu4IL3...\",\n  \"userId\": \"abc123\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\"\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var data = pm.response.json();",
+									"if (data.idToken) {",
+									"  pm.environment.set('bearerToken', data.idToken);",
+									"  pm.environment.set('userId', data.userId);",
+									"  pm.environment.set('participantId', data.userId);",
+									"  console.log('Token saved to bearerToken');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/auth/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"auth",
+										"login"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"idToken\": \"eyJhbGciOiJSUzI1NiIs...\",\n  \"refreshToken\": \"AEu4IL3...\",\n  \"userId\": \"abc123\"\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var data = pm.response.json();",
+									"if (data.idToken) {",
+									"  pm.environment.set('bearerToken', data.idToken);",
+									"  pm.environment.set('userId', data.userId);",
+									"  pm.environment.set('participantId', data.userId);",
+									"  console.log('Token saved to bearerToken');",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Users (Legacy)",
+			"item": [
+				{
+					"name": "Create User",
+					"request": {
+						"description": "Creates a Firebase Auth user AND a Firestore document in the `users` collection. Public endpoint.",
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"displayName\": \"New User\",\n  \"metadata\": {}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "201 Created",
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"newuser@example.com\",\n    \"displayName\": \"New User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"  var data = pm.response.json();",
+									"  if (data.user && data.user.uid) {",
+									"    pm.environment.set('userId', data.user.uid);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"description": "Returns the authenticated user record from the `users` collection.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"me"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Update Current User",
+					"request": {
+						"description": "Updates the authenticated user's profile fields. Also updates the Firebase Auth record.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"displayName\": \"Updated Name\",\n  \"metadata\": {\"bio\": \"Updated bio text\"}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"me"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Updated Name\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {\"bio\": \"Updated bio text\"}\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Upload Profile Picture (Users)",
+					"request": {
+						"description": "Uploads a profile picture for the authenticated user (legacy users collection). Form-data with a single image file.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/path/to/profile.png",
+									"description": "Image file (PNG/JPEG/WEBP)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/me/profile-picture",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"me",
+								"profile-picture"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"message\": \"Profile picture updated successfully\",\n  \"photoURL\": \"https://storage.googleapis.com/...\"\n}"
+						}
+					]
+				},
+				{
+					"name": "List All Users",
+					"request": {
+						"description": "Admin only (returns 403 otherwise). Paginated list with optional search by name/email/school. Supports `page`, `pageSize`, and `search` query params.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/all?page=1&pageSize=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"all"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "20",
+									"description": "Items per page (default 20, max 100)"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search by displayName, fullName, email, or schoolName"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"users\": [\n    {\n      \"uid\": \"abc123\",\n      \"email\": \"test@example.com\",\n      \"displayName\": \"Test User\",\n      \"photoURL\": null,\n      \"createdAt\": 1712345678901,\n      \"updatedAt\": 1712345678901,\n      \"metadata\": {}\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"total\": 1\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  var list = Array.isArray(data.users) ? data.users.filter(function(u) { return u && u.uid; }) : [];",
+									"  if (list.length > 0) {",
+									"    var random = list[Math.floor(Math.random() * list.length)];",
+									"    pm.environment.set('userId', random.uid);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update User Role (Super Admin)",
+					"request": {
+						"description": "Super admin only. Updates a user's role and Firebase custom claims (the `admin` claim is set for `admin`/`superadmin`). If `role` is omitted it defaults to `admin`. The target user must refresh their ID token before the new role takes effect. You cannot change your own role.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/{{userId}}/role",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"{{userId}}",
+								"role"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"uid\": \"abc123\",\n  \"role\": \"admin\"\n}"
+						},
+						{
+							"name": "400 Bad Request (invalid role)",
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"error\": \"Invalid role\"\n}"
+						},
+						{
+							"name": "403 Forbidden",
+							"status": "Forbidden",
+							"code": 403,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"error\": \"Forbidden \u2014 super admin access required\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Get User by UID",
+					"request": {
+						"description": "Requires `userId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"{{userId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Get User Sessions",
+					"request": {
+						"description": "Returns all sessions for a user. Requires `userId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/users/{{userId}}/sessions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"users",
+								"{{userId}}",
+								"sessions"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"sessions\": [\n    {\n      \"id\": \"sess001\",\n      \"status\": \"active\",\n      \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"completedAt\": null\n    }\n  ]\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  var list = Array.isArray(data.sessions) ? data.sessions.filter(function(s) { return s && s.id; }) : [];",
+									"  if (list.length > 0) {",
+									"    var random = list[Math.floor(Math.random() * list.length)];",
+									"    pm.environment.set('sessionId', random.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Participants",
+			"item": [
+				{
+					"name": "Create Participant",
+					"request": {
+						"description": "Creates a Firebase Auth user AND a Firestore document in the `participants` collection.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"newparticipant@example.com\",\n  \"password\": \"password123\",\n  \"fullName\": \"New Participant\",\n  \"metadata\": {\"role\": \"participant\"}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/participants",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "201 Created",
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"participant\": {\n    \"uid\": \"xyz789\",\n    \"email\": \"new@example.com\",\n    \"displayName\": \"New Participant\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {\"role\": \"participant\"}\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"  var data = pm.response.json();",
+									"  if (data.participant && data.participant.uid) {",
+									"    pm.environment.set('participantId', data.participant.uid);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "List Participants",
+					"request": {
+						"description": "Admins see all participants (paginated, supports `?search=` by name/email/school). Non-admins see only themselves.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants?page=1&pageSize=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "20",
+									"description": "Items per page (default 20, max 100)"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search by displayName, fullName, email, or schoolName (admin only, searches across all results)"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"participants\": [\n    {\n      \"uid\": \"abc123\",\n      \"email\": \"test@example.com\",\n      \"displayName\": \"Test User\",\n      \"photoURL\": null,\n      \"createdAt\": 1712345678901,\n      \"updatedAt\": 1712345678901,\n      \"metadata\": {}\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 20\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  var list = Array.isArray(data.participants) ? data.participants.filter(function(p) { return p && p.uid; }) : [];",
+									"  if (list.length > 0) {",
+									"    var random = list[Math.floor(Math.random() * list.length)];",
+									"    pm.environment.set('participantId', random.uid);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get My Profile",
+					"request": {
+						"description": "Returns the authenticated user's participant profile. Saves `participantId` to environment.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"me"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.participant && data.participant.uid) {",
+									"    pm.environment.set('participantId', data.participant.uid);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Update My Profile",
+					"request": {
+						"description": "Updates the authenticated user's participant profile fields. Also updates Firebase Auth record for displayName/email/photoURL.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullName\": \"Updated Full Name\",\n  \"schoolName\": \"New School\",\n  \"metadata\": {\"bio\": \"Updated bio text\"}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/participants/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"me"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Updated Full Name\",\n    \"fullName\": \"Updated Full Name\",\n    \"schoolName\": \"New School\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {\"bio\": \"Updated bio text\"}\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Upload Profile Picture",
+					"request": {
+						"description": "Uploads a profile picture for the authenticated participant. Form-data with a single image file (PNG/JPEG/JPG/WEBP, max 2MB).",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/path/to/profile.png",
+									"description": "Image file (PNG/JPEG/JPG/WEBP, max 2MB)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/participants/me/profile-picture",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"me",
+								"profile-picture"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"message\": \"Profile picture updated successfully\",\n  \"photoURL\": \"https://storage.googleapis.com/...\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Participant by UID",
+					"request": {
+						"description": "Requires `participantId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/{{participantId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"{{participantId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"email\": \"test@example.com\",\n    \"displayName\": \"Test User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.participant && data.participant.uid) {",
+									"    pm.environment.set('participantId', data.participant.uid);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Delete Participant",
+					"request": {
+						"description": "Admin only or self-delete. Deletes Firebase Auth user + Firestore document. Returns 204 No Content.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/{{participantId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"{{participantId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "204 No Content",
+							"status": "No Content",
+							"code": 204,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Passport",
+			"item": [
+				{
+					"name": "Get My Passport",
+					"request": {
+						"description": "Gets the authenticated user's passport data for a specific session. Requires `sessionId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/me/passport?sessionId={{sessionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"me",
+								"passport"
+							],
+							"query": [
+								{
+									"key": "sessionId",
+									"value": "{{sessionId}}",
+									"description": "Session document ID (required)"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"passport\": [\n    {\n      \"category\": \"Problem-Solving & Systems Thinking\",\n      \"firstMappedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"lastMappedAt\": \"2026-05-20T11:00:00.000Z\",\n      \"totalMappings\": 3,\n      \"unlockedStamps\": {}\n    }\n  ],\n  \"sessionId\": \"sess001\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Participant Passport",
+					"request": {
+						"description": "Gets a specific participant's passport for a session. Requires `participantId` and `sessionId` environment variables.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/{{participantId}}/passport?sessionId={{sessionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"{{participantId}}",
+								"passport"
+							],
+							"query": [
+								{
+									"key": "sessionId",
+									"value": "{{sessionId}}",
+									"description": "Session document ID (required)"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"passport\": [\n    {\n      \"category\": \"Problem-Solving & Systems Thinking\",\n      \"firstMappedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"lastMappedAt\": \"2026-05-20T11:00:00.000Z\",\n      \"totalMappings\": 3,\n      \"unlockedStamps\": {}\n    }\n  ],\n  \"sessionId\": \"sess001\"\n}"
+						}
+					]
+				},
+				{
+					"name": "List All Passports (Admin)",
+					"request": {
+						"description": "Admin only. Returns passport data for all participants with pagination. Requires `admin: true` custom claim or `role: admin/superadmin`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/passport/all?page=1&pageSize=50",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"passport",
+								"all"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "50",
+									"description": "Items per page (default 50, max 100)"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"participants\": [\n    {\n      \"uid\": \"abc123\",\n      \"displayName\": \"Test User\",\n      \"email\": \"test@example.com\",\n      \"schoolName\": \"School Name\",\n      \"passport\": [\n        { \"category\": \"Problem-Solving\", \"totalMappings\": 3, \"unlockedStampCount\": 1 }\n      ],\n      \"totalStampsUnlocked\": 1,\n      \"totalMappings\": 3\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 50,\n  \"total\": 100\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Sessions",
+			"item": [
+				{
+					"name": "List My Sessions",
+					"request": {
+						"description": "Lists sessions for the authenticated user. Saves a random `sessionId` to environment.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/me/sessions?page=1&pageSize=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"me",
+								"sessions"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "active",
+									"description": "Optional filter: active | completed | cancelled"
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "20",
+									"description": "Items per page (default 20, max 100)"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"sessions\": [\n    {\n      \"id\": \"sess001\",\n      \"status\": \"active\",\n      \"categoriesMapped\": [],\n      \"categoriesMappedCount\": 0,\n      \"totalInteractions\": 0,\n      \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"completedAt\": null,\n      \"lastActiveAt\": \"2026-05-20T10:00:00.000Z\"\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 20\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  var list = Array.isArray(data.sessions) ? data.sessions.filter(function(s) { return s && s.id; }) : [];",
+									"  if (list.length > 0) {",
+									"    var random = list[Math.floor(Math.random() * list.length)];",
+									"    pm.environment.set('sessionId', random.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get My Session",
+					"request": {
+						"description": "Requires `sessionId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/me/sessions/{{sessionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"me",
+								"sessions",
+								"{{sessionId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"session\": {\n    \"id\": \"sess001\",\n    \"status\": \"active\",\n    \"categoriesMapped\": [],\n    \"categoriesMappedCount\": 0,\n    \"totalInteractions\": 0,\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"completedAt\": null,\n    \"lastActiveAt\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.session && data.session.id) {",
+									"    pm.environment.set('sessionId', data.session.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "List Participant Sessions",
+					"request": {
+						"description": "Lists sessions for a specific participant. Requires `participantId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/{{participantId}}/sessions?page=1&pageSize=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"{{participantId}}",
+								"sessions"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "active",
+									"description": "Optional filter: active | completed | cancelled"
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "20",
+									"description": "Items per page (default 20, max 100)"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"sessions\": [\n    {\n      \"id\": \"sess001\",\n      \"status\": \"active\",\n      \"categoriesMapped\": [],\n      \"categoriesMappedCount\": 0,\n      \"totalInteractions\": 0,\n      \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"completedAt\": null,\n      \"lastActiveAt\": \"2026-05-20T10:00:00.000Z\"\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 20\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  var list = Array.isArray(data.sessions) ? data.sessions.filter(function(s) { return s && s.id; }) : [];",
+									"  if (list.length > 0) {",
+									"    var random = list[Math.floor(Math.random() * list.length)];",
+									"    pm.environment.set('sessionId', random.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Participant Session",
+					"request": {
+						"description": "Requires `participantId` and `sessionId` environment variables.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"{{participantId}}",
+								"sessions",
+								"{{sessionId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"session\": {\n    \"id\": \"sess001\",\n    \"status\": \"active\",\n    \"categoriesMapped\": [],\n    \"categoriesMappedCount\": 0,\n    \"totalInteractions\": 0,\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"completedAt\": null,\n    \"lastActiveAt\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.session && data.session.id) {",
+									"    pm.environment.set('sessionId', data.session.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Interactions",
+			"item": [
+				{
+					"name": "List Session Interactions",
+					"request": {
+						"description": "Lists interactions for a session. Requires `participantId` and `sessionId`. Saves a random `interactionId`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions?page=1&pageSize=50",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"{{participantId}}",
+								"sessions",
+								"{{sessionId}}",
+								"interactions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "50",
+									"description": "Items per page (default 50, max 200)"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"interactions\": [\n    {\n      \"id\": \"int001\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"Structured analysis and resolution.\",\n      \"matchedToCategory\": null,\n      \"matchedToSequenceIndex\": null,\n      \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 50\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  var list = Array.isArray(data.interactions) ? data.interactions.filter(function(i) { return i && i.id; }) : [];",
+									"  if (list.length > 0) {",
+									"    var random = list[Math.floor(Math.random() * list.length)];",
+									"    pm.environment.set('interactionId', random.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Interaction",
+					"request": {
+						"description": "Requires `participantId`, `sessionId`, and `interactionId` environment variables.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"{{participantId}}",
+								"sessions",
+								"{{sessionId}}",
+								"interactions",
+								"{{interactionId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.interaction && data.interaction.id) {",
+									"    pm.environment.set('interactionId', data.interaction.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get My Interaction",
+					"request": {
+						"description": "Uses the authenticated user's UID as participant. Requires `sessionId` and `interactionId`.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions/me/{{interactionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"{{participantId}}",
+								"sessions",
+								"{{sessionId}}",
+								"interactions",
+								"me",
+								"{{interactionId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"interaction\": {\n    \"id\": \"int001\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.interaction && data.interaction.id) {",
+									"    pm.environment.set('interactionId', data.interaction.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Save Interaction",
+					"request": {
+						"description": "Saves an interaction to a session. Auto-generated `id` if omitted. Also updates the session's `categoriesMapped` if `mappingOutcome` is 'mapped' or 'already_mapped'. Requires `sessionId` variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"interaction\": {\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"Structured analysis and resolution.\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/participants/me/interactions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"me",
+								"interactions"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"interactionId\": \"auto-generated-id\"\n  },\n  \"error\": null\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.data && data.data.interactionId) {",
+									"    pm.environment.set('interactionId', data.data.interactionId);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Stamps",
+			"item": [
+				{
+					"name": "Unlock Stamp",
+					"request": {
+						"description": "Unlocks a stamp for a participant in a session. Validates category and stamp name against taxonomy. If stamp already exists, increments `timesUnlocked` and merges tier (uses higher). Requires `sessionId` variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"category\": \"Problem-Solving & Systems Thinking\",\n  \"categoryId\": \"problem-solving-systems-thinking\",\n  \"stampName\": \"Research: Independent Research Project\",\n  \"tier\": 1,\n  \"sessionId\": \"{{sessionId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/participants/me/stamps/unlock",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"participants",
+								"me",
+								"stamps",
+								"unlock"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"stampName\": \"Research: Independent Research Project\",\n    \"timesUnlocked\": 1\n  },\n  \"error\": null\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Chat",
+			"item": [
+				{
+					"name": "Save Response & Get Similar",
+					"request": {
+						"description": "Saves a chat response with embedding and returns similar past responses via vector search. Requires `userId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"skillId\": \"problem-solving\",\n  \"responseText\": \"I traced logs and isolated the failing service, then coordinated with the team to deploy a fix within 2 hours.\",\n  \"question\": \"Tell me about a time you solved a hard problem?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/chat/respond",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"chat",
+								"respond"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"similarResponses\": [\n      {\n        \"id\": \"resp001\",\n        \"userId\": \"abc123\",\n        \"skillId\": \"problem-solving\",\n        \"excerpt\": \"I debugged a production issue...\",\n        \"createdAt\": \"2026-05-15T08:30:00.000Z\",\n        \"distance\": 0.12\n      }\n    ]\n  },\n  \"error\": null\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.data && data.data.similarResponses && data.data.similarResponses.length > 0) {",
+									"    pm.environment.set('responseId', data.data.similarResponses[0].id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Upload Proof",
+					"request": {
+						"description": "Uploads a proof artifact (image) for verification. Returns a jobId for status tracking. Form-data: file (image) + sessionId, interactionId, question, answer.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/path/to/proof.jpg",
+									"description": "Proof image file (JPEG/PNG/WEBP, max 5MB)"
+								},
+								{
+									"key": "sessionId",
+									"type": "text",
+									"value": "{{sessionId}}",
+									"description": "Session document ID"
+								},
+								{
+									"key": "interactionId",
+									"type": "text",
+									"value": "{{interactionId}}",
+									"description": "Interaction document ID"
+								},
+								{
+									"key": "question",
+									"type": "text",
+									"value": "Tell me about a time you solved a hard problem?",
+									"description": "The question asked"
+								},
+								{
+									"key": "answer",
+									"type": "text",
+									"value": "I debugged a production issue by tracing logs.",
+									"description": "The answer given"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/chat/proof/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"chat",
+								"proof",
+								"upload"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "202 Accepted",
+							"status": "Accepted",
+							"code": 202,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"jobId\": \"job-uuid-123\",\n    \"proofStatus\": \"pending\",\n    \"storagePath\": \"proof-images/userId/2026-06/sessionId/interactionId/filename.jpg\"\n  },\n  \"error\": null\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 202) {",
+									"  var data = pm.response.json();",
+									"  if (data.success && data.data) {",
+									"    if (data.data.jobId) pm.environment.set('jobId', data.data.jobId);",
+									"    if (data.data.proofStatus) pm.environment.set('proofStatus', data.data.proofStatus);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Proof Status",
+					"request": {
+						"description": "Gets the status of a proof upload by job ID. Requires `jobId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/chat/proof/{{jobId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"chat",
+								"proof",
+								"{{jobId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"job-uuid-123\",\n    \"userId\": \"abc123\",\n    \"sessionId\": \"sess001\",\n    \"interactionId\": \"int001\",\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"storagePath\": \"proof-images/abc123/2026-06/sess001/int001/proof.jpg\",\n    \"mimeType\": \"image/jpeg\",\n    \"status\": \"queued\",\n    \"proofStatus\": \"pending\",\n    \"createdAt\": \"2026-06-23T12:00:00.000Z\",\n    \"startedAt\": null,\n    \"analyzedAt\": null,\n    \"finishedAt\": null,\n    \"verificationConfidence\": null,\n    \"proofTier\": null,\n    \"userFeedbackMessage\": null,\n    \"requiredAction\": null,\n    \"errorMessage\": null\n  },\n  \"error\": null\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.success && data.data) {",
+									"    if (data.data.id) pm.environment.set('jobId', data.data.id);",
+									"    if (data.data.proofStatus) pm.environment.set('proofStatus', data.data.proofStatus);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Profile Embeddings",
+			"item": [
+				{
+					"name": "Upload PDF",
+					"request": {
+						"description": "Uploads a PDF for profile embedding processing. Returns embeddingId (200 if duplicate, 201 if new). Form-data: file (PDF) + userId (optional), uid (optional), email (optional).",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/path/to/profile.pdf",
+									"description": "PDF file (max 5MB)"
+								},
+								{
+									"key": "userId",
+									"type": "text",
+									"value": "{{userId}}",
+									"description": "Upload for another user (optional)"
+								},
+								{
+									"key": "email",
+									"type": "text",
+									"value": "",
+									"description": "Upload for another user by email (optional)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/profile-embeddings/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"profile-embeddings",
+								"upload"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "201 Created (or 200 Duplicate)",
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"embeddingId\": \"emb-001\",\n  \"targetUid\": \"abc123\",\n  \"fileName\": \"profile.pdf\",\n  \"fileSizeBytes\": 102400,\n  \"message\": \"Upload successful\",\n  \"duplicate\": false\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"  var data = pm.response.json();",
+									"  if (data.embeddingId) pm.environment.set('embeddingId', data.embeddingId);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "List Embeddings",
+					"request": {
+						"description": "Lists all profile embeddings for the authenticated user.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/profile-embeddings/list",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"profile-embeddings",
+								"list"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"embeddings\": [\n    {\n      \"id\": \"emb-001\",\n      \"fileName\": \"profile.pdf\",\n      \"uploadedAt\": \"2026-06-01T12:00:00.000Z\"\n    }\n  ]\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  var list = Array.isArray(data.embeddings) ? data.embeddings.filter(function(e) { return e && e.id; }) : [];",
+									"  if (list.length > 0) {",
+									"    var random = list[Math.floor(Math.random() * list.length)];",
+									"    pm.environment.set('embeddingId', random.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Embedding Context",
+					"request": {
+						"description": "Retrieves the context (including extracted text) for a specific embedding by ID. Requires `embeddingId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/profile-embeddings/context/{{embeddingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"profile-embeddings",
+								"context",
+								"{{embeddingId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"embedding\": {\n    \"id\": \"emb-001\",\n    \"fileName\": \"profile.pdf\",\n    \"extractedText\": \"Full extracted text content from the PDF...\",\n    \"metadata\": {}\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.embedding && data.embedding.id) {",
+									"    pm.environment.set('embeddingId', data.embedding.id);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Search Embeddings",
+					"request": {
+						"description": "Searches profile embeddings by text query using vector similarity. Returns ranked results.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"leadership experience\",\n  \"limit\": 10\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/profile-embeddings/search",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"profile-embeddings",
+								"search"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"results\": [\n    {\n      \"embeddingId\": \"emb-001\",\n      \"score\": 0.89,\n      \"snippet\": \"...leadership experience...\"\n    }\n  ]\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  var list = Array.isArray(data.results) ? data.results.filter(function(r) { return r && r.embeddingId; }) : [];",
+									"  if (list.length > 0) {",
+									"    pm.environment.set('embeddingId', list[0].embeddingId);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Embedding Job Status",
+					"request": {
+						"description": "Gets the status of a profile embedding processing job. Requires `jobId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/profile-embeddings/jobs/{{jobId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"profile-embeddings",
+								"jobs",
+								"{{jobId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"job\": {\n    \"jobId\": \"job-uuid-123\",\n    \"owner\": \"abc123\",\n    \"status\": \"processing\",\n    \"storagePath\": \"/uploads/profile-embeddings/abc123/profile.pdf\",\n    \"fileName\": \"profile.pdf\"\n  }\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.job && data.job.jobId) {",
+									"    pm.environment.set('jobId', data.job.jobId);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Help & Support",
+			"item": [
+				{
+					"name": "Submit Report",
+					"request": {
+						"description": "Submits a help/support report with optional images (up to 3). Form-data: location (text), description (text) + up to 3 image files.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "location",
+									"type": "text",
+									"value": "Dashboard > Skills Passport",
+									"description": "Where the issue occurred (required)"
+								},
+								{
+									"key": "description",
+									"type": "text",
+									"value": "The question input modal is covered by the keyboard on iOS, making it impossible to tap Submit.",
+									"description": "Description of the issue (required)"
+								},
+								{
+									"key": "image1",
+									"type": "file",
+									"src": "/path/to/screenshot1.png",
+									"description": "Optional screenshot (PNG/JPEG/JPG/WEBP, max 2MB)"
+								},
+								{
+									"key": "image2",
+									"type": "file",
+									"src": "",
+									"description": "Optional screenshot (PNG/JPEG/JPG/WEBP, max 2MB)"
+								},
+								{
+									"key": "image3",
+									"type": "file",
+									"src": "",
+									"description": "Optional screenshot (PNG/JPEG/JPG/WEBP, max 2MB)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/help/report",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"help",
+								"report"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"reportId\": \"report-uuid-123\",\n    \"imageCount\": 1\n  },\n  \"error\": null\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.data && data.data.reportId) {",
+									"    pm.environment.set('reportId', data.data.reportId);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Sessions (Admin)",
+			"item": [
+				{
+					"name": "List All Sessions",
+					"request": {
+						"description": "Admin only. Returns all sessions across every participant with filters. Use this to inspect raw data as stored by the React Native app.\n\nFilters: status (active|completed|cancelled|in_progress|abandoned), participantId, search (by participant name/email), page, pageSize.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sessions?page=1&pageSize=50",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default 1)"
+								},
+								{
+									"key": "pageSize",
+									"value": "50",
+									"description": "Items per page (default 50, max 200)"
+								},
+								{
+									"key": "status",
+									"value": "",
+									"description": "Filter: active | completed | cancelled | in_progress | abandoned"
+								},
+								{
+									"key": "participantId",
+									"value": "",
+									"description": "Filter to one participant by UID"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search by participant displayName, fullName, or email"
+								}
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"sessions\": [\n    {\n      \"sessionId\": \"sess001\",\n      \"status\": \"active\",\n      \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"lastActiveAt\": \"2026-06-23T12:00:00.000Z\",\n      \"completedAt\": null,\n      \"totalInteractions\": 5,\n      \"categoriesMapped\": [\"Problem-Solving & Systems Thinking\"],\n      \"categoriesMappedCount\": 2,\n      \"weakFitCount\": 0,\n      \"participant\": {\n        \"uid\": \"abc123\",\n        \"displayName\": \"Test User\",\n        \"fullName\": \"Test User\",\n        \"email\": \"test@example.com\"\n      }\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 50,\n  \"total\": 340\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Session Detail",
+					"request": {
+						"description": "Admin only. Full raw data dump of a single session: all interactions, passport entries, and participant info. Use to review exactly what the React Native app stored in Firestore.\n\nRequires `sessionId` environment variable.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/sessions/{{sessionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"sessions",
+								"{{sessionId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"session\": {\n    \"sessionId\": \"sess001\",\n    \"status\": \"active\",\n    \"startedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"lastActiveAt\": \"2026-06-23T12:00:00.000Z\",\n    \"completedAt\": null,\n    \"totalInteractions\": 5,\n    \"categoriesMapped\": [\"Problem-Solving & Systems Thinking\"],\n    \"categoriesMappedCount\": 2,\n    \"weakFitCount\": 0\n  },\n  \"participant\": {\n    \"uid\": \"abc123\",\n    \"displayName\": \"Test User\",\n    \"fullName\": \"Test User\",\n    \"email\": \"test@example.com\"\n  },\n  \"interactions\": [\n    {\n      \"id\": \"int001\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"Structured analysis and resolution.\",\n      \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n    }\n  ],\n  \"passport\": [\n    {\n      \"categoryId\": \"problem-solving-systems-thinking\",\n      \"category\": \"Problem-Solving & Systems Thinking\",\n      \"firstMappedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"lastMappedAt\": \"2026-05-20T11:00:00.000Z\",\n      \"totalMappings\": 3,\n      \"unlockedStamps\": {}\n    }\n  ]\n}"
+						}
+					],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"  var data = pm.response.json();",
+									"  if (data.session && data.session.sessionId) {",
+									"    pm.environment.set('sessionId', data.session.sessionId);",
+									"  }",
+									"}"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Stamps (Admin)",
+			"item": [
+				{
+					"name": "Summarize Stamps by Category",
+					"request": {
+						"description": "Admin only. Platform-wide counts of stamps grouped by taxonomy category (region). Uses a `skillPassport` collection-group query across every participant.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/admin/stamps/categories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"stamps",
+								"categories"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"categories\": [\n    {\n      \"category\": \"Creative Expression & Communication\",\n      \"stampInstances\": 12,\n      \"distinctStamps\": 7,\n      \"totalUnlocks\": 31,\n      \"participants\": 5,\n      \"sessions\": 8\n    }\n  ]\n}"
+						}
+					]
+				},
+				{
+					"name": "List Stamps in Category",
+					"request": {
+						"description": "Admin only. Every stamp instance under one category, across all participants. `category` must be an exact taxonomy region name (URL-encoded).",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/admin/stamps/categories/{{category}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"stamps",
+								"categories",
+								"{{category}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"category\": \"Creative Expression & Communication\",\n  \"stamps\": [\n    {\n      \"stampName\": \"Music: Vocalist\",\n      \"category\": \"Creative Expression & Communication\",\n      \"categoryId\": \"creative_expression___communication\",\n      \"tier\": 2,\n      \"timesUnlocked\": 3,\n      \"firstUnlockedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"lastUnlockedAt\": \"2026-05-22T11:00:00.000Z\",\n      \"participantId\": \"{{participantId}}\",\n      \"sessionId\": \"{{sessionId}}\"\n    }\n  ],\n  \"total\": 1\n}"
+						}
+					]
+				},
+				{
+					"name": "List Participant Stamps",
+					"request": {
+						"description": "Admin only. Every stamp a participant has earned, flattened across all their sessions.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/admin/stamps/participants/{{participantId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"stamps",
+								"participants",
+								"{{participantId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"participantId\": \"{{participantId}}\",\n  \"stamps\": [\n    {\n      \"stampName\": \"Music: Vocalist\",\n      \"category\": \"Creative Expression & Communication\",\n      \"categoryId\": \"creative_expression___communication\",\n      \"tier\": 2,\n      \"timesUnlocked\": 3,\n      \"firstUnlockedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"lastUnlockedAt\": \"2026-05-22T11:00:00.000Z\",\n      \"participantId\": \"{{participantId}}\",\n      \"sessionId\": \"{{sessionId}}\"\n    }\n  ],\n  \"total\": 1\n}"
+						}
+					]
+				},
+				{
+					"name": "List Session Stamps",
+					"request": {
+						"description": "Admin only. Every stamp earned within a single session.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/admin/stamps/participants/{{participantId}}/sessions/{{sessionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"stamps",
+								"participants",
+								"{{participantId}}",
+								"sessions",
+								"{{sessionId}}"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"participantId\": \"{{participantId}}\",\n  \"sessionId\": \"{{sessionId}}\",\n  \"stamps\": [\n    {\n      \"stampName\": \"Music: Vocalist\",\n      \"category\": \"Creative Expression & Communication\",\n      \"categoryId\": \"creative_expression___communication\",\n      \"tier\": 2,\n      \"timesUnlocked\": 3,\n      \"firstUnlockedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"lastUnlockedAt\": \"2026-05-22T11:00:00.000Z\",\n      \"participantId\": \"{{participantId}}\",\n      \"sessionId\": \"{{sessionId}}\"\n    }\n  ],\n  \"total\": 1\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Stamp Evidence",
+					"request": {
+						"description": "Admin only. A stamp plus the interaction(s) (question / answer / justification) that justified it. `stampName` is the exact stamp name, e.g. `Music: Vocalist` (URL-encoded).",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/admin/stamps/participants/{{participantId}}/sessions/{{sessionId}}/stamps/{{stampName}}/evidence",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"stamps",
+								"participants",
+								"{{participantId}}",
+								"sessions",
+								"{{sessionId}}",
+								"stamps",
+								"{{stampName}}",
+								"evidence"
+							]
+						}
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"stamp\": {\n    \"stampName\": \"Music: Vocalist\",\n    \"category\": \"Creative Expression & Communication\",\n    \"categoryId\": \"creative_expression___communication\",\n    \"tier\": 2,\n    \"timesUnlocked\": 3,\n    \"firstUnlockedAt\": \"2026-05-20T10:00:00.000Z\",\n    \"lastUnlockedAt\": \"2026-05-22T11:00:00.000Z\",\n    \"participantId\": \"{{participantId}}\",\n    \"sessionId\": \"{{sessionId}}\"\n  },\n  \"interactions\": [\n    {\n      \"id\": \"int001\",\n      \"sequenceIndex\": 4,\n      \"question\": \"Tell me about a time you performed.\",\n      \"answer\": \"I sang lead in the school choir for two years.\",\n      \"justification\": \"Demonstrates sustained vocal performance experience.\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Creative Expression & Communication\",\n      \"specificStamp\": \"Music: Vocalist\",\n      \"timestamp\": \"2026-05-20T10:00:00.000Z\"\n    }\n  ]\n}"
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:4000",
+			"type": "string"
+		}
+	]
 }

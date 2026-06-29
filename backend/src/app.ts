@@ -3,11 +3,12 @@ import type { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import participantsRouter from "@/api/participants";
-import sessionsRouter from "@/api/sessions";
+import sessionsRouter, { adminRouter as sessionsAdminRouter } from "@/api/sessions";
 import interactionsRouter from "@/api/interactions";
 import chatRoutes from "@/api/chatRoutes";
 import proofRoutes from "@/api/proofRoutes";
 import stampsRouter from "@/api/stamps";
+import adminStampsRouter from "@/api/adminStamps";
 import authRouter from "@/api/auth";
 import profileEmbeddingsRouter from "@/api/profileEmbeddings";
 import skillsRouter from "@/api/skills";
@@ -76,6 +77,9 @@ app.use(
   interactionsRouter
 );
 app.use("/help", authenticateToken, protectedRateLimit, helpRouter);
+
+app.use("/sessions", authenticateToken, protectedRateLimit, sessionsAdminRouter);
+app.use("/admin/stamps", authenticateToken, protectedRateLimit, adminStampsRouter);
 
 app.use((req, res) => {
   console.warn("[App] 404 — route not found", {

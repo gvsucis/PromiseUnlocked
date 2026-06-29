@@ -23,8 +23,6 @@ export class ImagePickerService {
         allowsMultipleSelection: false,
       });
 
-      console.log("Image picker result:", JSON.stringify(result, null, 2));
-
       if (!result?.canceled && result?.assets?.[0]) {
         // Convert to JPEG to ensure compatibility with Gemini API
         const jpegUri = await compressImage(result.assets[0].uri, {
@@ -51,14 +49,13 @@ export class ImagePickerService {
     }
   }
 
-  public static async takePhotoWithCamera(): Promise<ImageUploadResult> {
+  public static async takePhotoWithCamera(allowEdit: boolean = false): Promise<ImageUploadResult> {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: false, // Disable editing to allow full image capture
+        allowsEditing: allowEdit,
+        aspect: allowEdit ? CONFIG.IMAGE_ASPECT_RATIO : undefined,
         quality: CONFIG.IMAGE_QUALITY,
       });
-
-      console.log("Camera result:", JSON.stringify(result, null, 2));
 
       if (!result?.canceled && result?.assets?.[0]) {
         // Convert to JPEG to ensure compatibility with Gemini API

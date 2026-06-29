@@ -2,12 +2,12 @@ import type { Request, Response } from "express";
 import type { AuthenticatedRequest } from "@/types/firestore";
 import Busboy from "busboy";
 import { admin, db } from "@/services/firestore";
+import { getStorageBucket } from "@/utils/storageBucket";
 import { randomUUID } from "node:crypto";
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
 const MAX_FILES = 3;
 const ALLOWED_MIMES = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
-const STORAGE_BUCKET = process.env.APP_FIREBASE_STORAGE_BUCKET;
 
 export class HelpController {
   static async submitReport(req: Request, res: Response) {
@@ -16,7 +16,8 @@ export class HelpController {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    if (!STORAGE_BUCKET) {
+    const storageBucket = getStorageBucket();
+    if (!storageBucket) {
       return res
         .status(500)
         .json({ error: "Firebase storage bucket is not configured in environment" });
@@ -89,7 +90,7 @@ export class HelpController {
       }
 
       try {
-        const bucket = admin.storage().bucket(STORAGE_BUCKET);
+        const bucket = admin.storage().bucket(storageBucket);
         const timestamp = Date.now();
         const reportId = `${authUser.uid}_${timestamp}_${randomUUID().slice(0, 8)}`;
         const imagePaths: string[] = [];

@@ -99,21 +99,18 @@ export async function updateProfile(updates: Partial<UserProfile>): Promise<User
     return buildLocalProfile(updates);
   }
 
-  console.log("[updateProfile] Sending to API:", JSON.stringify(updates, null, 2));
-
   try {
     const data = await apiFetch<{ participant?: UserProfile }>("/participants/me", {
       method: "PUT",
       body: JSON.stringify(updates),
     });
     const result = data.participant ?? buildLocalProfile(updates);
-    console.log("[updateProfile] API success response:", JSON.stringify(data, null, 2));
-    console.log("[updateProfile] Resolved result:", JSON.stringify(result, null, 2));
+
     return result;
   } catch (error) {
     console.warn("[updateProfile] API call failed, falling back to local profile:", error);
     const fallback = buildLocalProfile(updates);
-    console.log("[updateProfile] Fallback profile:", JSON.stringify(fallback, null, 2));
+
     return fallback;
   }
 }

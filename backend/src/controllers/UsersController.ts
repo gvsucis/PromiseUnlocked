@@ -6,8 +6,12 @@ import {
   normalizeUser,
   participantsCollection,
   participantSessionsCollection,
+  usersCollection,
 } from "@/services/firestore";
 import type { AuthenticatedRequest, UserProfile } from "@/types/firestore";
+import { DEFAULT_ROLE, isAdminUser, isSuperAdmin, isValidRole } from "@/utils/authz";
+import { parsePagination } from "@/utils/pagination";
+import { normalizeSearchTerm, searchParticipantDocs } from "@/utils/participantSearch";
 
 const buildProfileFromRecord = (
   userRecord: admin.auth.UserRecord,
@@ -26,16 +30,43 @@ const buildProfileFromRecord = (
 };
 
 const fetchOrCreateProfile = async (uid: string): Promise<UserProfile> => {
-  const snapshot = await participantsCollection.doc(uid).get();
-  if (snapshot.exists) {
-    const data = snapshot.data();
-    if (data) {
-      return data;
+  // First try the users collection
+  const userSnapshot = await usersCollection.doc(uid).get();
+  if (userSnapshot.exists) {
+    const data = userSnapshot.data();
+    if (data) return data;
+  }
+
+  // Attempt migration from legacy participants collection
+  const participantSnapshot = await participantsCollection.doc(uid).get();
+  if (participantSnapshot.exists) {
+    const pData = participantSnapshot.data();
+    if (pData) {
+      const profile: UserProfile = {
+        uid: pData.uid,
+        email: pData.email,
+        displayName: pData.displayName ?? null,
+        photoURL: pData.photoURL ?? null,
+        fullName: pData.fullName ?? null,
+        phone: pData.phone ?? null,
+        address: pData.address ?? null,
+        dateOfBirth: pData.dateOfBirth ?? null,
+        gender: pData.gender ?? null,
+        ethnicity: pData.ethnicity ?? null,
+        pageUrl: pData.pageUrl ?? null,
+        role: pData.role ?? null,
+        metadata: pData.metadata ?? {},
+        createdAt: pData.createdAt ?? Date.now(),
+        updatedAt: pData.updatedAt ?? Date.now(),
+      };
+      await usersCollection.doc(uid).set(profile);
+      return profile;
     }
   }
+  // Fallback to Firebase Auth
   const userRecord = await admin.auth().getUser(uid);
   const profile = buildProfileFromRecord(userRecord);
-  await participantsCollection.doc(uid).set(profile);
+  await usersCollection.doc(uid).set(profile);
   return profile;
 };
 
@@ -58,7 +89,7 @@ export class UsersController {
         displayName: displayName === "undefined" ? baseProfile.displayName : displayName,
         photoURL: photoURL === "undefined" ? baseProfile.photoURL : photoURL,
       };
-      await participantsCollection.doc(userRecord.uid).set(profile);
+      await usersCollection.doc(userRecord.uid).set(profile);
       return res.status(201).json({ user: normalizeUser(profile) });
     } catch (error) {
       console.error("Error creating user:", error);
@@ -104,7 +135,7 @@ export class UsersController {
       if (metadata !== "undefined") {
         updates.metadata = metadata;
       }
-      await participantsCollection.doc(uid).set(updates, { merge: true });
+      await usersCollection.doc(uid).set(updates, { merge: true });
       const profile = await fetchOrCreateProfile(uid);
       return res.json({ user: normalizeUser(profile) });
     } catch (error) {
@@ -113,15 +144,80 @@ export class UsersController {
     }
   }
 
-  static async getAllUsers(_req: Request, res: Response) {
+  static async getAllUsers(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    if (!isAdminUser(requester)) {
+      return res.status(403).json({ error: "Forbidden — admin access required" });
+    }
     try {
-      const snapshot = await participantsCollection.get();
+      const { page, pageSize, offset } = parsePagination(req.query, 20, 100);
+      const term = normalizeSearchTerm(req.query.search);
+
+      if (term) {
+        const snapshot = await usersCollection.get();
+        const matched = searchParticipantDocs(snapshot.docs, term);
+        const paginated = matched.slice(offset, offset + pageSize);
+        return res.json({ users: paginated, page, pageSize, total: matched.length });
+      }
+
+      const totalSnapshot = await usersCollection.count().get();
+      const total = totalSnapshot.data().count;
+
+      const snapshot = await usersCollection
+        .orderBy("createdAt", "desc")
+        .offset(offset)
+        .limit(pageSize)
+        .get();
       const users = snapshot.docs.map((doc) => normalizeUser(doc));
-      console.log("Fetched users:", users);
-      return res.json({ users });
+      return res.json({ users, page, pageSize, total });
     } catch (error) {
       console.error("Error fetching users:", error);
       return res.status(500).json({ error: "Failed to fetch users" });
+    }
+  }
+
+  static async updateUserRole(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    if (!isSuperAdmin(requester)) {
+      return res.status(403).json({ error: "Forbidden — super admin access required" });
+    }
+
+    const { uid } = req.params;
+    if (typeof uid !== "string" || !uid) {
+      return res.status(400).json({ error: "Invalid user id" });
+    }
+    if (uid === requester.uid) {
+      return res.status(400).json({ error: "You cannot change your own role" });
+    }
+
+    const role = req.body?.role ?? DEFAULT_ROLE;
+    if (!isValidRole(role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    try {
+      const userRecord = await admin
+        .auth()
+        .getUser(uid)
+        .catch(() => null);
+      if (!userRecord) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Custom claims drive isAdminUser/isSuperAdmin; the token must be refreshed
+      // by the client before the new role takes effect.
+      await admin.auth().setCustomUserClaims(uid, {
+        ...userRecord.customClaims,
+        role,
+        admin: role === "admin" || role === "superadmin",
+      });
+
+      await usersCollection.doc(uid).set({ role, updatedAt: Date.now() }, { merge: true });
+
+      return res.json({ uid, role });
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      return res.status(500).json({ error: "Failed to update user role" });
     }
   }
 
@@ -131,11 +227,11 @@ export class UsersController {
       return res.status(400).json({ error: "Invalid user id" });
     }
     try {
-      const sessionSnapshot = await participantsCollection.doc(uid).get();
-      if (!sessionSnapshot.exists) {
+      const userSnapshot = await usersCollection.doc(uid).get();
+      if (!userSnapshot.exists) {
         return res.status(404).json({ error: "User not found" });
       }
-      return res.json({ user: normalizeUser(sessionSnapshot) });
+      return res.json({ user: normalizeUser(userSnapshot) });
     } catch (error) {
       console.error("Error fetching user:", error);
       return res.status(500).json({ error: "Failed to fetch user" });
@@ -157,11 +253,8 @@ export class UsersController {
   static async getCurrentUser(req: Request, res: Response) {
     const { uid } = (req as AuthenticatedRequest).user;
     try {
-      const snapshot = await participantsCollection.get();
-      const users = snapshot.docs
-        .map((doc) => normalizeUser(doc) as UserProfile)
-        .filter((user) => user.uid === uid);
-      return res.json({ users });
+      const profile = await fetchOrCreateProfile(uid);
+      return res.json({ users: [normalizeUser(profile)] });
     } catch (error) {
       console.error("Error fetching users:", error);
       return res.status(500).json({ error: "Failed to fetch users" });
