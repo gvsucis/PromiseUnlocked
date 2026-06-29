@@ -104,6 +104,12 @@ export default function DialogueDashboardScreen() {
     loadData,
   } = useDialogueState();
 
+  React.useEffect(() => {
+    if (isFocused) {
+      loadData();
+    }
+  }, [isFocused]);
+
   const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const suppressModalReopenRef = useRef(false);
@@ -611,10 +617,11 @@ export default function DialogueDashboardScreen() {
   };
 
   const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
-  const totalStampsUnlocked = mappedCategories.reduce(
-    (sum, mc) => sum + (mc.unlockedStamps?.length ?? 0),
-    0
-  );
+  const totalStampsUnlocked = React.useMemo(() => {
+    return mappedCategories.reduce((sum, mc) => {
+      return sum + (Array.isArray(mc.unlockedStamps) ? mc.unlockedStamps.length : 0);
+    }, 0);
+  }, [mappedCategories]);
 
   const regionsExplored = mappedCategories.filter(
     (mc) => (mc.unlockedStamps?.length ?? 0) > 0
