@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   ScrollView,
   View,
@@ -64,6 +64,8 @@ export default function StampScreen() {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [generatedQuestion, setGeneratedQuestion] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  // Questions already asked for this region, so the model avoids repeating them.
+  const askedQuestionsRef = useRef<string[]>([]);
 
   const loadUnlocked = useCallback(async () => {
     await ensureAllMappedCategoriesHaveStamps();
@@ -123,10 +125,16 @@ export default function StampScreen() {
         interactions,
         mappedCategories,
         filteredTaxonomy,
-        { embeddingHistorySummary: pdfContextText || undefined },
+        {
+          embeddingHistorySummary: pdfContextText || undefined,
+          // Avoid only the last few questions — enough to stop repeats without
+          // bloating the prompt over a long session.
+          avoidQuestion: askedQuestionsRef.current.slice(-5).join("\n") || undefined,
+        },
         undefined,
         region
       );
+      askedQuestionsRef.current = [...askedQuestionsRef.current.slice(-9), question];
       setGeneratedQuestion(question);
       setShowQuestionModal(true);
     } catch (err) {
@@ -145,16 +153,14 @@ export default function StampScreen() {
       setShowQuestionModal(false);
       setGeneratedQuestion("");
       const bridge = dialogueBridgeRef.current;
-      // Map + persist the answer (saves to storage/Firebase, unlocks stamps) in
-      // the background, then refresh the grid so any newly unlocked stamp shows
-      // here — that grid update is the local unlock feedback.
+      // Save the answer in the background, then refresh the grid to show
+      // any newly unlocked stamp.
       if (bridge) {
         Promise.resolve(bridge.handleRegionAnswer(question, answerText, region))
           .then(() => loadUnlocked())
           .catch((err) => console.error("Failed to map region answer:", err));
       }
-      // Stay on this screen and loop: immediately offer the next region-focused
-      // question in this screen's own modal.
+      // Loop: offer the next region question right away.
       await handleGenerateQuestion();
     },
     [region, loadUnlocked, handleGenerateQuestion]
@@ -259,13 +265,6 @@ export default function StampScreen() {
             setShowQuestionModal(false);
             setGeneratedQuestion("");
             handleGenerateQuestion();
-          }}
-          onNewTopic={() => {
-            setShowQuestionModal(false);
-            setGeneratedQuestion("");
-            // Stay on this region screen and just generate another region-focused
-            // question rather than handing off to the dashboard.
-            void handleGenerateQuestion();
           }}
         />
       </ScrollView>

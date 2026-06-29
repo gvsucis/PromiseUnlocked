@@ -38,6 +38,20 @@ router.get(
   ProfileEmbeddingsController.getEmbeddingContext
 );
 
+router.get(
+  "/:embeddingId/file",
+  authenticateToken,
+  profileEmbeddingsRateLimit,
+  ProfileEmbeddingsController.getEmbeddingFileUrl
+);
+
+router.delete(
+  "/:embeddingId",
+  authenticateToken,
+  profileEmbeddingsRateLimit,
+  ProfileEmbeddingsController.deleteEmbedding
+);
+
 router.post(
   "/search",
   authenticateToken,

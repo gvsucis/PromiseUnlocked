@@ -1,7 +1,7 @@
 import { auth } from "../config/firebase";
 import { CONFIG } from "../config/env";
 import { apiFetch, GuestUserError } from "./apiClient";
-import { uploadImage, type UploadResult } from "./uploadService";
+import { uploadImage, uploadPDF, type UploadResult } from "./uploadService";
 
 export interface UserProfile {
   uid: string;
@@ -155,4 +155,52 @@ export async function uploadProfilePicture(imageUri: string): Promise<UploadResu
     imageUri,
     fileField: "image",
   });
+}
+
+const PVA_KIND = "pva";
+
+export async function uploadPvaResult(pdfUri: string): Promise<UploadResult> {
+  if (!isApiAvailable()) {
+    return { success: false, error: "API not available" };
+  }
+
+  return uploadPDF({
+    endpoint: "/profile-embeddings/upload",
+    pdfUri,
+    fileField: "file",
+    fields: { kind: PVA_KIND },
+  });
+}
+
+export interface PvaResult {
+  id: string;
+  fileName: string;
+  fileSizeBytes: number;
+}
+
+export async function listPvaResults(): Promise<PvaResult[]> {
+  if (!isApiAvailable()) {
+    return [];
+  }
+
+  try {
+    const data = await apiFetch<{ embeddings: PvaResult[] }>(
+      `/profile-embeddings/list?kind=${PVA_KIND}`
+    );
+    return data.embeddings ?? [];
+  } catch (error) {
+    if (!(error instanceof GuestUserError)) {
+      console.warn("[profileService] Failed to list PVA results:", error);
+    }
+    return [];
+  }
+}
+
+export async function getPvaFileUrl(embeddingId: string): Promise<string> {
+  const data = await apiFetch<{ url: string }>(`/profile-embeddings/${embeddingId}/file`);
+  return data.url;
+}
+
+export async function deletePvaResult(embeddingId: string): Promise<void> {
+  await apiFetch(`/profile-embeddings/${embeddingId}`, { method: "DELETE" });
 }

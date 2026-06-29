@@ -23,29 +23,51 @@ export async function saveEmbedding(
 
 export async function listEmbeddings(
   uid: string,
-  limit = MAX_LIST_RESULTS
+  opts: { limit?: number; kind?: string } = {}
 ): Promise<
   Array<{
     id: string;
     fileName: string;
     fileSizeBytes: number;
+    kind: string | null;
     uploadedAt: FirebaseFirestore.Timestamp | null;
   }>
 > {
-  const snapshot = await getCollection(uid)
-    .orderBy("createdAt", "desc")
-    .limit(Math.min(limit, 100))
-    .get();
+  const { limit = MAX_LIST_RESULTS, kind } = opts;
 
-  return snapshot.docs.map((doc) => {
+  // Filter by kind with a single-field equality (no composite index needed) and
+  // sort in memory; otherwise use the ordered query directly.
+  const collection = getCollection(uid);
+  const query = kind
+    ? collection.where("kind", "==", kind).limit(Math.min(limit, 100))
+    : collection.orderBy("createdAt", "desc").limit(Math.min(limit, 100));
+
+  const snapshot = await query.get();
+
+  const items = snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
       fileName: data.fileName ?? "unknown",
       fileSizeBytes: data.fileSizeBytes ?? 0,
-      uploadedAt: data.createdAt ?? null,
+      kind: (data.kind as string) ?? null,
+      uploadedAt: (data.createdAt as FirebaseFirestore.Timestamp) ?? null,
     };
   });
+
+  if (kind) {
+    items.sort((a, b) => (b.uploadedAt?.toMillis() ?? 0) - (a.uploadedAt?.toMillis() ?? 0));
+  }
+
+  return items;
+}
+
+export async function setEmbeddingKind(uid: string, id: string, kind: string): Promise<void> {
+  await getCollection(uid).doc(id).update({ kind });
+}
+
+export async function deleteEmbedding(uid: string, id: string): Promise<void> {
+  await getCollection(uid).doc(id).delete();
 }
 
 export async function getEmbedding(

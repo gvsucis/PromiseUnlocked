@@ -40,10 +40,7 @@ import {
 } from "../services/dialogueStateStorage";
 import { useProofWorkflow } from "./useProofWorkflow";
 
-// Build the profanity matcher once for the app's lifetime. englishDataset.build()
-// is an expensive synchronous compile; doing it inside the component (e.g. via
-// useRef(new RegExpMatcher(...))) rebuilds it on every render and janks the JS
-// thread during the rapid re-renders of question generation.
+// Built once for the app's lifetime — englishDataset.build() is expensive.
 const profanityMatcher = new RegExpMatcher(englishDataset.build());
 
 export type UIState =
@@ -158,8 +155,7 @@ export function useDialogueState(): DialogueState {
   const [deferredNextQuestion, setDeferredNextQuestion] = useState<string | null>(null);
   const [deferredCheckCompletion, setDeferredCheckCompletion] = useState(false);
 
-  // Proof-request workflow lives behind its own deep module; this hook only
-  // hands off requests and reads back the active request / notification.
+  // Proof-request workflow.
   const proof = useProofWorkflow();
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -173,7 +169,6 @@ export function useDialogueState(): DialogueState {
   } | null>(null);
 
   // Personality profile context — fetched once per session, reused for every question.
-  // The profile is immutable during a session so per-question fetching is wasteful.
   const pdfContextRef = useRef<string | undefined>(undefined);
   const pdfContextFetchRef = useRef<Promise<string> | null>(null);
 
@@ -198,9 +193,7 @@ export function useDialogueState(): DialogueState {
         await clearDialogueState();
         return;
       }
-      // Keep the saved state alive whenever there's an un-answered question the
-      // user already paid tokens for — either shown (prompt) or waiting to be
-      // shown (prefetched). Only clear when there's genuinely nothing pending.
+      // Clear only when idle with no pending question (shown or prefetched).
       if (state === "idle" && !prompt && !prefetched) {
         await clearDialogueState();
         return;
@@ -279,12 +272,10 @@ export function useDialogueState(): DialogueState {
 
   const loadData = async () => {
     try {
-      // Resolve auth once so the three storage reads below don't each
-      // independently trip through waitForAuthReady() → AsyncStorage.
+      // Resolve auth once so the storage reads below don't each re-check it.
       await waitForAuthReady();
 
-      // Kick off the personality profile fetch in the background so it's
-      // ready (or close to ready) by the time the user submits their first answer.
+      // Fetch the personality profile in the background, ready for the first answer.
       if (pdfContextRef.current === undefined && !pdfContextFetchRef.current) {
         pdfContextFetchRef.current = searchPdfContext(
           "personality skills traits strengths experience"
@@ -807,10 +798,8 @@ export function useDialogueState(): DialogueState {
     }
   };
 
-  // Shared flow for regenerating the next question: a brief idle beat so any
-  // open modal can settle, then an abortable Gemini call whose result is
-  // prefetched and surfaced. Callers reset their own flow-specific state first
-  // and pass the synthesis context they want (e.g. an "avoid this" signal).
+  // Regenerate the next question: brief idle beat, then an abortable Gemini
+  // call whose result is prefetched. Callers reset their own state and pass context.
   const synthesizeAndPrefetch = async (
     context?: Parameters<typeof GeminiService.synthesizeNextQuestion>[3]
   ) => {
@@ -852,15 +841,13 @@ export function useDialogueState(): DialogueState {
     setContentWarning(false);
     setSavedAnswer("");
     setSavedQuestion("");
-    await synthesizeAndPrefetch();
+    await synthesizeAndPrefetch({
+      embeddingHistorySummary: pdfContextRef.current,
+    });
   };
 
-  // Skip: the user rejected the currently-displayed question without answering
-  // it. We regenerate with the SAME context the question was built from (mapped
-  // categories + profile/PDF embedding background) plus an explicit "avoid this"
-  // signal so the model returns something genuinely different rather than a
-  // near-identical rephrasing. Kept separate from the weak-fit flow so the two
-  // can evolve independently and Skip doesn't touch weak-fit state.
+  // Skip: regenerate with an "avoid this" signal so the model returns something
+  // genuinely different rather than a rephrasing.
   const handleSkipQuestion = async () => {
     await synthesizeAndPrefetch({
       avoidQuestion: currentPrompt || undefined,
@@ -967,7 +954,7 @@ export function useDialogueState(): DialogueState {
           );
         }
       } catch {
-        // Firestore write is best-effort — guest users and transient errors are expected
+        // Best-effort write — guest users and transient errors are expected.
       }
     },
     []
