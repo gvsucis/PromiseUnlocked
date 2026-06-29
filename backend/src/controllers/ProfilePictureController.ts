@@ -2,10 +2,10 @@ import type { Request, Response } from "express";
 import type { AuthenticatedRequest } from "@/types/firestore";
 import Busboy from "busboy";
 import { admin, db } from "@/services/firestore";
+import { getStorageBucket } from "@/utils/storageBucket";
 
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB limit
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const ALLOWED_MIMES = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
-const STORAGE_BUCKET_NAME = process.env.APP_FIREBASE_STORAGE_BUCKET;
 
 export class ProfilePictureController {
   static async uploadProfilePicture(req: Request, res: Response) {
@@ -14,11 +14,11 @@ export class ProfilePictureController {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // Determine type: 'participant' or 'user' based on baseUrl
     const type = req.baseUrl.includes("participants") ? "participant" : "user";
     const collectionName = type === "participant" ? "participants" : "users";
 
-    if (!STORAGE_BUCKET_NAME) {
+    const storageBucketName = getStorageBucket();
+    if (!storageBucketName) {
       return res
         .status(500)
         .json({ error: "Firebase storage bucket is not configured in environment" });
@@ -65,10 +65,9 @@ export class ProfilePictureController {
       try {
         const ext = filename.split(".").pop() || "jpg";
         const storagePath = `profile-pictures/${authUser.uid}/${Date.now()}.${ext}`;
-        const bucket = admin.storage().bucket(STORAGE_BUCKET_NAME);
+        const bucket = admin.storage().bucket(storageBucketName);
         const file = bucket.file(storagePath);
 
-        // Save file to storage
         await file.save(fileBuffer, {
           resumable: false,
           contentType: mimeType,
@@ -77,14 +76,12 @@ export class ProfilePictureController {
           },
         });
 
-        // Make it public to get a direct URL
+        // Make public so the URL can be served directly
         await file.makePublic();
-        const photoURL = `https://storage.googleapis.com/${STORAGE_BUCKET_NAME}/${storagePath}`;
+        const photoURL = `https://storage.googleapis.com/${storageBucketName}/${storagePath}`;
 
-        // Update Firebase Auth user profile
         await admin.auth().updateUser(authUser.uid, { photoURL });
 
-        // Update Firestore collection (either 'participants' or 'users')
         const userDocRef = db.collection(collectionName).doc(authUser.uid);
         await userDocRef.set(
           {

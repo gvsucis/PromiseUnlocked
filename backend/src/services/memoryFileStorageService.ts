@@ -1,14 +1,6 @@
 import crypto from "node:crypto";
 import { admin } from "@/services/firestore";
-
-const rawBucket = process.env.APP_FIREBASE_STORAGE_BUCKET;
-if (!rawBucket) {
-  throw new Error(
-    "APP_FIREBASE_STORAGE_BUCKET env var is required. " +
-      "Set it in backend/.env to your Firebase Storage bucket name."
-  );
-}
-const STORAGE_BUCKET_NAME: string = rawBucket;
+import { requireStorageBucket } from "@/utils/storageBucket";
 
 const MEMORY_CACHE_CONTROL = "private, max-age=3600";
 const VALID_MIME_TYPES = new Set(["application/pdf"]);
@@ -45,7 +37,7 @@ function buildMemoryFilePath(userId: string, fileName: string, timestamp: Date):
 }
 
 function getBucket() {
-  return admin.storage().bucket(STORAGE_BUCKET_NAME);
+  return admin.storage().bucket(requireStorageBucket());
 }
 
 export function isAllowedMimeType(mimeType: string): boolean {
@@ -77,7 +69,7 @@ export async function uploadMemoryFile(params: {
   await file.setMetadata({ cacheControl: MEMORY_CACHE_CONTROL });
 
   return {
-    bucket: STORAGE_BUCKET_NAME,
+    bucket: requireStorageBucket(),
     storagePath,
     checksum,
     size: params.fileBuffer.length,

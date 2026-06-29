@@ -90,6 +90,7 @@ export default function DialogueDashboardScreen() {
     handleSubmitAnswer,
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
+    handleSkipQuestion,
     handleNewTopic,
     dismissAnswerModal,
     clearPendingProofRequest,
@@ -643,7 +644,13 @@ export default function DialogueDashboardScreen() {
     const exploredSet = new Set(
       mappedCategories.filter((mc) => (mc.unlockedStamps?.length ?? 0) > 0).map((mc) => mc.category)
     );
-    return CATEGORY_TAXONOMY.filter((cat) => !exploredSet.has(cat.category)).slice(0, 3);
+    const unexploredRegions = CATEGORY_TAXONOMY.filter((cat) => !exploredSet.has(cat.category));
+
+    return unexploredRegions
+      .map((value) => ({ value, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ value }) => value)
+      .slice(0, 3);
   }, [mappedCategories]);
 
   React.useEffect(() => {
@@ -1107,9 +1114,14 @@ export default function DialogueDashboardScreen() {
           setShowQuestionInputModal(false);
         }}
         onNewQuestion={() => {
-          handleWeakFitNewQuestion();
+          // A guest past the question limit can never have the regenerated
+          // question re-surfaced (the reopen effects bail), so skip the wasted
+          // Gemini call and dead-end UX.
+          if (session.mode === "guest" && mappedCategories.length >= 1) return;
+          handleSkipQuestion();
         }}
         onNewTopic={() => {
+          if (session.mode === "guest" && mappedCategories.length >= 1) return;
           handleNewTopic();
         }}
       />

@@ -118,6 +118,7 @@ export interface DialogueState {
   handleSubmitAnswer: () => void;
   handleWeakFitTryAgain: () => void;
   handleWeakFitNewQuestion: () => Promise<void>;
+  handleSkipQuestion: () => Promise<void>;
   handleNewTopic: (region?: string) => Promise<void>;
   dismissAnswerModal: () => void;
   clearPendingProofRequest: () => void;
@@ -463,9 +464,7 @@ export function useDialogueState(): DialogueState {
         interactions,
         mappedCategories,
         taxonomyString,
-        pdfContextText,
-        controller.signal,
-        targetRegion
+        { pdfContextText, signal: controller.signal, targetRegion }
       );
 
       const {
@@ -808,11 +807,13 @@ export function useDialogueState(): DialogueState {
     }
   };
 
-  const handleWeakFitNewQuestion = async () => {
-    setWeakFitJustification("");
-    setContentWarning(false);
-    setSavedAnswer("");
-    setSavedQuestion("");
+  // Shared flow for regenerating the next question: a brief idle beat so any
+  // open modal can settle, then an abortable Gemini call whose result is
+  // prefetched and surfaced. Callers reset their own flow-specific state first
+  // and pass the synthesis context they want (e.g. an "avoid this" signal).
+  const synthesizeAndPrefetch = async (
+    context?: Parameters<typeof GeminiService.synthesizeNextQuestion>[3]
+  ) => {
     setError("");
     setUiState("idle");
 
@@ -829,7 +830,7 @@ export function useDialogueState(): DialogueState {
         interactions,
         mappedCategories,
         getTaxonomyString(),
-        undefined,
+        context,
         controller.signal
       );
 
@@ -839,11 +840,32 @@ export function useDialogueState(): DialogueState {
       await new Promise((resolve) => setTimeout(resolve, 100));
       setUiState("idle");
     } catch (err) {
-      console.error("Error synthesizing question after weak-fit:", err);
+      console.error("Error synthesizing question:", err);
       setError("Failed to generate question. Please try again.");
       setUiState("idle");
       setLoadingMessage("");
     }
+  };
+
+  const handleWeakFitNewQuestion = async () => {
+    setWeakFitJustification("");
+    setContentWarning(false);
+    setSavedAnswer("");
+    setSavedQuestion("");
+    await synthesizeAndPrefetch();
+  };
+
+  // Skip: the user rejected the currently-displayed question without answering
+  // it. We regenerate with the SAME context the question was built from (mapped
+  // categories + profile/PDF embedding background) plus an explicit "avoid this"
+  // signal so the model returns something genuinely different rather than a
+  // near-identical rephrasing. Kept separate from the weak-fit flow so the two
+  // can evolve independently and Skip doesn't touch weak-fit state.
+  const handleSkipQuestion = async () => {
+    await synthesizeAndPrefetch({
+      avoidQuestion: currentPrompt || undefined,
+      embeddingHistorySummary: pdfContextRef.current,
+    });
   };
 
   const handleNewTopic = async (region?: string) => {
@@ -987,6 +1009,7 @@ export function useDialogueState(): DialogueState {
     handleSubmitAnswer,
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
+    handleSkipQuestion,
     handleNewTopic,
     dismissAnswerModal,
     clearPendingProofRequest: proof.clearRequest,

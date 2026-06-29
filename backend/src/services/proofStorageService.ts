@@ -1,17 +1,6 @@
 import crypto from "node:crypto";
 import { admin } from "@/services/firestore";
-
-const PROOF_BUCKET_NAME = process.env.APP_FIREBASE_STORAGE_BUCKET;
-
-if (!PROOF_BUCKET_NAME) {
-  throw new Error(
-    "APP_FIREBASE_STORAGE_BUCKET env var is required for proof storage. " +
-      "Set it in backend/.env to your Firebase Storage bucket name " +
-      "(e.g. \"promise-unlocked-for-sure.firebasestorage.app\")."
-  );
-}
-
-const BUCKET_NAME: string = PROOF_BUCKET_NAME;
+import { requireStorageBucket } from "@/utils/storageBucket";
 
 const MIME_TO_EXTENSION: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -61,7 +50,7 @@ function buildProofStoragePath(params: {
 }
 
 function getBucket() {
-  return admin.storage().bucket(BUCKET_NAME);
+  return admin.storage().bucket(requireStorageBucket(" for proof storage"));
 }
 
 export async function uploadProofImageToStorage(params: {
@@ -95,7 +84,7 @@ export async function uploadProofImageToStorage(params: {
   await file.setMetadata({ cacheControl: PROOF_CACHE_CONTROL });
 
   return {
-    bucket: BUCKET_NAME,
+    bucket: requireStorageBucket(" for proof storage"),
     storagePath,
     mimeType: params.mimeType,
     checksum,

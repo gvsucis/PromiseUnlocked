@@ -33,7 +33,6 @@ import {
 } from "../services/profileService";
 
 import { ImagePickerService } from "../services/imagePickerService";
-import ImageEditor from "../components/ImageEditor";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -62,8 +61,6 @@ export default function ProfileScreen() {
 
   const { reset } = useDialogue();
   const { confirmAndLogout } = useLogout();
-  const [tempImageUri, setTempImageUri] = useState<string | null>(null);
-  const [showImageEditor, setShowImageEditor] = useState(false);
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
 
@@ -137,42 +134,37 @@ export default function ProfileScreen() {
       return;
     }
     const result = useCamera
-      ? await ImagePickerService.takePhotoWithCamera()
-      : await ImagePickerService.pickImageFromGalleryWithOptions(false);
+      ? await ImagePickerService.takePhotoWithCamera(true)
+      : await ImagePickerService.pickImageFromGalleryWithOptions(true);
 
     if (result.success && result.imageUri) {
-      setTempImageUri(result.imageUri);
-      setShowImageEditor(true);
+      setLocalPhotoUri(result.imageUri);
+
+      try {
+        const uploadResult = await uploadProfilePicture(result.imageUri);
+
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error);
+        }
+
+        const refreshedProfile = await fetchProfile();
+        setProfile(refreshedProfile);
+
+        setLocalPhotoUri(null);
+      } catch (error) {
+        // Upload failed — drop the optimistic preview so the UI reflects the
+        // photo that's actually saved, and tell the user instead of failing
+        // silently.
+        console.warn("Failed to upload profile photo:", error);
+        setLocalPhotoUri(null);
+        Alert.alert(
+          "Upload Failed",
+          "We couldn't upload your photo. Please check your connection and try again."
+        );
+      }
     } else if (result.error) {
       Alert.alert("Error", result.error);
     }
-  };
-
-  const handlePhotoEditorSave = async (editedUri: string) => {
-    setShowImageEditor(false);
-    setTempImageUri(null);
-
-    setLocalPhotoUri(editedUri);
-
-    try {
-      const uploadResult = await uploadProfilePicture(editedUri);
-
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.error);
-      }
-
-      const refreshedProfile = await fetchProfile();
-      setProfile(refreshedProfile);
-
-      setLocalPhotoUri(null);
-    } catch (error) {
-      console.warn("Failed to upload profile photo:", error);
-    }
-  };
-
-  const handlePhotoEditorCancel = () => {
-    setShowImageEditor(false);
-    setTempImageUri(null);
   };
 
   const checklist = [
@@ -337,13 +329,6 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       </View>
-      {showImageEditor && tempImageUri && (
-        <ImageEditor
-          imageUri={tempImageUri}
-          onSave={handlePhotoEditorSave}
-          onCancel={handlePhotoEditorCancel}
-        />
-      )}
     </KeyboardAvoidingView>
   );
 }

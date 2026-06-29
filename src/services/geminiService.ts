@@ -17,6 +17,11 @@ import { Alert } from "react-native";
 
 export class GeminiService {
   private static readonly MODEL_NAME = CONFIG.TEXT_MODEL;
+  // gemini-2.5-flash is a thinking model: for short, deterministic outputs the
+  // internal reasoning can consume the whole token budget and truncate the
+  // response (finishReason MAX_TOKENS). Disable thinking on those calls. Longer
+  // analysis/extraction calls keep thinking, where it can improve quality.
+  private static readonly DISABLE_THINKING = { thinkingBudget: 0 } as const;
   private static readonly MAX_VISION_IMAGE_BYTES = 450 * 1024;
   private static readonly VISION_WIDTH_STEPS = [900, 768, 640, 512] as const;
   private static readonly VISION_QUALITY_STEPS = [0.65, 0.55, 0.45, 0.35] as const;
@@ -80,9 +85,6 @@ export class GeminiService {
     return deadline;
   }
 
-  /**
-   * Helper: Retry with exponential backoff for rate limits
-   */
   private static async retryWithBackoff<T>(
     fn: () => Promise<T>,
     maxRetries: number = 2,
@@ -316,9 +318,6 @@ export class GeminiService {
     };
   }
 
-  /**
-   * PUBLIC API: TEST CONNECTION
-   */
   public static async testApiConnection(): Promise<{
     success: boolean;
     error?: string;
@@ -326,7 +325,11 @@ export class GeminiService {
     const result = await this.requestGemini(
       {
         contents: [{ parts: [{ text: "Test" }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 10 },
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 10,
+          thinkingConfig: this.DISABLE_THINKING,
+        },
       },
       10000
     );
@@ -341,9 +344,6 @@ export class GeminiService {
     };
   }
 
-  /**
-   * PUBLIC API: ANALYZE TRANSCRIPT IMAGE
-   */
   public static async analyzeTranscript(imageUri: string): Promise<AnalysisResult> {
     try {
       const base64Image = await this.encodeImageToBase64(imageUri);
@@ -407,20 +407,12 @@ export class GeminiService {
     }
   }
 
-  /**
-   * PUBLIC API: Check if an image is within the acceptable size limit for vision analysis.
-   * Returns { valid: boolean; message?: string } — if invalid, message explains why.
-   */
   public static async validateImageSize(imageUri: string): Promise<{ valid: boolean }> {
     const size = await this.getFileSizeBytes(imageUri);
     if (size === null) return { valid: true };
     return { valid: size <= this.MAX_VISION_IMAGE_BYTES };
   }
 
-  /**
-   * PUBLIC API: ANALYZE ACTION IMAGE
-   * Analyzes an image of an activity/action and returns a description
-   */
   public static async analyzeActionImage(
     imageUri: string,
     questionContext?: string,
@@ -454,7 +446,11 @@ Return only the final answer text.`,
             ],
           },
         ],
-        generationConfig: { temperature: 0.35, maxOutputTokens: 400 },
+        generationConfig: {
+          temperature: 0.35,
+          maxOutputTokens: 400,
+          thinkingConfig: this.DISABLE_THINKING,
+        },
       };
 
       const result = await this.requestGemini(requestBody);
@@ -492,9 +488,6 @@ Return only the final answer text.`,
     }
   }
 
-  /**
-   * PUBLIC API: TRANSCRIBE AUDIO
-   */
   public static async transcribeAudio(
     audioUri: string
   ): Promise<{ success: boolean; transcript?: string; error?: string }> {
@@ -537,9 +530,6 @@ Return only the final answer text.`,
     }
   }
 
-  /**
-   * PUBLIC API: PROCESS TRANSCRIPT TEXT
-   */
   public static async processTranscriptText(transcript: string): Promise<string> {
     const result = await this.requestGemini({
       contents: [
@@ -551,7 +541,11 @@ Return only the final answer text.`,
           ],
         },
       ],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 512,
+        thinkingConfig: this.DISABLE_THINKING,
+      },
     });
 
     if (!result.ok) {
@@ -561,21 +555,19 @@ Return only the final answer text.`,
     return this.extractGeneratedText(result.data) ?? "";
   }
 
-  /**
-   * PUBLIC API: MAP ANSWER AND GENERATE NEXT QUESTION
-   * Optimized for reliability: reduced tokens, limited history, improved validation.
-   */
   public static async mapAnswerAndGenerateNextQuestion(
     question: string,
     answer: string,
     interactions: DialogueInteraction[],
     mappedCategories: MappedCategory[],
     taxonomyString: string,
-    pdfContextText?: string,
-    signal?: AbortSignal,
-    targetRegion?: string
+    options?: {
+      pdfContextText?: string;
+      signal?: AbortSignal;
+      targetRegion?: string;
+    }
   ): Promise<MapAnswerResponse> {
-    // Limit history to last 5 interactions to reduce prompt size and prevent token overflow
+    // Cap history at 5 turns to keep the prompt under the token limit.
     const recentInteractions = interactions.slice(-5);
 
     const history = recentInteractions
@@ -585,12 +577,12 @@ Return only the final answer text.`,
       .map((c) => c.category + (c.timesMapped ? " (count: " + c.timesMapped + ")" : ""))
       .join(", ");
 
-    const contextBlock = pdfContextText
-      ? `\n\n=== USER BACKGROUND CONTEXT ===\n${pdfContextText}\n\nUse this as secondary background to personalize questions and follow-ups. Never mention it directly or imply you have access to private files.`
+    const contextBlock = options?.pdfContextText
+      ? `\n\n=== USER BACKGROUND CONTEXT ===\n${options.pdfContextText}\n\nUse this as secondary background to personalize questions and follow-ups. Never mention it directly or imply you have access to private files.`
       : "";
 
-    const regionHint = targetRegion
-      ? `\n13. The user is exploring the "${targetRegion}" region. If the answer fits this category, prefer mapping to "${targetRegion}" over other categories.`
+    const regionHint = options?.targetRegion
+      ? `\n13. The user is exploring the "${options.targetRegion}" region. If the answer fits this category, prefer mapping to "${options.targetRegion}" over other categories.`
       : "";
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
 Your task is to map the answer to exactly one skill stamp taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
@@ -641,7 +633,7 @@ ${contextBlock}${regionHint}`;
           },
         },
         undefined,
-        signal
+        options?.signal
       );
 
       if (!result.ok) {
@@ -677,7 +669,7 @@ ${contextBlock}${regionHint}`;
         mappedCategories,
         taxonomyString,
         { latestQuestion: question, latestAnswer: answer },
-        signal
+        options?.signal
       );
       return parsed;
     } catch (error) {
@@ -895,9 +887,15 @@ ${contextBlock}${regionHint}`;
     const regionBlock = targetRegion
       ? `\nTARGET REGION: ${targetRegion} — focus the question on this specific area.\n`
       : "";
+    // The user rejected this question via "Skip". Tell the model explicitly so
+    // it regenerates something genuinely different instead of returning a
+    // near-identical phrasing.
+    const avoidQuestionBlock = context?.avoidQuestion
+      ? `\nAVOID: The user just skipped this question — do NOT repeat it or merely rephrase it. Ask about a clearly different angle:\n"${context.avoidQuestion}"\n`
+      : "";
 
     const strictClause = strict
-      ? " The question must be at least 6 words and 24 characters, and ask for concrete details (what, where, how, or why)."
+      ? " The question must be at least 8 words and 24 characters, and ask for concrete details (what, where, how, or why)."
       : "";
     const userCenterClause = ` CRITICAL: Always center the question on the user — ask about their actions, choices, feelings, or role. You may reference other people (teammates, coaches, teachers), but the question's subject must remain the user's own experience. Never ask about someone else's isolated actions or strategies. Never repeat or quote offensive, profane, or inappropriate language from the user's answer — paraphrase in general terms if needed.`;
 
@@ -905,15 +903,17 @@ ${contextBlock}${regionHint}`;
       ? `Based on the taxonomy (including the NO_OP category as a mapping option) and the categories already mapped to me, synthesize a clear, specific new question that DELIBERATELY CHANGES THE TOPIC to a fresh dimension. Do NOT build on, reference, or continue the most recent answer or the current thread — start a genuinely new line of conversation. Choose a dimension likely to surface one of the categories NOT yet mapped to me. The question must end with a "?".${strictClause} Use any embedding/background context about me to pick a new dimension that fits my experience.${userCenterClause}`
       : `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strictClause} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.${userCenterClause}`;
 
-    return `${leadInstruction}
-HISTORY:
-${history}
+    // "New Topic" mode deliberately pivots away from the existing thread, so we
+    // withhold the full Q/A HISTORY (which would anchor the model back to it)
+    // and steer purely from the mapped categories + embedding background.
+    const historyBlock = context?.newTopic ? "" : `HISTORY:\n${history}\n\n`;
 
-${latestTurnBlock}TAXONOMY:
+    return `${leadInstruction}
+${historyBlock}${latestTurnBlock}TAXONOMY:
 ${taxonomyString}
 
 CATEGORIES MAPPED: ${mappedCategoriesList}
-${regionBlock}
+${regionBlock}${avoidQuestionBlock}
 ${embeddingHistoryBlock}
 RESPOND ONLY with the text of the new question. Do not include any other text, explanation, or formatting.`;
   }
@@ -932,6 +932,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
       generationConfig: {
         temperature: strict ? 0.5 : 0.9,
         maxOutputTokens: 800,
+        thinkingConfig: this.DISABLE_THINKING,
       },
     };
 
@@ -991,9 +992,6 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
     throw new Error("Failed to generate next question");
   }
 
-  /**
-   * SYNTHESIZE NEXT QUESTION
-   */
   public static async synthesizeNextQuestion(
     interactions: Array<{
       question: string;
@@ -1031,7 +1029,6 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
 
       let question = this.normalizeQuestion(text);
 
-      // Check if response was incomplete or too weak
       if (this.shouldRetryQuestionStrict(question, text, finishReason)) {
         console.log("Question is incomplete or weak, retrying with stricter settings");
 

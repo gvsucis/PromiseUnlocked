@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -130,6 +131,10 @@ export default function StampScreen() {
       setShowQuestionModal(true);
     } catch (err) {
       console.error("Failed to generate region question:", err);
+      Alert.alert(
+        "Couldn't generate a question",
+        "Something went wrong while exploring this region. Please try again."
+      );
     } finally {
       setIsGenerating(false);
     }
