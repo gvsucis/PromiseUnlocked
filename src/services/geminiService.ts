@@ -588,7 +588,7 @@ Return only the final answer text.`,
 Your task is to map the answer to exactly one skill stamp taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
 Rules:
 1. Choose the single most applicable skill stamp category from the taxonomy.
-2. Only map to a real category if the fit is obvious and rigorous.
+2. Only map to a real category if the fit is obvious and rigorous. When genuinely uncertain, prefer NO_MAP_WEAK_FIT rather than forcing a category.
 3. Prefer unmapped categories, but if the answer genuinely matches an already-mapped category, you may still select it (its counter will increment). Never force a weak match just because it's unmapped.
 4. If the answer is generic filler, unrelated, or only partially addresses the question, use 'NO_MAP_WEAK_FIT'.
 5. If the answer contains abusive, offensive, or inappropriate language, or is gibberish/spam/unrelated to any category, you MUST use 'NO_MAP_WEAK_FIT' with justification EXACTLY starting with 'INAPPROPRIATE_CONTENT:'. Set nextQuestion to null. Do NOT use the answer text in follow-up questions.
@@ -597,12 +597,13 @@ Rules:
 8. Generate a thoughtful follow-up question that directly follows from the user's answer and helps identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists.
 9. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.
 10. Pick the single most specific stamp name from the category's "Available Stamps" list. Set specificStamp only if the answer clearly and directly indicates that exact stamp. If no specific stamp is evident, set specificStamp to null — do not guess or default.
-11. Before mapping, perform a confidence self-check: "Would an impartial observer clearly agree this answer belongs in this category?" If the connection requires more than one logical step, use NO_MAP_WEAK_FIT instead.
+11. Before mapping, consider the three strongest candidate categories. Only select a category if it is clearly a better fit than the others. If two or more categories seem equally plausible, use the QUESTION'S intent to break the tie. Only return NO_MAP_WEAK_FIT if none of the candidates are a strong fit. Ask yourself: "Would an impartial observer clearly agree this answer belongs in this category?" If the connection requires more than one logical step, use NO_MAP_WEAK_FIT.
 12. Consider the QUESTION's intent alongside the answer. The question is designed to probe specific categories. If the question targets a particular type of experience and the answer aligns with it, treat that as supporting evidence for that category.
 13. Organically assign an initialTier (1 or 2) based on the richness and depth of the user's answer:
     - Tier 1: Basic, one sentence, shallow or generic response.
     - Tier 2: Detailed, multi-sentence, specific personal experience or reflection.
     If suggestArtifactUpload is true, also set proofTier to 3 or 4 based on how much stronger the stamp would become with verified proof (3 = meaningful proof, 4 = exceptional/certifiable proof).
+14. The goal is accurate mapping, not maximizing the number of badges earned. Avoid assigning a badge unless there is clear supporting evidence in the user's answer.
 ${contextBlock}${regionHint}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
