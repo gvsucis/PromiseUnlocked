@@ -52,6 +52,7 @@ export interface UserFileEmbedding {
   embedding: number[] | null;
   embeddingModel: string;
   checksum: string;
+  kind?: string;
   createdAt: FirebaseFirestore.FieldValue;
 }
 

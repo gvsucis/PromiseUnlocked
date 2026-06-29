@@ -103,3 +103,48 @@ export async function uploadMultipleImages(params: {
     };
   }
 }
+export async function uploadPDF(params: {
+  endpoint: string;
+  pdfUri: string;
+  fileField?: string;
+  fields?: Record<string, string>;
+}): Promise<UploadResult> {
+  const { endpoint, pdfUri, fileField = "file", fields = {} } = params;
+
+  try {
+    const formData = new FormData();
+
+    for (const [key, value] of Object.entries(fields)) {
+      formData.append(key, value);
+    }
+
+    formData.append(fileField, {
+      uri: pdfUri,
+      name: `profile_pva_${Date.now()}.pdf`,
+      type: "application/pdf",
+    } as unknown as Blob);
+
+    const response = await fetch(`${CONFIG.API_BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: await getAuthHeaders(),
+      body: formData,
+    });
+
+    const body = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: body.error || `Upload failed (${response.status})`,
+      };
+    }
+
+    return { success: true, data: body.data ?? body };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Upload failed",
+    };
+  }
+}
+// export async function handleFileUpload

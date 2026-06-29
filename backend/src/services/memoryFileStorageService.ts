@@ -81,3 +81,21 @@ export async function downloadMemoryFile(storagePath: string): Promise<Buffer> {
   const [buffer] = await bucket.file(storagePath).download();
   return buffer;
 }
+
+export async function getMemoryFileSignedUrl(
+  storagePath: string,
+  ttlMs: number = 60 * 60 * 1000
+): Promise<string> {
+  const bucket = getBucket();
+  const [url] = await bucket.file(storagePath).getSignedUrl({
+    version: "v4",
+    action: "read",
+    expires: Date.now() + ttlMs,
+  });
+  return url;
+}
+
+export async function deleteMemoryFile(storagePath: string): Promise<void> {
+  const bucket = getBucket();
+  await bucket.file(storagePath).delete({ ignoreNotFound: true });
+}

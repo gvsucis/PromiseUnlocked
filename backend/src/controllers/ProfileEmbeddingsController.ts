@@ -3,17 +3,24 @@ import type { AuthenticatedRequest } from "@/types/firestore";
 import Busboy from "busboy";
 import crypto from "node:crypto";
 import { admin, db } from "@/services/firestore";
-import { isAllowedMimeType, uploadMemoryFile } from "@/services/memoryFileStorageService";
+import {
+  isAllowedMimeType,
+  uploadMemoryFile,
+  getMemoryFileSignedUrl,
+  deleteMemoryFile,
+} from "@/services/memoryFileStorageService";
 import {
   saveEmbedding,
   findEmbeddingByChecksum,
   listEmbeddings as listUserEmbeddings,
   getEmbedding as getUserEmbedding,
   searchEmbeddings as searchUserEmbeddings,
+  setEmbeddingKind,
+  deleteEmbedding as deleteUserEmbedding,
 } from "@/services/userFileEmbeddingService";
 import { extractTextFromPdfBuffer, generatePdfEmbedding } from "@/workers/embeddingWorker";
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_SIZE = 6 * 1024 * 1024;
 
 interface FileBufferState {
   chunks: Buffer[];
@@ -95,13 +102,13 @@ export class ProfileEmbeddingsController {
           state.chunks.push(chunk);
           state.totalSize += chunk.length;
           if (state.totalSize > MAX_FILE_SIZE) {
-            state.error = new Error("File exceeds the 5MB maximum size.");
+            state.error = new Error("File exceeds the 6MB maximum size.");
             fileStream.resume();
           }
         });
 
         fileStream.on("limit", () => {
-          state.error = new Error("File exceeds the 5MB maximum size.");
+          state.error = new Error("File exceeds the 6MB maximum size.");
         });
 
         fileStream.on("error", (err: Error) => {
@@ -118,7 +125,7 @@ export class ProfileEmbeddingsController {
         return res.status(400).json({ error: "No file uploaded" });
       }
       if (!isAllowedMimeType(state.mimeType)) {
-        return res.status(400).json({ error: "Only PDF files are accepted (5MB max)." });
+        return res.status(400).json({ error: "Only PDF files are accepted (6MB max)." });
       }
 
       const targetUid = await ProfileEmbeddingsController.resolveTargetUid(fields, authUser);
@@ -130,6 +137,7 @@ export class ProfileEmbeddingsController {
 
       const fileBuffer = Buffer.concat(state.chunks);
       const checksum = crypto.createHash("sha256").update(fileBuffer).digest("hex");
+      const kind = fields.kind?.trim() || "general";
 
       // Duplicate detection: return the existing record without re-processing.
       const existing = await findEmbeddingByChecksum(targetUid, checksum);
@@ -137,6 +145,11 @@ export class ProfileEmbeddingsController {
         console.log(
           `[MemoryUpload] Duplicate detected for user ${targetUid}, returning existing ${existing.id}`
         );
+        // Re-tag the existing record if this upload carries a different kind
+        // (e.g. the same PDF previously uploaded as "general", now as "pva").
+        if (existing.id && existing.kind !== kind) {
+          await setEmbeddingKind(targetUid, existing.id, kind);
+        }
         return res.status(200).json({
           embeddingId: existing.id,
           targetUid,
@@ -194,6 +207,7 @@ export class ProfileEmbeddingsController {
           embedding: vector,
           embeddingModel: process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2",
           checksum,
+          kind,
         });
 
         console.log(`[MemoryUpload] Saved embedding ${embeddingId} for user ${targetUid}`);
@@ -225,8 +239,10 @@ export class ProfileEmbeddingsController {
     const authUser = (req as AuthenticatedRequest).user;
     if (!authUser) return res.status(401).json({ error: "Authentication required" });
 
+    const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
+
     try {
-      const items = await listUserEmbeddings(authUser.uid);
+      const items = await listUserEmbeddings(authUser.uid, kind ? { kind } : {});
       return res.json({ embeddings: items });
     } catch (err) {
       console.error("[MemoryUpload] listEmbeddings error:", err);
@@ -248,6 +264,52 @@ export class ProfileEmbeddingsController {
     } catch (err) {
       console.error("[MemoryUpload] getEmbeddingContext error:", err);
       return res.status(500).json({ error: "Failed to get embedding" });
+    }
+  }
+
+  static async getEmbeddingFileUrl(req: Request, res: Response) {
+    const authUser = (req as AuthenticatedRequest).user;
+    if (!authUser) return res.status(401).json({ error: "Authentication required" });
+
+    const { embeddingId } = req.params as { embeddingId?: string };
+    if (!embeddingId) return res.status(400).json({ error: "Missing embeddingId" });
+
+    try {
+      const embedding = await getUserEmbedding(authUser.uid, embeddingId);
+      if (!embedding?.storagePath) return res.status(404).json({ error: "File not found" });
+      const url = await getMemoryFileSignedUrl(embedding.storagePath);
+      return res.json({ url, fileName: embedding.fileName });
+    } catch (err) {
+      console.error("[MemoryUpload] getEmbeddingFileUrl error:", err);
+      return res.status(500).json({ error: "Failed to get file URL" });
+    }
+  }
+
+  static async deleteEmbedding(req: Request, res: Response) {
+    const authUser = (req as AuthenticatedRequest).user;
+    if (!authUser) return res.status(401).json({ error: "Authentication required" });
+
+    const { embeddingId } = req.params as { embeddingId?: string };
+    if (!embeddingId) return res.status(400).json({ error: "Missing embeddingId" });
+
+    try {
+      const embedding = await getUserEmbedding(authUser.uid, embeddingId);
+      if (!embedding) return res.status(404).json({ error: "Embedding not found" });
+
+      if (embedding.storagePath) {
+        try {
+          await deleteMemoryFile(embedding.storagePath);
+        } catch (err) {
+          // Best-effort: still remove the record so the slot frees up.
+          console.error("[MemoryUpload] Failed to delete stored file:", err);
+        }
+      }
+
+      await deleteUserEmbedding(authUser.uid, embeddingId);
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[MemoryUpload] deleteEmbedding error:", err);
+      return res.status(500).json({ error: "Failed to delete embedding" });
     }
   }
 

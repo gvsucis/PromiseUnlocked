@@ -669,7 +669,11 @@ ${contextBlock}${regionHint}`;
         interactions,
         mappedCategories,
         taxonomyString,
-        { latestQuestion: question, latestAnswer: answer },
+        {
+          latestQuestion: question,
+          latestAnswer: answer,
+          embeddingHistorySummary: options?.pdfContextText,
+        },
         options?.signal
       );
       return parsed;
@@ -1007,6 +1011,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
   ): Promise<string> {
     try {
       const history = interactions
+        .slice(-5)
         .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
         .join("\n");
 

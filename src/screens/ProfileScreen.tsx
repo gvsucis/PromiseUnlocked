@@ -9,18 +9,20 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import * as WebBrowser from "expo-web-browser";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
-import { SafeAreaView } from "react-native-safe-area-context";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
-import { auth } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useDialogue } from "../context/DialogueContext";
 import { useLogout } from "../hooks/useLogout";
@@ -28,8 +30,13 @@ import {
   fetchProfile,
   updateProfile,
   uploadProfilePicture,
+  uploadPvaResult,
+  listPvaResults,
+  getPvaFileUrl,
+  deletePvaResult,
   buildLocalProfile,
   type UserProfile,
+  type PvaResult,
 } from "../services/profileService";
 
 import { ImagePickerService } from "../services/imagePickerService";
@@ -62,7 +69,19 @@ export default function ProfileScreen() {
   const { reset } = useDialogue();
   const { confirmAndLogout } = useLogout();
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
+  const [uploadingPva, setUploadingPva] = useState(false);
+  const [pvaFile, setPvaFile] = useState<PvaResult | null>(null);
+  const [openingPva, setOpeningPva] = useState(false);
+  const [deletingPva, setDeletingPva] = useState(false);
   const insets = useSafeAreaInsets();
+
+  useFocusEffect(
+    useCallback(() => {
+      listPvaResults()
+        .then((results) => setPvaFile(results[0] ?? null))
+        .catch(() => undefined);
+    }, [])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -125,6 +144,86 @@ export default function ProfileScreen() {
       { text: "Choose from Gallery", onPress: () => handlePhotoSelection(false) },
       { text: "Cancel", style: "cancel" },
     ]);
+  };
+  const handleUploadPVAprofile = async () => {
+    if (uploadingPva) return;
+
+    if (session.mode !== "authenticated") {
+      Alert.alert("Sign in required", "Please sign in to upload your PVA result.");
+      return;
+    }
+
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: "application/pdf",
+      copyToCacheDirectory: true,
+    });
+    if (picked.canceled || !picked.assets?.[0]) return;
+
+    setUploadingPva(true);
+    try {
+      const uploadResult = await uploadPvaResult(picked.assets[0].uri);
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error);
+      }
+      const embeddingId = uploadResult.data?.embeddingId as string | undefined;
+      if (embeddingId) {
+        setPvaFile({
+          id: embeddingId,
+          fileName: (uploadResult.data?.fileName as string) ?? picked.assets[0].name,
+          fileSizeBytes: (uploadResult.data?.fileSizeBytes as number) ?? 0,
+        });
+      }
+      Alert.alert("Upload Complete", "Your PVA result has been uploaded.");
+    } catch (error) {
+      console.warn("Failed to upload PVA result:", error);
+      Alert.alert(
+        "Upload Failed",
+        "We couldn't upload your PVA result. Please check your connection and try again."
+      );
+    } finally {
+      setUploadingPva(false);
+    }
+  };
+
+  const handlePreviewPva = async () => {
+    if (!pvaFile || openingPva) return;
+    setOpeningPva(true);
+    try {
+      const url = await getPvaFileUrl(pvaFile.id);
+      await WebBrowser.openBrowserAsync(url);
+    } catch (error) {
+      console.warn("Failed to open PVA result:", error);
+      Alert.alert("Couldn't open file", "We couldn't open your PVA result. Please try again.");
+    } finally {
+      setOpeningPva(false);
+    }
+  };
+
+  const handleDeletePva = () => {
+    if (!pvaFile || deletingPva) return;
+    Alert.alert(
+      "Delete PVA Result",
+      "Remove this uploaded report? You can upload a new one afterward.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeletingPva(true);
+            try {
+              await deletePvaResult(pvaFile.id);
+              setPvaFile(null);
+            } catch (error) {
+              console.warn("Failed to delete PVA result:", error);
+              Alert.alert("Delete Failed", "We couldn't delete your PVA result. Please try again.");
+            } finally {
+              setDeletingPva(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handlePhotoSelection = async (useCamera: boolean) => {
@@ -285,6 +384,52 @@ export default function ProfileScreen() {
                 <MaterialIcons name="add" size={28} color={colors.accent.sky} />
               </TouchableOpacity>
             </View>
+          </View>
+          <View style={globalStyles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.cardTitle}>Upload PVA Result</Text>
+            </View>
+            {pvaFile ? (
+              <View style={styles.pvaFileRow}>
+                <MaterialIcons name="picture-as-pdf" size={25} color={colors.accent.sky} />
+                <Text style={styles.pvaFileName} numberOfLines={1}>
+                  {pvaFile.fileName}
+                </Text>
+                <TouchableOpacity onPress={handlePreviewPva} disabled={openingPva}>
+                  {openingPva ? (
+                    <ActivityIndicator size="large" color={colors.accent.sky} />
+                  ) : (
+                    <Text style={styles.linkText}>Preview</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleDeletePva}
+                  disabled={deletingPva}
+                  style={styles.pvaDeleteButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  {deletingPva ? (
+                    <ActivityIndicator size="large" color={colors.status.error} />
+                  ) : (
+                    <MaterialIcons name="delete-outline" size={22} color={colors.status.error} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.galleryRow}>
+                <TouchableOpacity
+                  style={styles.galleryAddCard}
+                  onPress={handleUploadPVAprofile}
+                  disabled={uploadingPva}
+                >
+                  {uploadingPva ? (
+                    <ActivityIndicator color={colors.accent.sky} />
+                  ) : (
+                    <MaterialIcons name="add" size={28} color={colors.accent.sky} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           <TouchableOpacity
@@ -469,6 +614,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: "dashed",
     borderColor: colors.accent.sky,
+  },
+  pvaFileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radius.sm,
+    backgroundColor: colors.background.subtle,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  pvaFileName: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text.primary,
+  },
+  pvaDeleteButton: {
+    marginLeft: 4,
   },
   logoutText: { fontSize: 15, fontWeight: "600", color: colors.status.error, marginLeft: 10 },
   floatingButtons: {

@@ -68,11 +68,8 @@ export function QuestionInputModal({
   const textValue = controlledText ?? internalText;
   const setTextValue = onTextChange ?? setInternalText;
 
-  // In uncontrolled mode, pre-fill the input from `seedText` when the modal
-  // opens for a *new* question. Keying off the question (not just visibility)
-  // means reopening the same question — e.g. resuming after a backdrop dismiss
-  // — preserves the in-progress draft instead of overwriting it, while a new
-  // question still seeds fresh. Never re-seeds on keystroke-driven re-renders.
+  // Uncontrolled mode: seed the input from `seedText` only when a new question
+  // opens, so reopening the same question keeps the in-progress draft.
   const seededQuestionRef = useRef<string | null>(null);
   useEffect(() => {
     if (visible && controlledText === undefined && seededQuestionRef.current !== question) {
@@ -188,15 +185,17 @@ export function QuestionInputModal({
                   >
                     <Text style={styles.newQuestionText}>Skip</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.newTopicButton}
-                    onPress={() => {
-                      onNewTopic?.();
-                      handleClose();
-                    }}
-                  >
-                    <Text style={styles.newTopicText}>New Region</Text>
-                  </TouchableOpacity>
+                  {onNewTopic && (
+                    <TouchableOpacity
+                      style={styles.newTopicButton}
+                      onPress={() => {
+                        onNewTopic();
+                        handleClose();
+                      }}
+                    >
+                      <Text style={styles.newTopicText}>New Region</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     style={[styles.submitButton, !hasContent && styles.submitButtonDisabled]}
                     onPress={handleSubmit}
