@@ -38,6 +38,7 @@ export const profileUpdateSchema = z.object({
   gender: z.enum(genderValues).optional(),
   ethnicity: z.enum(ethnicityValues).optional(),
   address: addressSchema.optional(),
+  selectedPvaId: z.string().nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 

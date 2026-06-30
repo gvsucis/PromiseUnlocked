@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity, Text, Alert } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons } from "@expo/vector-icons";
 import DialogueDashboardScreen, { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
@@ -7,8 +7,6 @@ import ProfileScreen from "../screens/ProfileScreen";
 import PassportScreen from "../screens/PassportScreen";
 import HelpScreen from "../screens/HelpScreen";
 import { colors } from "../styles/global";
-import { useAuth } from "../context/AuthContext";
-
 function ChatScreen() {
   return (
     <View style={placeholderStyles.container}>
@@ -104,27 +102,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
       })}
     </View>
   );
-}
-
-// FIXME: POC — buttons floating over all screens to avoid header
-// Move to a proper header or context-aware component when refactoring
-function FloatingUtilityButtons() {
-  const { session, logoutToGuest } = useAuth();
-
-  const handleLogout = () => {
-    Alert.alert(
-      "Switch to Guest",
-      "You will keep this account's saved progress, and the app will continue in guest mode.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Continue", onPress: () => void logoutToGuest() },
-      ]
-    );
-  };
-
-  const handleRefresh = () => {
-    dialogueBridgeRef.current?.handleReset?.();
-  };
 }
 
 export default function MainTabNavigator() {

@@ -24,7 +24,7 @@ interface Props {
 }
 
 export default function VoiceAnalysisScreen({ navigation, route }: Props) {
-  const { question, context } = route.params || {};
+  const { question } = route.params || {};
 
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);

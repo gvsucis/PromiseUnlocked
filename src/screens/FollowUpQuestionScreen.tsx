@@ -41,7 +41,7 @@ interface Props {
   route: FollowUpQuestionScreenRouteProp;
 }
 
-const { width, height } = Dimensions.get("window");
+Dimensions.get("window");
 
 export default function FollowUpQuestionScreen({ navigation, route }: Readonly<Props>) {
   const { question } = route.params;

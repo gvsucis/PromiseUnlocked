@@ -14,7 +14,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { computeDerivedSkills, REGIONS } from "../config/stampTaxonomy";
-import { TIER_CONFIG, DEFAULT_TIER } from "../config/stampConstants";
+import { DEFAULT_TIER } from "../config/stampConstants";
 import StampBadge from "../components/stamps/StampBadge";
 import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
 import { GeminiService } from "../services/geminiService";
@@ -30,8 +30,6 @@ import {
 } from "../services/categoryStorageService";
 
 import { colors } from "../styles/global";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 const DERIVED_SKILLS = computeDerivedSkills();
 
 function findNearestWithUnlocks(

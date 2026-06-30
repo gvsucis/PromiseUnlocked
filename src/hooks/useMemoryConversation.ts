@@ -104,7 +104,7 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
     };
   }, []);
 
-  const isAuthenticated = session.mode === "authenticated" || session.mode === "guest";
+  const isAuthenticated = session.mode === "authenticated";
 
   const processTurn = useCallback(
     async ({

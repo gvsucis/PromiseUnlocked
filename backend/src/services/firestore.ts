@@ -110,6 +110,7 @@ export function normalizeUser(
     ethnicity: data?.ethnicity ?? null,
     pageUrl: data?.pageUrl ?? null,
     role: data?.role ?? null,
+    selectedPvaId: data?.selectedPvaId ?? null,
     metadata: data?.metadata ?? {},
     ...normalizeTimestamps(data!, ["createdAt", "updatedAt", "lastActiveAt"]),
   };

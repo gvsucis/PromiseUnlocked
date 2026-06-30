@@ -18,7 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
 import { states } from "states-us";
-import { fetchProfile, updateProfile } from "../services/profileService";
+import { updateProfile } from "firebase/auth";
+import { auth } from "../config/firebase";
+import { fetchProfile, updateProfile as updateProfileService } from "../services/profileService";
 import { colors, spacing, radius } from "../styles/global";
 
 type EditProfileFormState = {
@@ -72,35 +74,103 @@ function validateProfileForm(formState: EditProfileFormState): string | null {
   if (formState.postalCode && formState.postalCode.length !== 5) {
     return "ZIP code must be 5 digits.";
   }
-
   return null;
 }
 
-// NOSONAR
-export default function EditProfileScreen() {
-  const navigation = useNavigation();
+function formatDate(date: Date | null): string {
+  if (!date) return "MM/DD/YYYY";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${month}/${day}/${date.getFullYear()}`;
+}
 
+type PickerFieldProps = {
+  value: string;
+  placeholder: string;
+  options: { label: string; value: string }[];
+  onValueChange: (value: string) => void;
+  onPress: () => void;
+};
+
+function PickerField({ value, placeholder, options, onValueChange, onPress }: PickerFieldProps) {
+  return Platform.OS === "ios" ? (
+    <TouchableOpacity style={styles.pickerWrapper} onPress={onPress}>
+      <Text style={value ? styles.pickerText : styles.pickerPlaceholder}>
+        {value ? (options.find((o) => o.value === value)?.label ?? "") : placeholder}
+      </Text>
+    </TouchableOpacity>
+  ) : (
+    <View style={styles.pickerWrapper}>
+      <Picker selectedValue={value} onValueChange={onValueChange} style={styles.picker}>
+        {options.map((opt) => (
+          <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+        ))}
+      </Picker>
+    </View>
+  );
+}
+
+type ModalPickerProps = {
+  visible: boolean;
+  onClose: () => void;
+  selectedValue: string;
+  onValueChange: (value: string) => void;
+  options: { label: string; value: string }[];
+};
+
+function ModalPicker({
+  visible,
+  onClose,
+  selectedValue,
+  onValueChange,
+  options,
+}: Readonly<ModalPickerProps>) {
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={styles.modalDone}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          <Picker
+            selectedValue={selectedValue}
+            onValueChange={onValueChange}
+            itemStyle={{ color: "#000" }}
+          >
+            {options.map((opt) => (
+              <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function useProfileForm() {
   const [fullName, setFullName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [dob, setDob] = useState<Date | null>(null);
   const [showDobPicker, setShowDobPicker] = useState(false);
   const [gender, setGender] = useState("");
+  const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [ethnicity, setEthnicity] = useState("");
+  const [showEthnicityPicker, setShowEthnicityPicker] = useState(false);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [pageUrl, setPageUrl] = useState("");
   const [street, setStreet] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
+  const [showStatePicker, setShowStatePicker] = useState(false);
   const [postalCode, setPostalCode] = useState("");
   const [country, setCountry] = useState("");
   const [schoolName, setSchoolName] = useState("");
   const [schoolAddress, setSchoolAddress] = useState("");
   const [saving, setSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [showGenderPicker, setShowGenderPicker] = useState(false);
-  const [showEthnicityPicker, setShowEthnicityPicker] = useState(false);
-  const [showStatePicker, setShowStatePicker] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -155,15 +225,9 @@ export default function EditProfileScreen() {
     { label: "Other", value: "other" },
   ];
 
-  const getLabel = (options: { label: string; value: string }[], value: string) =>
-    options.find((o) => o.value === value)?.label ?? "";
+  const stateOptions = [...states.map((s) => ({ label: s.name, value: s.abbreviation }))];
 
-  const stateOptions = [
-    ...states.map((state) => ({ label: state.name, value: state.abbreviation })),
-  ];
-
-  // Save handler: gather form state, validate, call backend via profileService
-  async function handleSave(): Promise<void> {
+  async function saveProfile(): Promise<boolean> {
     const formState: EditProfileFormState = {
       dob,
       gender,
@@ -185,21 +249,128 @@ export default function EditProfileScreen() {
     const validationError = validateProfileForm(formState);
     if (validationError) {
       Alert.alert("Invalid profile", validationError);
-      return;
+      return false;
     }
 
     try {
       setSaving(true);
-      await updateProfile(buildUpdatePayload(formState));
+      await updateProfileService(buildUpdatePayload(formState));
+
+      const user = auth.currentUser;
+      if (user && fullName.trim()) {
+        await updateProfile(user, { displayName: fullName.trim() });
+      }
+
       setSaving(false);
       Alert.alert("Saved", "Your profile was updated.");
-      navigation.goBack();
+      return true;
     } catch (error) {
       setSaving(false);
       console.error("UpdateProfile error:", error);
       Alert.alert("Save failed", "Could not update profile. Please try again.");
+      return false;
     }
   }
+
+  return {
+    fullName,
+    setFullName,
+    displayName,
+    setDisplayName,
+    dob,
+    setDob,
+    showDobPicker,
+    setShowDobPicker,
+    gender,
+    setGender,
+    showGenderPicker,
+    setShowGenderPicker,
+    ethnicity,
+    setEthnicity,
+    showEthnicityPicker,
+    setShowEthnicityPicker,
+    phone,
+    setPhone,
+    email,
+    setEmail,
+    pageUrl,
+    setPageUrl,
+    street,
+    setStreet,
+    city,
+    setCity,
+    state,
+    setState,
+    showStatePicker,
+    setShowStatePicker,
+    postalCode,
+    setPostalCode,
+    country,
+    setCountry,
+    schoolName,
+    setSchoolName,
+    schoolAddress,
+    setSchoolAddress,
+    saving,
+    isLoading,
+    genderOptions,
+    ethnicityOptions,
+    stateOptions,
+    saveProfile,
+  };
+}
+
+export default function EditProfileScreen() {
+  const navigation = useNavigation();
+
+  const {
+    fullName,
+    setFullName,
+    dob,
+    setDob,
+    showDobPicker,
+    setShowDobPicker,
+    gender,
+    setGender,
+    showGenderPicker,
+    setShowGenderPicker,
+    ethnicity,
+    setEthnicity,
+    showEthnicityPicker,
+    setShowEthnicityPicker,
+    phone,
+    setPhone,
+    pageUrl,
+    setPageUrl,
+    street,
+    setStreet,
+    city,
+    setCity,
+    state,
+    setState,
+    showStatePicker,
+    setShowStatePicker,
+    postalCode,
+    setPostalCode,
+    country,
+    setCountry,
+    schoolName,
+    setSchoolName,
+    schoolAddress,
+    setSchoolAddress,
+    saving,
+    isLoading,
+    genderOptions,
+    ethnicityOptions,
+    stateOptions,
+    saveProfile,
+  } = useProfileForm();
+
+  const handleSave = async () => {
+    if (await saveProfile()) {
+      navigation.goBack();
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -239,9 +410,7 @@ export default function EditProfileScreen() {
                   onPress={() => setShowDobPicker(true)}
                 >
                   <Text style={dob ? styles.pickerText : styles.pickerPlaceholder}>
-                    {dob
-                      ? `${String(dob.getMonth() + 1).padStart(2, "0")}/${String(dob.getDate()).padStart(2, "0")}/${dob.getFullYear()}`
-                      : "MM/DD/YYYY"}
+                    {formatDate(dob)}
                   </Text>
                 </TouchableOpacity>
                 {Platform.OS === "android" && showDobPicker && (
@@ -276,54 +445,24 @@ export default function EditProfileScreen() {
 
               <View style={styles.fieldGroup}>
                 <Label style={styles.label}>Gender</Label>
-                {Platform.OS === "ios" ? (
-                  <TouchableOpacity
-                    style={styles.pickerWrapper}
-                    onPress={() => setShowGenderPicker(true)}
-                  >
-                    <Text style={gender ? styles.pickerText : styles.pickerPlaceholder}>
-                      {gender ? getLabel(genderOptions, gender) : "Select gender"}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.pickerWrapper}>
-                    <Picker
-                      selectedValue={gender}
-                      onValueChange={(value) => setGender(value)}
-                      style={styles.picker}
-                    >
-                      {genderOptions.map((opt) => (
-                        <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                      ))}
-                    </Picker>
-                  </View>
-                )}
+                <PickerField
+                  value={gender}
+                  placeholder="Select gender"
+                  options={genderOptions}
+                  onValueChange={setGender}
+                  onPress={() => setShowGenderPicker(true)}
+                />
               </View>
 
               <View style={styles.fieldGroup}>
                 <Label style={styles.label}>Ethnicity</Label>
-                {Platform.OS === "ios" ? (
-                  <TouchableOpacity
-                    style={styles.pickerWrapper}
-                    onPress={() => setShowEthnicityPicker(true)}
-                  >
-                    <Text style={ethnicity ? styles.pickerText : styles.pickerPlaceholder}>
-                      {ethnicity ? getLabel(ethnicityOptions, ethnicity) : "Select ethnicity"}
-                    </Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.pickerWrapper}>
-                    <Picker
-                      selectedValue={ethnicity}
-                      onValueChange={(value) => setEthnicity(value)}
-                      style={styles.picker}
-                    >
-                      {ethnicityOptions.map((opt) => (
-                        <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                      ))}
-                    </Picker>
-                  </View>
-                )}
+                <PickerField
+                  value={ethnicity}
+                  placeholder="Select ethnicity"
+                  options={ethnicityOptions}
+                  onValueChange={setEthnicity}
+                  onPress={() => setShowEthnicityPicker(true)}
+                />
               </View>
             </View>
 
@@ -394,28 +533,13 @@ export default function EditProfileScreen() {
 
                 <View style={styles.fieldHalf}>
                   <Label style={styles.label}>State</Label>
-                  {Platform.OS === "ios" ? (
-                    <TouchableOpacity
-                      style={styles.pickerWrapper}
-                      onPress={() => setShowStatePicker(true)}
-                    >
-                      <Text style={state ? styles.pickerText : styles.pickerPlaceholder}>
-                        {state || "Select state"}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={styles.pickerWrapper}>
-                      <Picker
-                        selectedValue={state}
-                        onValueChange={(value) => setState(value)}
-                        style={styles.picker}
-                      >
-                        {stateOptions.map((opt) => (
-                          <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                        ))}
-                      </Picker>
-                    </View>
-                  )}
+                  <PickerField
+                    value={state}
+                    placeholder="Select state"
+                    options={stateOptions}
+                    onValueChange={setState}
+                    onPress={() => setShowStatePicker(true)}
+                  />
                 </View>
               </View>
 
@@ -520,68 +644,29 @@ export default function EditProfileScreen() {
               </View>
             </Modal>
 
-            <Modal visible={showGenderPicker} transparent animationType="slide">
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                      <Text style={styles.modalDone}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Picker
-                    selectedValue={gender}
-                    onValueChange={(value) => setGender(value)}
-                    itemStyle={{ color: "#000" }}
-                  >
-                    {genderOptions.map((opt) => (
-                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-            </Modal>
+            <ModalPicker
+              visible={showGenderPicker}
+              onClose={() => setShowGenderPicker(false)}
+              selectedValue={gender}
+              onValueChange={setGender}
+              options={genderOptions}
+            />
 
-            <Modal visible={showEthnicityPicker} transparent animationType="slide">
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <TouchableOpacity onPress={() => setShowEthnicityPicker(false)}>
-                      <Text style={styles.modalDone}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Picker
-                    selectedValue={ethnicity}
-                    onValueChange={(value) => setEthnicity(value)}
-                    itemStyle={{ color: "#000" }}
-                  >
-                    {ethnicityOptions.map((opt) => (
-                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-            </Modal>
+            <ModalPicker
+              visible={showEthnicityPicker}
+              onClose={() => setShowEthnicityPicker(false)}
+              selectedValue={ethnicity}
+              onValueChange={setEthnicity}
+              options={ethnicityOptions}
+            />
 
-            <Modal visible={showStatePicker} transparent animationType="slide">
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <TouchableOpacity onPress={() => setShowStatePicker(false)}>
-                      <Text style={styles.modalDone}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Picker
-                    selectedValue={state}
-                    onValueChange={(value) => setState(value)}
-                    itemStyle={{ color: "#000" }}
-                  >
-                    {stateOptions.map((opt) => (
-                      <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-            </Modal>
+            <ModalPicker
+              visible={showStatePicker}
+              onClose={() => setShowStatePicker(false)}
+              selectedValue={state}
+              onValueChange={setState}
+              options={stateOptions}
+            />
           </>
         )}
       </View>

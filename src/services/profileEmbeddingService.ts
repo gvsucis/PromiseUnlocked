@@ -1,77 +1,66 @@
-import { CONFIG } from "../config/env";
-import { auth } from "../config/firebase";
+import { getJSONFromStorage, setJSONInStorage, removeFromStorage } from "../utils/asyncStorage";
+import { getScopedStorageKey } from "./auth/authSessionService";
+import { apiFetch } from "./apiClient";
 
-interface SearchResult {
+const PVA_CONTEXT_KEY = "@pva_context";
+let cachedCatalog: PvaCatalogItem[] | null = null;
+
+export type PvaEmbeddingStatus = "processing" | "ready" | "failed";
+
+export interface PvaCatalogItem {
   id: string;
-  fileName: string;
-  extractedText: string;
-  distance?: number;
+  name: string;
+  embeddingStatus: PvaEmbeddingStatus;
 }
 
-interface SearchResponse {
-  results: SearchResult[];
+export function invalidatePvaCatalogCache(): void {
+  cachedCatalog = null;
 }
 
-export async function searchPdfContext(query: string, limit = 3): Promise<string> {
-  const user = auth.currentUser;
-  if (!user || user.isAnonymous) {
-    return "";
-  }
-
-  const token = await user.getIdToken();
-  if (!token) {
-    console.info("[PandoraData] Pandora Data not ready — no auth token");
-    return "";
-  }
-
-  const url = `${CONFIG.API_BASE_URL}/profile-embeddings/search`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
-
+/** Shared catalog of selectable PVAs. Cached in memory after first fetch. */
+export async function listPvaCatalog(): Promise<PvaCatalogItem[]> {
+  if (cachedCatalog) return cachedCatalog;
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ query, limit }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      console.warn(
-        `[PandoraData] Pandora Data not ready — search unavailable (${response.status})`
-      );
-      return "";
-    }
-
-    let data: SearchResponse;
-    try {
-      data = await response.json();
-    } catch {
-      console.warn("[PandoraData] Pandora Data not ready — parse failed");
-      return "";
-    }
-
-    if (!data.results?.length) return "";
-
-    return data.results
-      .map((r) => r.extractedText ?? "")
-      .filter(Boolean)
-      .join("\n\n---\n\n");
-  } catch (err) {
-    let message: string;
-    if (err instanceof Error && err.name === "AbortError") {
-      message = "Search timed out after 8s";
-    } else if (err instanceof Error) {
-      message = err.message;
-    } else {
-      message = String(err);
-    }
-    console.warn(`[PandoraData] Pandora Data not ready — search error: ${message}`);
-    return "";
-  } finally {
-    clearTimeout(timeoutId);
+    const data = await apiFetch<{ pvas: PvaCatalogItem[] }>("/pva-catalog");
+    cachedCatalog = data.pvas ?? [];
+    return cachedCatalog;
+  } catch (error) {
+    console.warn("[PvaCatalog] Failed to list catalog:", error);
+    return [];
   }
+}
+
+// Selected PVA's persona brief; cached per user, invalidated on selection change.
+export async function getPvaContext(): Promise<string> {
+  const key = await getScopedStorageKey(PVA_CONTEXT_KEY);
+  const cached = await getJSONFromStorage<string | null>(key, null);
+  if (cached !== null) return cached;
+
+  const fetched = await fetchSelectedPvaContext();
+  // Don't cache a miss (no selection yet, or still processing) — retry next time.
+  if (fetched) await setJSONInStorage(key, fetched);
+  return fetched;
+}
+
+async function fetchSelectedPvaContext(): Promise<string> {
+  try {
+    const profile = await apiFetch<{ participant?: { selectedPvaId?: string | null } }>(
+      "/participants/me"
+    );
+    const selectedPvaId = profile.participant?.selectedPvaId;
+    if (!selectedPvaId) return "";
+
+    const data = await apiFetch<{ context: string; embeddingStatus: PvaEmbeddingStatus }>(
+      `/pva-catalog/${selectedPvaId}/context`
+    );
+    return data.context ?? "";
+  } catch (error) {
+    console.warn("[PvaCatalog] Failed to fetch selected PVA context:", error);
+    return "";
+  }
+}
+
+export async function clearPvaContextCache(): Promise<void> {
+  const key = await getScopedStorageKey(PVA_CONTEXT_KEY);
+  await removeFromStorage(key);
 }

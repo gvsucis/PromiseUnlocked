@@ -7,7 +7,6 @@ export interface UserDocument {
   displayName: string | null;
   createdAt: Timestamp | FieldValue;
   lastActiveAt: Timestamp | FieldValue;
-  isAnonymous: boolean;
 }
 
 export interface SessionDocument {

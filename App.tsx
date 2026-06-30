@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { AppState, AppStateStatus, Image } from "react-native";
+import { ActivityIndicator, AppState, AppStateStatus, Image, View } from "react-native";
 import { getAllPreloadUrls } from "./src/config/stampConstants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NavigationContainer } from "@react-navigation/native";
@@ -36,8 +36,8 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 function AppNavigator() {
   const { session } = useAuth();
-  // Default to `false` (show Welcome) while the AsyncStorage read is in flight,
-  // so the navigator mounts immediately without a full-screen spinner.
+
+  // Hoisted before the loading gate so hook call count stays identical on every render.
   const [hasSeenOnboarding, setHasSeenOnboarding] = React.useState<boolean>(false);
 
   useEffect(() => {
@@ -60,6 +60,21 @@ function AppNavigator() {
       subscription.remove();
     };
   }, []);
+
+  if (session.mode === "loading") {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#1a1a2e",
+        }}
+      >
+        <ActivityIndicator size="large" color="#2196F3" />
+      </View>
+    );
+  }
 
   const getInitialRoute = () => {
     if (session.mode === "authenticated") return "MainTabs" as const;
@@ -110,7 +125,11 @@ function AppNavigator() {
         />
 
         {/* ── Authenticated shell ── */}
-        <Stack.Screen name="MainTabs" component={MainTabNavigator} options={{ headerShown: false }} />
+        <Stack.Screen
+          name="MainTabs"
+          component={MainTabNavigator}
+          options={{ headerShown: false }}
+        />
 
         {/* ── Stack screens pushed on top of MainTabs ── */}
         <Stack.Screen

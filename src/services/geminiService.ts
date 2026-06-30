@@ -578,7 +578,7 @@ Return only the final answer text.`,
       .join(", ");
 
     const contextBlock = options?.pdfContextText
-      ? `\n\n=== USER BACKGROUND CONTEXT ===\n${options.pdfContextText}\n\nUse this as secondary background to personalize questions and follow-ups. Never mention it directly or imply you have access to private files.`
+      ? `\n\n=== USER PERSONALITY PROFILE ===\n${options.pdfContextText}\n\nUse this only to make questions and follow-ups more engaging — match their communication style, lead with topics tied to their interests and motivators, and steer toward areas where they can show evidence. It must NOT change how strictly you map answers to categories. Never mention it or imply you have access to a profile.`
       : "";
 
     const regionHint = options?.targetRegion
@@ -887,7 +887,7 @@ ${contextBlock}${regionHint}`;
         ? `\nLATEST_TURN:\nQ: ${context.latestQuestion ?? ""}\nA: ${context.latestAnswer ?? ""}\n`
         : "\n";
     const embeddingHistoryBlock = context?.embeddingHistorySummary
-      ? `\nEMBEDDING_HISTORY (background only):\n${context.embeddingHistorySummary}\n`
+      ? `\nUSER_PERSONALITY_PROFILE (for engagement only — tailor tone/topics, never reveal, never affects scoring):\n${context.embeddingHistorySummary}\n`
       : "";
     const regionBlock = targetRegion
       ? `\nTARGET REGION: ${targetRegion} — focus the question on this specific area.\n`
@@ -967,10 +967,8 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
     _text: string,
     finishReason?: string
   ): boolean {
-    // Retry strictly only when the question is genuinely weak or the response
-    // was actually truncated (MAX_TOKENS). A long-but-complete question that
-    // already passes isQuestionStrong is fine — retrying it just adds a wasted
-    // Gemini round-trip to the user's "Generating next question…" wait.
+    // Retry only when the question is weak or the response was truncated
+    // (MAX_TOKENS); a long-but-complete question is fine as-is.
     const isIncomplete = finishReason === "MAX_TOKENS";
     return !this.isQuestionStrong(question) || isIncomplete;
   }

@@ -10,7 +10,7 @@ import proofRoutes from "@/api/proofRoutes";
 import stampsRouter from "@/api/stamps";
 import adminStampsRouter from "@/api/adminStamps";
 import authRouter from "@/api/auth";
-import profileEmbeddingsRouter from "@/api/profileEmbeddings";
+import pvaCatalogRouter from "@/api/pvaCatalog";
 import skillsRouter from "@/api/skills";
 import usersRouter from "@/api/users";
 import helpRouter from "@/api/helpRoutes";
@@ -41,6 +41,13 @@ const allowedOrigins = rawCorsOrigin
   : ["*"];
 
 app.use(cors({ origin: allowedOrigins }));
+
+// Raw-body middleware for multipart uploads — runs BEFORE any async middleware
+// so body-parser captures the stream before it settles (Cloud Run / GFE quirk).
+app.use(express.raw({ type: "multipart/form-data", limit: "10mb" }));
+
+app.use("/pva-catalog", pvaCatalogRouter);
+
 app.use(express.json());
 
 setupSwagger(app);
@@ -51,7 +58,6 @@ app.get("/health", (_req, res) => {
 });
 app.use("/auth", publicRateLimit, authRouter);
 app.use("/skills", publicRateLimit, skillsRouter);
-app.use("/profile-embeddings", profileEmbeddingsRouter);
 app.use("/users", publicRateLimit, usersRouter);
 
 // Protected routes

@@ -1,7 +1,8 @@
 import { auth } from "../config/firebase";
 import { CONFIG } from "../config/env";
-import { apiFetch, GuestUserError } from "./apiClient";
-import { uploadImage, uploadPDF, type UploadResult } from "./uploadService";
+import { apiFetch } from "./apiClient";
+import { uploadImage, type UploadResult } from "./uploadService";
+import { clearPvaContextCache, invalidatePvaCatalogCache } from "./profileEmbeddingService";
 
 export interface UserProfile {
   uid: string;
@@ -25,6 +26,7 @@ export interface UserProfile {
   gender?: string | null;
   ethnicity?: string | null;
   pageUrl?: string | null;
+  selectedPvaId?: string | null;
   metadata: Record<string, unknown>;
 }
 
@@ -40,6 +42,7 @@ export interface ProfileUpdatePayload {
   dateOfBirth?: string;
   gender?: string;
   ethnicity?: string;
+  selectedPvaId?: string | null;
   address?: {
     street?: string;
     city?: string;
@@ -69,6 +72,7 @@ export function buildLocalProfile(overrides: Partial<UserProfile> = {}): UserPro
     gender: overrides.gender ?? null,
     ethnicity: overrides.ethnicity ?? null,
     pageUrl: overrides.pageUrl ?? null,
+    selectedPvaId: overrides.selectedPvaId ?? null,
     metadata: mergedMetadata,
   };
 }
@@ -84,12 +88,9 @@ export async function fetchProfile(): Promise<UserProfile> {
 
   try {
     const data = await apiFetch<{ participant?: UserProfile }>("/participants/me");
-    const result = data.participant ?? buildLocalProfile();
-    return result;
+    return data.participant ?? buildLocalProfile();
   } catch (error) {
-    if (!(error instanceof GuestUserError)) {
-      console.warn("[profileService] Falling back to local profile:", error);
-    }
+    console.warn("[profileService] Falling back to local profile:", error);
     return buildLocalProfile();
   }
 }
@@ -125,9 +126,7 @@ export async function fetchUserSessionHistory(): Promise<
   try {
     return await apiFetch<{ sessionId: string; timestamp: string }[]>("/participants/me/sessions");
   } catch (error) {
-    if (!(error instanceof GuestUserError)) {
-      console.warn("[profileService] Falling back to empty session history:", error);
-    }
+    console.warn("[profileService] Falling back to empty session history:", error);
     return [];
   }
 }
@@ -157,50 +156,10 @@ export async function uploadProfilePicture(imageUri: string): Promise<UploadResu
   });
 }
 
-const PVA_KIND = "pva";
-
-export async function uploadPvaResult(pdfUri: string): Promise<UploadResult> {
-  if (!isApiAvailable()) {
-    return { success: false, error: "API not available" };
-  }
-
-  return uploadPDF({
-    endpoint: "/profile-embeddings/upload",
-    pdfUri,
-    fileField: "file",
-    fields: { kind: PVA_KIND },
-  });
-}
-
-export interface PvaResult {
-  id: string;
-  fileName: string;
-  fileSizeBytes: number;
-}
-
-export async function listPvaResults(): Promise<PvaResult[]> {
-  if (!isApiAvailable()) {
-    return [];
-  }
-
-  try {
-    const data = await apiFetch<{ embeddings: PvaResult[] }>(
-      `/profile-embeddings/list?kind=${PVA_KIND}`
-    );
-    return data.embeddings ?? [];
-  } catch (error) {
-    if (!(error instanceof GuestUserError)) {
-      console.warn("[profileService] Failed to list PVA results:", error);
-    }
-    return [];
-  }
-}
-
-export async function getPvaFileUrl(embeddingId: string): Promise<string> {
-  const data = await apiFetch<{ url: string }>(`/profile-embeddings/${embeddingId}/file`);
-  return data.url;
-}
-
-export async function deletePvaResult(embeddingId: string): Promise<void> {
-  await apiFetch(`/profile-embeddings/${embeddingId}`, { method: "DELETE" });
+// Select a shared catalog PVA for the user; its persona brief feeds the dialogue.
+export async function selectPva(pvaId: string | null): Promise<UserProfile> {
+  const result = await updateProfile({ selectedPvaId: pvaId });
+  await clearPvaContextCache();
+  invalidatePvaCatalogCache();
+  return result;
 }

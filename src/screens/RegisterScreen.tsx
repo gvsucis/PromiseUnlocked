@@ -16,11 +16,7 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
-import { getMappingStats } from "../services/categoryStorageService";
-import { getCurrentAuthSession, subscribeToAuthSession } from "../services/auth/authSessionService";
-import { getJSONFromStorage, setJSONInStorage } from "../utils/asyncStorage";
-import type { GuestUpgradeDecision } from "../services/firebase/googleAuthService";
-import type { MappedCategory } from "../services/categoryTaxonomyService";
+import { waitForAuthenticated } from "../services/auth/authSessionService";
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, "Register">;
 type Props = Readonly<{
@@ -30,63 +26,20 @@ type Props = Readonly<{
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function RegisterScreen({ navigation }: Props) {
-  const { session, signUpWithEmail } = useAuth();
+  const { signUpWithEmail } = useAuth();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const getGuestUpgradeDecision = async (): Promise<GuestUpgradeDecision | "cancel"> => {
-    if (session.mode !== "guest") {
-      return "move";
-    }
-
-    const stats = await getMappingStats();
-    const hasGuestPassportData = stats.totalMapped > 0 || stats.totalInteractions > 0;
-
-    if (!hasGuestPassportData) {
-      return "move";
-    }
-
-    // Save old data to a non-scoped key before the auth switch,
-    // so migrateOrClearGuestData can find it even if AsyncStorage is cleared.
-    if (session.uid) {
-      const key = `@mappedCategories:${session.uid}`;
-      const oldData = await getJSONFromStorage<MappedCategory[]>(key, []);
-      if (oldData.length > 0) {
-        await setJSONInStorage("@_pending_migration", { oldUid: session.uid, data: oldData });
-      }
-    }
-
-    return await new Promise<GuestUpgradeDecision | "cancel">((resolve) => {
-      Alert.alert(
-        "Move guest passport?",
-        "We found guest passport progress on this device. Move it to your Google account?",
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-            onPress: () => resolve("cancel"),
-          },
-          {
-            text: "No",
-            onPress: () => resolve("separate"),
-          },
-          {
-            text: "Yes",
-            onPress: () => resolve("move"),
-          },
-        ]
-      );
-    });
-  };
 
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
-    onSuccess: () => navigation.replace("MainTabs"),
-    getGuestUpgradeDecision,
+    onSuccess: () => navigation.replace("MainTabs" as const, undefined as never),
   });
 
+  const nameValid = fullName.trim().length >= 2;
   const emailValid = useMemo(() => EMAIL_REGEX.test(email.trim()), [email]);
   const passwordLongEnough = useMemo(() => password.length >= 6, [password]);
   const passwordsMatch = useMemo(
@@ -94,39 +47,18 @@ export default function RegisterScreen({ navigation }: Props) {
     [password, confirmPassword]
   );
 
+  const hasNameError = fullName.length > 0 && !nameValid;
   const hasEmailError = email.length > 0 && !emailValid;
   const hasPasswordError = password.length > 0 && !passwordLongEnough;
   const hasConfirmError = confirmPassword.length > 0 && !passwordsMatch;
-  const formValid = emailValid && passwordLongEnough && passwordsMatch && agreed;
+  const formValid = nameValid && emailValid && passwordLongEnough && passwordsMatch && agreed;
   const isAnyLoading = loading || googleLoading;
-
-  const getErrorDetails = (error: unknown) => {
-    if (error instanceof Error) {
-      return {
-        code: (error as Error & { code?: string }).code,
-        message: error.message,
-      };
-    }
-
-    return { code: undefined, message: "Unknown error" };
-  };
-
-  const getFriendlySignupMessage = (code: string | undefined, message: string): string => {
-    if (
-      code === "app/anonymous-auth-disabled" ||
-      code === "app/firestore-auth-unavailable" ||
-      message.includes("auth/admin-restricted-operation")
-    ) {
-      return "Cloud sync setup is temporarily unavailable. You can still use the app and try account setup again shortly.";
-    }
-
-    return message;
-  };
 
   const handleSignUp = async () => {
     if (!agreed) return Alert.alert("Terms Required", "You must agree to the Terms of Service.");
-    if (!email || !password || !confirmPassword)
+    if (!fullName || !email || !password || !confirmPassword)
       return Alert.alert("Missing Info", "Please fill in all fields.");
+    if (!nameValid) return Alert.alert("Invalid Name", "Name must be at least 2 characters.");
     if (!emailValid) return Alert.alert("Invalid Email", "Please enter a valid email address.");
     if (!passwordLongEnough)
       return Alert.alert("Weak Password", "Password must be at least 6 characters.");
@@ -134,34 +66,22 @@ export default function RegisterScreen({ navigation }: Props) {
 
     try {
       setLoading(true);
-      await signUpWithEmail(email, password);
-
-      const session = getCurrentAuthSession();
-      if (session.mode !== "authenticated") {
-        await new Promise<void>((resolve) => {
-          const unsub = subscribeToAuthSession((s) => {
-            if (s.mode === "authenticated") {
-              unsub();
-              resolve();
-            }
-          });
-        });
-      }
-
-      navigation.replace("MainTabs");
+      await signUpWithEmail(email, password, fullName.trim());
+      await waitForAuthenticated();
+      navigation.replace("MainTabs" as const, undefined as never);
     } catch (error: unknown) {
-      const { code, message } = getErrorDetails(error);
+      const message = error instanceof Error ? error.message : String(error);
       let msg = message;
 
-      if (code === "auth/email-already-in-use") {
+      if (message.includes("auth/email-already-in-use")) {
         msg = "That email is already in use. Please sign in instead.";
-      } else if (code === "auth/invalid-email") {
+      } else if (message.includes("auth/invalid-email")) {
         msg = "That email address is invalid.";
-      } else if (code === "auth/weak-password") {
+      } else if (message.includes("auth/weak-password")) {
         msg = "Password must be at least 6 characters.";
       }
 
-      Alert.alert("Error", getFriendlySignupMessage(code, msg));
+      Alert.alert("Error", msg);
       setLoading(false);
     }
   };
@@ -189,6 +109,21 @@ export default function RegisterScreen({ navigation }: Props) {
             />
             <Card.Content>
               <View style={styles.cardContentWrap}>
+                {/* Full Name */}
+                <TextInput
+                  mode="flat"
+                  label="Full Name"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  autoCapitalize="words"
+                  style={styles.input}
+                  error={hasNameError}
+                  theme={{ colors: { onSurfaceVariant: "#fff" } }}
+                />
+                <HelperText type="error" visible={hasNameError} style={styles.helper}>
+                  Name must be at least 2 characters
+                </HelperText>
+
                 {/* Email */}
                 <TextInput
                   mode="flat"

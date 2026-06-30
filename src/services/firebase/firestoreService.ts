@@ -19,7 +19,6 @@ import {
   limit,
   Timestamp,
 } from "firebase/firestore";
-import { signInAnonymously } from "firebase/auth";
 import { db, auth } from "../../config/firebase";
 import { setJSONInStorage } from "../../utils/asyncStorage";
 import { waitForAuthReady } from "../auth/authSessionService";
@@ -32,6 +31,14 @@ import type {
 
 const USER_ID_STORAGE_KEY = "@firestore_user_id";
 type InputMethod = "text" | "voice" | "image";
+
+/**
+ * Firebase persistence is reserved for authenticated users.
+ * Every client-side Firestore write goes through this gate.
+ */
+export function canWriteToFirestore(): boolean {
+  return Boolean(auth.currentUser);
+}
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -47,7 +54,6 @@ async function cacheUserId(userId: string): Promise<void> {
 }
 
 //
-// User identity (anonymous auth until real auth is wired up)
 //
 
 let _cachedUserId: string | null = null;
@@ -88,32 +94,10 @@ async function ensureSessionDocument(userId: string, sessionId: string): Promise
 
 async function ensureFirebaseUserForWrites(): Promise<string> {
   const currentUid = auth.currentUser?.uid;
-  if (currentUid) {
-    return currentUid;
+  if (!currentUid) {
+    throw new Error("No Firebase auth user is available for Firestore writes.");
   }
-
-  try {
-    const credential = await signInAnonymously(auth);
-    if (credential.user?.uid) {
-      return credential.user.uid;
-    }
-  } catch (error) {
-    const code =
-      typeof error === "object" && error !== null && "code" in error
-        ? String((error as { code?: unknown }).code)
-        : "unknown";
-    const writeAuthError = new Error(
-      `No Firebase auth user is available for Firestore writes. (auth code: ${code})`
-    ) as Error & { code?: string; authCode?: string };
-    writeAuthError.code =
-      code === "auth/admin-restricted-operation"
-        ? "app/anonymous-auth-disabled"
-        : "app/firestore-auth-unavailable";
-    writeAuthError.authCode = code;
-    throw writeAuthError;
-  }
-
-  throw new Error("No Firebase auth user is available for Firestore writes.");
+  return currentUid;
 }
 
 export async function getOrCreateUserId(): Promise<string> {
@@ -310,6 +294,7 @@ export async function savePassportMapping(
   justification: string,
   specificStamp?: string
 ): Promise<void> {
+  if (!canWriteToFirestore()) return;
   try {
     await ensureSessionDocument(userId, sessionId);
 

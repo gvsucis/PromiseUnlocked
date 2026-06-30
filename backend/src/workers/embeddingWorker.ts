@@ -1,6 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
-import path from "node:path";
+import { getDocumentProxy } from "unpdf";
 
 // Must match DEFAULT_OUTPUT_DIMENSIONALITY in embeddingService.ts so that
 // document vectors and query vectors occupy the same space for cosine search.
@@ -19,74 +18,48 @@ function getAi(): GoogleGenAI {
   return ai;
 }
 
-const PDF_STANDARD_FONT_URL =
-  path.resolve(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/").replace(/\\/g, "/") + "/";
-
 export async function extractTextFromPdfBuffer(buffer: Uint8Array, maxPages = 12): Promise<string> {
-  const loadingTask = pdfjsLib.getDocument({
-    data: buffer,
-    disableFontFace: true,
-    useSystemFonts: false,
-    standardFontDataUrl: PDF_STANDARD_FONT_URL,
-  });
-  const pdf = await loadingTask.promise;
-  const totalPages = pdf.numPages;
-  const pages = Math.min(maxPages, totalPages);
+  // unpdf bundles a serverless (canvas-free) pdf.js build, so no font URL or
+  // CJS/ESM interop handling is needed.
+  const pdf = await getDocumentProxy(buffer);
+  const pages = Math.min(maxPages, pdf.numPages);
 
-  const pageNumbers = Array.from({ length: pages }, (_, i) => i + 1);
-  const pageTexts = await Promise.all(
-    pageNumbers.map(async (i) => {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      return content.items.map((item) => ("str" in item ? item.str : "")).join(" ");
-    })
-  );
+  const pageTexts: string[] = [];
+  for (let i = 1; i <= pages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    pageTexts.push(content.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+  }
 
   return pageTexts.join("\n\n--- Page ---\n\n");
 }
 
-export async function generatePdfEmbedding(
-  pdfBytes: Uint8Array,
-  fallbackText: string
-): Promise<number[]> {
-  const embedModel = process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2";
+// One budget for stored + embedded text, so the vector matches what we persist.
+export const EMBEDDING_TEXT_MAX_CHARS = 8000;
 
-  // RETRIEVAL_DOCUMENT signals to the model that this vector will be indexed
-  // and searched against RETRIEVAL_QUERY vectors (used on the search side).
-  // outputDimensionality must match the query side (768) for cosine search to work.
-  try {
-    const response = await getAi().models.embedContent({
-      model: embedModel,
-      contents: [
-        {
-          inlineData: {
-            mimeType: "application/pdf",
-            data: Buffer.from(pdfBytes).toString("base64"),
-          },
-        },
-      ],
-      config: {
-        taskType: "RETRIEVAL_DOCUMENT",
-        outputDimensionality: EMBEDDING_DIMENSIONALITY,
-      },
-    });
-    const values = response.embeddings?.[0]?.values;
-    if (values?.length) {
-      return values;
-    }
-  } catch (error) {
-    console.warn("PDF inlineData embedding failed, falling back to text embedding:", error);
+export function truncateForEmbedding(text: string): string {
+  if (text.length <= EMBEDDING_TEXT_MAX_CHARS) return text;
+  const cut = text.lastIndexOf(" ", EMBEDDING_TEXT_MAX_CHARS);
+  return text.slice(0, cut > 0 ? cut : EMBEDDING_TEXT_MAX_CHARS);
+}
+
+export async function generateTextEmbedding(text: string): Promise<number[]> {
+  const embedModel = process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2";
+  const trimmed = truncateForEmbedding(text);
+
+  if (!trimmed.trim()) {
+    throw new Error("Cannot generate embedding — no extractable text content.");
   }
 
-  const fallback = await getAi().models.embedContent({
+  const response = await getAi().models.embedContent({
     model: embedModel,
-    contents: fallbackText,
+    contents: trimmed,
     config: {
       taskType: "RETRIEVAL_DOCUMENT",
       outputDimensionality: EMBEDDING_DIMENSIONALITY,
     },
   });
-  const vector = fallback.embeddings?.[0]?.values ?? null;
+  const vector = response.embeddings?.[0]?.values ?? null;
   if (!vector) {
     throw new Error("Empty embedding response");
   }
