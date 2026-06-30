@@ -140,6 +140,7 @@ export class ParticipantsController {
       gender,
       ethnicity,
       address: rawAddress,
+      selectedPvaId,
       metadata: incomingMetadata,
     } = parsed.data;
 
@@ -170,27 +171,30 @@ export class ParticipantsController {
         gender: gender ?? currentProfile.gender ?? null,
         ethnicity: ethnicity ?? currentProfile.ethnicity ?? null,
         address,
+        selectedPvaId: selectedPvaId ?? currentProfile.selectedPvaId ?? null,
         metadata: { ...currentProfile.metadata, ...incomingMetadata },
         updatedAt: Date.now(),
         createdAt: currentProfile.createdAt ?? Date.now(),
       };
 
+      // Only forward fields to Firebase Auth that were provided and actually changed.
       const authUpdates: { displayName?: string; email?: string; photoURL?: string } = {};
-      if (typeof fullName === "string") {
-        authUpdates.displayName = fullName;
-      }
-      if (typeof email === "string") {
-        authUpdates.email = email;
-      }
-      if (typeof photoURL === "string") {
-        authUpdates.photoURL = photoURL;
-      }
+      const setIfChanged = (key: keyof typeof authUpdates, value: unknown, current: unknown) => {
+        if (typeof value === "string" && value !== current) {
+          authUpdates[key] = value;
+        }
+      };
+      setIfChanged("displayName", fullName, currentProfile.fullName);
+      setIfChanged("email", email, currentProfile.email);
+      setIfChanged("photoURL", photoURL, currentProfile.photoURL);
 
+      const tasks: Promise<unknown>[] = [
+        participantsCollection.doc(requester.uid).set(nextProfile, { merge: true }),
+      ];
       if (Object.keys(authUpdates).length > 0) {
-        await admin.auth().updateUser(requester.uid, authUpdates);
+        tasks.push(admin.auth().updateUser(requester.uid, authUpdates));
       }
-
-      await participantsCollection.doc(requester.uid).set(nextProfile, { merge: true });
+      await Promise.all(tasks);
       return res.json({ participant: normalizeParticipant(nextProfile) });
     } catch (error) {
       console.error("Error updating authenticated participant:", error);
@@ -312,16 +316,13 @@ export class ParticipantsController {
           if (!acc[category]) {
             acc[category] = { category, totalMappings: 0, unlockedStampCount: 0 };
           }
-          const stamps = p.unlockedStamps as
-            | Record<string, { timesUnlocked?: number }>
-            | undefined;
+          const stamps = p.unlockedStamps as Record<string, { timesUnlocked?: number }> | undefined;
           const stampCount = stamps ? Object.keys(stamps).length : 0;
           (acc[category] as Record<string, unknown>).totalMappings =
             ((acc[category] as Record<string, unknown>).totalMappings as number) +
             ((p.totalMappings as number) ?? 0);
           (acc[category] as Record<string, unknown>).unlockedStampCount =
-            ((acc[category] as Record<string, unknown>).unlockedStampCount as number) +
-            stampCount;
+            ((acc[category] as Record<string, unknown>).unlockedStampCount as number) + stampCount;
           return acc;
         },
         {} as Record<string, unknown>

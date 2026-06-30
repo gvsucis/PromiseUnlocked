@@ -23,6 +23,8 @@ export interface UserProfile {
   pageUrl?: string | null;
   phone?: string | null;
   role?: string | null;
+  /** Id of the shared PVA catalog entry the user selected to personalize dialogue. */
+  selectedPvaId?: string | null;
   metadata: Record<string, unknown>;
 }
 
@@ -54,6 +56,33 @@ export interface UserFileEmbedding {
   checksum: string;
   kind?: string;
   createdAt: FirebaseFirestore.FieldValue;
+  embeddingStatus?: "processing" | "ready" | "failed";
+  embeddingAttempts?: number;
+  embeddingError?: string | null;
+  embeddingStartedAt?: FirebaseFirestore.FieldValue;
+  embeddingFinishedAt?: FirebaseFirestore.FieldValue;
+}
+
+/** Shared, selectable PVA. Embedded once on create; reuses the embedding fields. */
+export interface PvaCatalogEntry {
+  id?: string;
+  name: string;
+  fileName: string;
+  storagePath: string;
+  bucket: string;
+  fileSizeBytes: number;
+  contentType: string;
+  checksum: string;
+  extractedText: string;
+  embedding: number[] | null;
+  embeddingModel: string;
+  embeddingStatus?: "processing" | "ready" | "failed";
+  embeddingAttempts?: number;
+  embeddingError?: string | null;
+  personaBrief?: string | null;
+  createdAt: FirebaseFirestore.FieldValue;
+  embeddingStartedAt?: FirebaseFirestore.FieldValue;
+  embeddingFinishedAt?: FirebaseFirestore.FieldValue;
 }
 
 export interface ProofVerificationJob {
