@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "promiseunlocked-api-v3",
 		"name": "PromiseUnlocked API",
-		"description": "Complete API collection for PromiseUnlocked backend (v3).\n\n## Workflow\n1. Start with **Auth > Register** or **Auth > Login** to get a Firebase ID token.\n2. The **Login** / **Register** request auto-saves the token as `bearerToken` and the UID as `userId`.\n3. List-type requests auto-save IDs (`participantId`, `sessionId`, `interactionId`, etc.) for chained requests.\n4. Use `/participants/me/*` routes for the authenticated user's own data.\n5. Use the `{{baseUrl}}` variable to switch between local dev and deployed environments.\n\n## Environment Variables (auto-populated)\n- `bearerToken` \u2014 Firebase ID token\n- `userId` \u2014 Firebase Auth UID\n- `participantId` \u2014 Participant document UID\n- `sessionId` \u2014 Session document ID\n- `interactionId` \u2014 Interaction document ID\n- `jobId` \u2014 Proof / embedding job UUID\n- `embeddingId` \u2014 Profile embedding document ID\n- `proofStatus` \u2014 Proof verification status\n- `reportId` \u2014 Help report document ID",
+		"description": "Complete API collection for PromiseUnlocked backend (v3).\n\n## Workflow\n1. Start with **Auth > Register** or **Auth > Login** to get a Firebase ID token.\n2. The **Login** / **Register** request auto-saves the token as `bearerToken` and the UID as `userId`.\n3. List-type requests auto-save IDs (`participantId`, `sessionId`, `interactionId`, etc.) for chained requests.\n4. Use `/participants/me/*` routes for the authenticated user's own data.\n5. Use the `{{baseUrl}}` variable to switch between local dev and deployed environments.\n\n## Environment Variables (auto-populated)\n- `bearerToken` — Firebase ID token\n- `userId` — Firebase Auth UID\n- `participantId` — Participant document UID\n- `sessionId` — Session document ID\n- `interactionId` — Interaction document ID\n- `jobId` — Proof / embedding job UUID\n- `embeddingId` — Profile embedding document ID\n- `proofStatus` — Proof verification status\n- `reportId` — Help report document ID",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -93,7 +93,7 @@
 				{
 					"name": "Get Taxonomy",
 					"request": {
-						"description": "Returns the full skill taxonomy \u2014 category names, stamp names, and the raw STAMP_TAXONOMY object. Public endpoint, no auth required.",
+						"description": "Returns the full skill taxonomy — category names, stamp names, and the raw STAMP_TAXONOMY object. Public endpoint, no auth required.",
 						"method": "GET",
 						"header": [],
 						"url": {
@@ -213,7 +213,10 @@
 									"  pm.environment.set('bearerToken', data.idToken);",
 									"  pm.environment.set('userId', data.userId);",
 									"  pm.environment.set('participantId', data.userId);",
-									"  console.log('Token saved to bearerToken');",
+									"  if (data.refreshToken) pm.environment.set('refreshToken', data.refreshToken);",
+									"  // Firebase ID tokens last ~1h; refresh ~1 min early via the collection pre-request.",
+									"  pm.environment.set('tokenExpiry', String(Date.now() + 3540 * 1000));",
+									"  console.log('Token + refreshToken saved');",
 									"}"
 								]
 							}
@@ -294,7 +297,10 @@
 									"  pm.environment.set('bearerToken', data.idToken);",
 									"  pm.environment.set('userId', data.userId);",
 									"  pm.environment.set('participantId', data.userId);",
-									"  console.log('Token saved to bearerToken');",
+									"  if (data.refreshToken) pm.environment.set('refreshToken', data.refreshToken);",
+									"  // Firebase ID tokens last ~1h; refresh ~1 min early via the collection pre-request.",
+									"  pm.environment.set('tokenExpiry', String(Date.now() + 3540 * 1000));",
+									"  console.log('Token + refreshToken saved');",
 									"}"
 								]
 							}
@@ -666,7 +672,7 @@
 									"value": "application/json"
 								}
 							],
-							"body": "{\n  \"error\": \"Forbidden \u2014 super admin access required\"\n}"
+							"body": "{\n  \"error\": \"Forbidden — super admin access required\"\n}"
 						}
 					]
 				},
@@ -2204,12 +2210,23 @@
 			]
 		},
 		{
-			"name": "Profile Embeddings",
+			"name": "PVA Catalog",
+			"description": "Shared, pre-embedded personality analyses. Admins add entries; users select one (selectedPvaId on their profile) and its persona brief feeds the dialogue.",
 			"item": [
 				{
-					"name": "Upload PDF",
+					"name": "Upload PVA (admin)",
 					"request": {
-						"description": "Uploads a PDF for profile embedding processing. Returns embeddingId (200 if duplicate, 201 if new). Form-data: file (PDF) + userId (optional), uid (optional), email (optional).",
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/pva-catalog",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"pva-catalog"
+							]
+						},
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2220,137 +2237,49 @@
 								}
 							]
 						},
-						"method": "POST",
-						"header": [],
 						"body": {
 							"mode": "formdata",
 							"formdata": [
 								{
+									"key": "name",
+									"value": "The Explorer",
+									"type": "text"
+								},
+								{
 									"key": "file",
 									"type": "file",
-									"src": "/path/to/profile.pdf",
-									"description": "PDF file (max 5MB)"
-								},
-								{
-									"key": "userId",
-									"type": "text",
-									"value": "{{userId}}",
-									"description": "Upload for another user (optional)"
-								},
-								{
-									"key": "email",
-									"type": "text",
-									"value": "",
-									"description": "Upload for another user by email (optional)"
+									"src": []
 								}
-							]
-						},
-						"url": {
-							"raw": "{{baseUrl}}/profile-embeddings/upload",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"profile-embeddings",
-								"upload"
 							]
 						}
 					},
-					"response": [
-						{
-							"name": "201 Created (or 200 Duplicate)",
-							"status": "Created",
-							"code": 201,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"body": "{\n  \"embeddingId\": \"emb-001\",\n  \"targetUid\": \"abc123\",\n  \"fileName\": \"profile.pdf\",\n  \"fileSizeBytes\": 102400,\n  \"message\": \"Upload successful\",\n  \"duplicate\": false\n}"
-						}
-					],
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"if (pm.response.code === 200 || pm.response.code === 201) {",
-									"  var data = pm.response.json();",
-									"  if (data.embeddingId) pm.environment.set('embeddingId', data.embeddingId);",
-									"}"
+									"var d = pm.response.json();",
+									"if (d.id) { pm.environment.set('pvaId', d.id); console.log('pvaId =', d.id, '| status =', d.embeddingStatus); }"
 								]
 							}
 						}
 					]
 				},
 				{
-					"name": "List Embeddings",
+					"name": "List Catalog",
 					"request": {
-						"description": "Lists all profile embeddings for the authenticated user.",
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{bearerToken}}",
-									"type": "string"
-								}
-							]
-						},
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/profile-embeddings/list",
+							"raw": "{{baseUrl}}/pva-catalog",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
-								"profile-embeddings",
-								"list"
+								"pva-catalog"
 							]
-						}
-					},
-					"response": [
-						{
-							"name": "200 OK",
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"body": "{\n  \"embeddings\": [\n    {\n      \"id\": \"emb-001\",\n      \"fileName\": \"profile.pdf\",\n      \"uploadedAt\": \"2026-06-01T12:00:00.000Z\"\n    }\n  ]\n}"
-						}
-					],
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"  var data = pm.response.json();",
-									"  var list = Array.isArray(data.embeddings) ? data.embeddings.filter(function(e) { return e && e.id; }) : [];",
-									"  if (list.length > 0) {",
-									"    var random = list[Math.floor(Math.random() * list.length)];",
-									"    pm.environment.set('embeddingId', random.id);",
-									"  }",
-									"}"
-								]
-							}
-						}
-					]
-				},
-				{
-					"name": "Get Embedding Context",
-					"request": {
-						"description": "Retrieves the context (including extracted text) for a specific embedding by ID. Requires `embeddingId` environment variable.",
+						},
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2360,57 +2289,36 @@
 									"type": "string"
 								}
 							]
-						},
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var d = pm.response.json();",
+									"if (d.pvas && d.pvas.length) { pm.environment.set('pvaId', d.pvas[0].id); console.log('pvaId =', d.pvas[0].id); }"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Preview All (admin)",
+					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/profile-embeddings/context/{{embeddingId}}",
+							"raw": "{{baseUrl}}/pva-catalog/all",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
-								"profile-embeddings",
-								"context",
-								"{{embeddingId}}"
+								"pva-catalog",
+								"all"
 							]
-						}
-					},
-					"response": [
-						{
-							"name": "200 OK",
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"body": "{\n  \"embedding\": {\n    \"id\": \"emb-001\",\n    \"fileName\": \"profile.pdf\",\n    \"extractedText\": \"Full extracted text content from the PDF...\",\n    \"metadata\": {}\n  }\n}"
-						}
-					],
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"  var data = pm.response.json();",
-									"  if (data.embedding && data.embedding.id) {",
-									"    pm.environment.set('embeddingId', data.embedding.id);",
-									"  }",
-									"}"
-								]
-							}
-						}
-					]
-				},
-				{
-					"name": "Search Embeddings",
-					"request": {
-						"description": "Searches profile embeddings by text query using vector similarity. Returns ranked results.",
+						},
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2420,66 +2328,53 @@
 									"type": "string"
 								}
 							]
+						}
+					}
+				},
+				{
+					"name": "Get PVA Context",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/pva-catalog/{{pvaId}}/context",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"pva-catalog",
+								"{{pvaId}}",
+								"context"
+							]
 						},
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Re-embed PVA (admin)",
+					"request": {
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"query\": \"leadership experience\",\n  \"limit\": 10\n}"
-						},
+						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/profile-embeddings/search",
+							"raw": "{{baseUrl}}/pva-catalog/{{pvaId}}/embed",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
-								"profile-embeddings",
-								"search"
+								"pva-catalog",
+								"{{pvaId}}",
+								"embed"
 							]
-						}
-					},
-					"response": [
-						{
-							"name": "200 OK",
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"body": "{\n  \"results\": [\n    {\n      \"embeddingId\": \"emb-001\",\n      \"score\": 0.89,\n      \"snippet\": \"...leadership experience...\"\n    }\n  ]\n}"
-						}
-					],
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"  var data = pm.response.json();",
-									"  var list = Array.isArray(data.results) ? data.results.filter(function(r) { return r && r.embeddingId; }) : [];",
-									"  if (list.length > 0) {",
-									"    pm.environment.set('embeddingId', list[0].embeddingId);",
-									"  }",
-									"}"
-								]
-							}
-						}
-					]
-				},
-				{
-					"name": "Get Embedding Job Status",
-					"request": {
-						"description": "Gets the status of a profile embedding processing job. Requires `jobId` environment variable.",
+						},
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -2489,52 +2384,8 @@
 									"type": "string"
 								}
 							]
-						},
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/profile-embeddings/jobs/{{jobId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"profile-embeddings",
-								"jobs",
-								"{{jobId}}"
-							]
 						}
-					},
-					"response": [
-						{
-							"name": "200 OK",
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json"
-								}
-							],
-							"body": "{\n  \"job\": {\n    \"jobId\": \"job-uuid-123\",\n    \"owner\": \"abc123\",\n    \"status\": \"processing\",\n    \"storagePath\": \"/uploads/profile-embeddings/abc123/profile.pdf\",\n    \"fileName\": \"profile.pdf\"\n  }\n}"
-						}
-					],
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"  var data = pm.response.json();",
-									"  if (data.job && data.job.jobId) {",
-									"    pm.environment.set('jobId', data.job.jobId);",
-									"  }",
-									"}"
-								]
-							}
-						}
-					]
+					}
 				}
 			]
 		},
@@ -3007,7 +2858,51 @@
 			]
 		}
 	],
-	"event": [],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Auto-refresh the Firebase ID token using the stored refresh token.",
+					"// Requires env: firebaseApiKey (Firebase Web API key) + refreshToken (set on Login).",
+					"var apiKey = pm.environment.get('firebaseApiKey');",
+					"var refreshToken = pm.environment.get('refreshToken');",
+					"var token = pm.environment.get('bearerToken');",
+					"var expiry = Number(pm.environment.get('tokenExpiry') || 0);",
+					"var now = Date.now();",
+					"// Refresh when there is no token, or it expires within 5 minutes.",
+					"var needsRefresh = !token || now > expiry - 5 * 60 * 1000;",
+					"if (!needsRefresh) { return; }",
+					"if (!apiKey || !refreshToken) {",
+					"  console.warn('[auth] token expired but firebaseApiKey/refreshToken not set — run Login first.');",
+					"  return;",
+					"}",
+					"pm.sendRequest({",
+					"  url: 'https://securetoken.googleapis.com/v1/token?key=' + apiKey,",
+					"  method: 'POST',",
+					"  header: { 'Content-Type': 'application/x-www-form-urlencoded' },",
+					"  body: { mode: 'urlencoded', urlencoded: [",
+					"    { key: 'grant_type', value: 'refresh_token' },",
+					"    { key: 'refresh_token', value: refreshToken }",
+					"  ] }",
+					"}, function (err, res) {",
+					"  if (err) { console.error('[auth] token refresh failed:', err); return; }",
+					"  var data = res.json();",
+					"  if (data && data.id_token) {",
+					"    pm.environment.set('bearerToken', data.id_token);",
+					"    pm.environment.set('refreshToken', data.refresh_token);",
+					"    var ttl = Number(data.expires_in || 3600);",
+					"    pm.environment.set('tokenExpiry', String(Date.now() + ttl * 1000));",
+					"    console.log('[auth] token refreshed (ttl ' + ttl + 's)');",
+					"  } else {",
+					"    console.error('[auth] refresh response missing id_token:', data);",
+					"  }",
+					"});"
+				]
+			}
+		}
+	],
 	"variable": [
 		{
 			"key": "baseUrl",
