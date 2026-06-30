@@ -29,6 +29,7 @@ import {
   saveInteraction,
   saveStampUnlock,
   fetchSessionInteractions,
+  canWriteToFirestore,
 } from "./firebase/firestoreService";
 
 // Log errors to a file instead of console.error
@@ -55,6 +56,9 @@ function generateInteractionId(): string {
 }
 
 async function getFirestoreWriteContext(): Promise<{ sessionId: string; userId: string }> {
+  if (!canWriteToFirestore()) {
+    throw new Error("Firestore writes are disabled for unauthenticated users.");
+  }
   const [sessionId, userId] = await Promise.all([getOrStartSession(), getUserId()]);
   return { sessionId, userId };
 }
@@ -225,9 +229,7 @@ export async function ensureAllMappedCategoriesHaveStamps(): Promise<void> {
 /**
  * Get unlocked stamps for a specific category
  */
-export async function getUnlockedStampsForCategory(
-  categoryId: string
-): Promise<
+export async function getUnlockedStampsForCategory(categoryId: string): Promise<
   Array<{
     name: string;
     category: string;

@@ -29,7 +29,7 @@ import {
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { STAMPS_LIST } from "../config/stampConstants";
-import { searchPdfContext } from "../services/profileEmbeddingService";
+import { getPvaContext } from "../services/profileEmbeddingService";
 import { endSession, getUserId, getActiveSessionId } from "../services/sessionManager";
 import { savePassportMapping } from "../services/firebase/firestoreService";
 import { RegExpMatcher, englishDataset } from "obscenity";
@@ -243,7 +243,6 @@ export function useDialogueState(): DialogueState {
     const message = error instanceof Error ? error.message : "";
 
     if (
-      code === "app/anonymous-auth-disabled" ||
       code === "app/firestore-auth-unavailable" ||
       message.includes("auth/admin-restricted-operation") ||
       message.includes("No Firebase auth user is available for Firestore writes")
@@ -277,9 +276,7 @@ export function useDialogueState(): DialogueState {
 
       // Fetch the personality profile in the background, ready for the first answer.
       if (pdfContextRef.current === undefined && !pdfContextFetchRef.current) {
-        pdfContextFetchRef.current = searchPdfContext(
-          "personality skills traits strengths experience"
-        )
+        pdfContextFetchRef.current = getPvaContext()
           .then((ctx) => {
             pdfContextRef.current = ctx;
             return ctx;
@@ -443,9 +440,12 @@ export function useDialogueState(): DialogueState {
       if (pdfContextRef.current !== undefined) {
         pdfContextText = pdfContextRef.current;
       } else if (pdfContextFetchRef.current) {
+        // Wait up to 15s for the PVA personality context, then proceed without it.
+        // The prefetch resolves to "" on any failure, so generation never blocks
+        // or breaks when no PVA is set / the request errors.
         pdfContextText = await Promise.race([
           pdfContextFetchRef.current,
-          new Promise<string>((resolve) => setTimeout(() => resolve(""), 2000)),
+          new Promise<string>((resolve) => setTimeout(() => resolve(""), 15000)),
         ]);
       }
 
@@ -493,10 +493,15 @@ export function useDialogueState(): DialogueState {
       }
 
       if (validCategory && !(await isCategoryMapped(categoryIdToCheck))) {
+        // An unlocking stamp must carry a justification; fall back to the answer
+        // when the model returns none so the stamp detail screen isn't left blank.
+        const effectiveJustification =
+          justification?.trim() ||
+          (specificStamp ? `Demonstrated through your response: "${answer.trim()}"` : "");
         const newMappedCategory: MappedCategory = {
           category: categoryNameToCheck,
           categoryId: categoryIdToCheck,
-          justification: justification ?? "",
+          justification: effectiveJustification,
           dateIdentified: new Date().toISOString(),
           timesMapped: 1,
         };
@@ -516,13 +521,16 @@ export function useDialogueState(): DialogueState {
           matchedToSequenceIndex: null,
           specificStamp: specificStamp ?? undefined,
         };
-        const interactionId = await saveConversationInteraction(interaction, justification ?? "");
-        if (justification) {
+        const interactionId = await saveConversationInteraction(
+          interaction,
+          effectiveJustification
+        );
+        if (effectiveJustification) {
           savePassportMappingToFirestore(
             interactionId,
             categoryNameToCheck,
             categoryIdToCheck,
-            justification,
+            effectiveJustification,
             specificStamp ?? undefined
           );
         }
@@ -954,7 +962,7 @@ export function useDialogueState(): DialogueState {
           );
         }
       } catch {
-        // Best-effort write — guest users and transient errors are expected.
+        // Best-effort write — transient errors are expected.
       }
     },
     []

@@ -10,9 +10,9 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
-import * as WebBrowser from "expo-web-browser";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -23,23 +23,20 @@ import { colors, typography, spacing, radius, globalStyles } from "../styles/glo
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
-import { useAuth } from "../context/AuthContext";
 import { useDialogue } from "../context/DialogueContext";
-import { useLogout } from "../hooks/useLogout";
 import {
   fetchProfile,
   updateProfile,
   uploadProfilePicture,
-  uploadPvaResult,
-  listPvaResults,
-  getPvaFileUrl,
-  deletePvaResult,
+  selectPva,
   buildLocalProfile,
   type UserProfile,
-  type PvaResult,
 } from "../services/profileService";
+import { listPvaCatalog, type PvaCatalogItem } from "../services/profileEmbeddingService";
 
 import { ImagePickerService } from "../services/imagePickerService";
+import { signOut } from "firebase/auth";
+import { auth } from "../config/firebase";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -67,18 +64,17 @@ export default function ProfileScreen() {
   const [savingBio, setSavingBio] = useState(false);
 
   const { reset } = useDialogue();
-  const { confirmAndLogout } = useLogout();
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
-  const [uploadingPva, setUploadingPva] = useState(false);
-  const [pvaFile, setPvaFile] = useState<PvaResult | null>(null);
-  const [openingPva, setOpeningPva] = useState(false);
-  const [deletingPva, setDeletingPva] = useState(false);
+  const [pvaCatalog, setPvaCatalog] = useState<PvaCatalogItem[]>([]);
+  const [pvaModalVisible, setPvaModalVisible] = useState(false);
+  const [selectingPva, setSelectingPva] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const insets = useSafeAreaInsets();
 
   useFocusEffect(
     useCallback(() => {
-      listPvaResults()
-        .then((results) => setPvaFile(results[0] ?? null))
+      listPvaCatalog()
+        .then(setPvaCatalog)
         .catch(() => undefined);
     }, [])
   );
@@ -104,12 +100,17 @@ export default function ProfileScreen() {
   );
 
   const navigation = useNavigation<ProfileNav>();
-  const { session } = useAuth();
   const [bio, setBio] = useState("");
   const [editingBio, setEditingBio] = useState(false);
 
   const handleLogout = () => {
-    confirmAndLogout(() => navigation.replace("Welcome"), "Switch to Guest");
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        onPress: () => void signOut(auth).then(() => navigation.replace("Welcome")),
+      },
+    ]);
   };
 
   const displayName = useMemo(() => {
@@ -119,6 +120,19 @@ export default function ProfileScreen() {
   const highSchool = useMemo(() => {
     return profile?.schoolName?.trim();
   }, [profile]);
+
+  const selectedPvaName = useMemo(
+    () => pvaCatalog.find((p) => p.id === profile?.selectedPvaId)?.name ?? null,
+    [pvaCatalog, profile?.selectedPvaId]
+  );
+
+  const filteredCatalog = useMemo(
+    () =>
+      searchQuery.trim()
+        ? pvaCatalog.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        : pvaCatalog,
+    [pvaCatalog, searchQuery]
+  );
 
   const handleSaveBio = async () => {
     if (!profile) return;
@@ -145,85 +159,28 @@ export default function ProfileScreen() {
       { text: "Cancel", style: "cancel" },
     ]);
   };
-  const handleUploadPVAprofile = async () => {
-    if (uploadingPva) return;
+  const handleSelectPva = async (item: PvaCatalogItem) => {
+    if (selectingPva) return;
+    if (item.embeddingStatus !== "ready") return;
 
-    if (session.mode !== "authenticated") {
-      Alert.alert("Sign in required", "Please sign in to upload your PVA result.");
-      return;
-    }
+    const isSelected = item.id === profile?.selectedPvaId;
 
-    const picked = await DocumentPicker.getDocumentAsync({
-      type: "application/pdf",
-      copyToCacheDirectory: true,
-    });
-    if (picked.canceled || !picked.assets?.[0]) return;
-
-    setUploadingPva(true);
+    setPvaModalVisible(false);
+    setSelectingPva(true);
     try {
-      const uploadResult = await uploadPvaResult(picked.assets[0].uri);
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.error);
+      if (isSelected) {
+        await selectPva(null);
+        setProfile((prev) => (prev ? { ...prev, selectedPvaId: null } : prev));
+      } else {
+        await selectPva(item.id);
+        setProfile((prev) => (prev ? { ...prev, selectedPvaId: item.id } : prev));
       }
-      const embeddingId = uploadResult.data?.embeddingId as string | undefined;
-      if (embeddingId) {
-        setPvaFile({
-          id: embeddingId,
-          fileName: (uploadResult.data?.fileName as string) ?? picked.assets[0].name,
-          fileSizeBytes: (uploadResult.data?.fileSizeBytes as number) ?? 0,
-        });
-      }
-      Alert.alert("Upload Complete", "Your PVA result has been uploaded.");
     } catch (error) {
-      console.warn("Failed to upload PVA result:", error);
-      Alert.alert(
-        "Upload Failed",
-        "We couldn't upload your PVA result. Please check your connection and try again."
-      );
+      console.warn("Failed to select PVA:", error);
+      Alert.alert("Couldn't select", "We couldn't set that profile. Please try again.");
     } finally {
-      setUploadingPva(false);
+      setSelectingPva(false);
     }
-  };
-
-  const handlePreviewPva = async () => {
-    if (!pvaFile || openingPva) return;
-    setOpeningPva(true);
-    try {
-      const url = await getPvaFileUrl(pvaFile.id);
-      await WebBrowser.openBrowserAsync(url);
-    } catch (error) {
-      console.warn("Failed to open PVA result:", error);
-      Alert.alert("Couldn't open file", "We couldn't open your PVA result. Please try again.");
-    } finally {
-      setOpeningPva(false);
-    }
-  };
-
-  const handleDeletePva = () => {
-    if (!pvaFile || deletingPva) return;
-    Alert.alert(
-      "Delete PVA Result",
-      "Remove this uploaded report? You can upload a new one afterward.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setDeletingPva(true);
-            try {
-              await deletePvaResult(pvaFile.id);
-              setPvaFile(null);
-            } catch (error) {
-              console.warn("Failed to delete PVA result:", error);
-              Alert.alert("Delete Failed", "We couldn't delete your PVA result. Please try again.");
-            } finally {
-              setDeletingPva(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handlePhotoSelection = async (useCamera: boolean) => {
@@ -292,11 +249,7 @@ export default function ProfileScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.floatingButtons} pointerEvents="box-none">
             <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
-              <MaterialIcons
-                name={session.mode === "authenticated" ? "logout" : "person"}
-                size={24}
-                color={colors.background.card}
-              />
+              <MaterialIcons name="logout" size={24} color={colors.background.card} />
             </TouchableOpacity>
 
             <TouchableOpacity onPress={reset} style={styles.floatingButton}>
@@ -387,49 +340,102 @@ export default function ProfileScreen() {
           </View>
           <View style={globalStyles.card}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.cardTitle}>Upload PVA Result</Text>
+              <Text style={styles.cardTitle}>Personality Profile (PVA)</Text>
             </View>
-            {pvaFile ? (
-              <View style={styles.pvaFileRow}>
-                <MaterialIcons name="picture-as-pdf" size={25} color={colors.accent.sky} />
-                <Text style={styles.pvaFileName} numberOfLines={1}>
-                  {pvaFile.fileName}
-                </Text>
-                <TouchableOpacity onPress={handlePreviewPva} disabled={openingPva}>
-                  {openingPva ? (
-                    <ActivityIndicator size="large" color={colors.accent.sky} />
-                  ) : (
-                    <Text style={styles.linkText}>Preview</Text>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleDeletePva}
-                  disabled={deletingPva}
-                  style={styles.pvaDeleteButton}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  {deletingPva ? (
-                    <ActivityIndicator size="large" color={colors.status.error} />
-                  ) : (
-                    <MaterialIcons name="delete-outline" size={22} color={colors.status.error} />
-                  )}
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.galleryRow}>
-                <TouchableOpacity
-                  style={styles.galleryAddCard}
-                  onPress={handleUploadPVAprofile}
-                  disabled={uploadingPva}
-                >
-                  {uploadingPva ? (
-                    <ActivityIndicator color={colors.accent.sky} />
-                  ) : (
-                    <MaterialIcons name="add" size={28} color={colors.accent.sky} />
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
+            <Text style={styles.pvaHelp}>
+              Pick the profile that best matches you — it personalizes your conversation.
+            </Text>
+            <TouchableOpacity
+              style={styles.pvaSelectField}
+              onPress={() => {
+                setSearchQuery("");
+                setPvaModalVisible(true);
+              }}
+              disabled={selectingPva}
+            >
+              <Text style={styles.pvaSelectText} numberOfLines={1}>
+                {selectedPvaName ?? "Choose a profile…"}
+              </Text>
+              {selectingPva ? (
+                <ActivityIndicator size="small" color={colors.accent.sky} />
+              ) : (
+                <MaterialIcons
+                  name={pvaModalVisible ? "expand-less" : "expand-more"}
+                  size={24}
+                  color={colors.accent.sky}
+                />
+              )}
+            </TouchableOpacity>
+
+            <Modal
+              visible={pvaModalVisible}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setPvaModalVisible(false)}
+            >
+              <Pressable style={styles.sheetOverlay} onPress={() => setPvaModalVisible(false)}>
+                <Pressable style={styles.sheetContent} onPress={() => {}}>
+                  <View style={styles.sheetHandleWrapper}>
+                    <View style={styles.sheetHandle} />
+                  </View>
+                  <Text style={styles.sheetTitle}>Select Profile</Text>
+                  <View style={styles.sheetSearchBar}>
+                    <MaterialIcons name="search" size={18} color={colors.text.muted} />
+                    <TextInput
+                      style={styles.sheetSearchInput}
+                      placeholder="Search profiles…"
+                      placeholderTextColor={colors.text.muted}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
+                  </View>
+                  <ScrollView style={styles.sheetList} keyboardShouldPersistTaps="handled">
+                    {filteredCatalog.length === 0 ? (
+                      <Text style={styles.pvaOptionEmpty}>
+                        {searchQuery.trim()
+                          ? "No profiles match your search."
+                          : "No profiles available yet."}
+                      </Text>
+                    ) : (
+                      filteredCatalog.map((item, idx) => {
+                        const ready = item.embeddingStatus === "ready";
+                        return (
+                          <TouchableOpacity
+                            key={item.id}
+                            style={[
+                              styles.pvaOption,
+                              item.id === profile?.selectedPvaId && styles.pvaOptionSelected,
+                            ]}
+                            onPress={() => handleSelectPva(item)}
+                            disabled={!ready}
+                          >
+                            <View style={styles.pvaOptionIndex}>
+                              <Text style={styles.pvaOptionIndexText}>{idx + 1}</Text>
+                            </View>
+                            <Text
+                              style={[
+                                styles.pvaOptionText,
+                                item.id === profile?.selectedPvaId && styles.pvaOptionTextSelected,
+                                !ready && styles.pvaOptionDisabled,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {item.name}
+                            </Text>
+                            {item.embeddingStatus === "processing" ? (
+                              <Text style={styles.pvaStatusProcessing}>Indexing…</Text>
+                            ) : null}
+                            {item.embeddingStatus === "failed" ? (
+                              <Text style={styles.pvaStatusFailed}>Unavailable</Text>
+                            ) : null}
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                </Pressable>
+              </Pressable>
+            </Modal>
           </View>
 
           <TouchableOpacity
@@ -615,25 +621,143 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderColor: colors.accent.sky,
   },
-  pvaFileRow: {
+  pvaHelp: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  pvaSelectField: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 10,
-    marginTop: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 12,
     borderRadius: radius.sm,
     backgroundColor: colors.background.subtle,
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
-  pvaFileName: {
+  pvaSelectText: {
     flex: 1,
     fontSize: 14,
     color: colors.text.primary,
   },
-  pvaDeleteButton: {
-    marginLeft: 4,
+  pvaOptions: {
+    marginTop: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    overflow: "hidden",
+  },
+  pvaOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.subtle,
+  },
+  pvaOptionText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text.primary,
+  },
+  pvaOptionDisabled: {
+    color: colors.text.muted,
+  },
+  pvaOptionEmpty: {
+    padding: 12,
+    fontSize: 13,
+    color: colors.text.secondary,
+  },
+  pvaStatusProcessing: {
+    fontSize: 12,
+    color: colors.text.secondary,
+  },
+  pvaStatusFailed: {
+    fontSize: 12,
+    color: colors.status.error,
+  },
+  sheetOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  sheetContent: {
+    backgroundColor: colors.background.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 24,
+    maxHeight: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  sheetHandleWrapper: {
+    alignItems: "center",
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.border.medium,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.text.primary,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  sheetSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: radius.sm,
+    backgroundColor: colors.background.subtle,
+    borderWidth: 1,
+    borderColor: colors.border.subtle,
+    marginBottom: 4,
+  },
+  sheetSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text.primary,
+    paddingVertical: 0,
+  },
+  sheetList: {
+    maxHeight: 360,
+  },
+  pvaOptionIndex: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.background.subtle,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  pvaOptionIndexText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.text.secondary,
+  },
+  pvaOptionSelected: {
+    backgroundColor: colors.background.tinted,
+  },
+  pvaOptionTextSelected: {
+    fontWeight: "700",
+    color: colors.accent.sky,
   },
   logoutText: { fontSize: 15, fontWeight: "600", color: colors.status.error, marginLeft: 10 },
   floatingButtons: {
