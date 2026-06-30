@@ -17,10 +17,10 @@ import { getActiveSessionId } from "../services/sessionManager";
 import type { MappedCategory } from "../services/categoryTaxonomyService";
 import { getCategoryIdFromName } from "../services/categoryTaxonomyService";
 import { colors } from "../styles/global";
+import { signOut } from "firebase/auth";
+import { auth } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useDialogue } from "../context/DialogueContext";
-import { useLogout } from "../hooks/useLogout";
-import { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DEFAULT_TIER } from "../config/stampConstants";
 
@@ -49,10 +49,16 @@ export default function PassportScreen() {
 
   const { session } = useAuth();
   const { reset } = useDialogue();
-  const { confirmAndLogout } = useLogout();
 
   const handleLogout = () => {
-    confirmAndLogout(() => navigation.navigate("Welcome"));
+    Alert.alert("Logout", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: () => void signOut(auth).then(() => navigation.replace("Welcome")),
+      },
+    ]);
   };
 
   const [radarData, setRadarData] = useState<number[]>(REGIONS.map(() => RADAR_FLOOR));

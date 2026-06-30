@@ -13,6 +13,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../context/AuthContext";
 const { width } = Dimensions.get("window");
 
 const RING = 80;
@@ -60,8 +61,16 @@ const SLIDES = [
 ];
 
 export default function OnboardingScreen({ navigation }: Readonly<Props>) {
+  const { session } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentIndexRef = useRef(0);
+
+  React.useEffect(() => {
+    if (session.mode === "authenticated") {
+      navigation.replace("MainTabs" as const, undefined as never);
+    }
+  }, [navigation, session.mode]);
+
   const totalSlides = SLIDES.length;
   const progressStep = 360 / totalSlides;
 
@@ -119,7 +128,7 @@ export default function OnboardingScreen({ navigation }: Readonly<Props>) {
     if (currentIndexRef.current < totalSlides - 1) {
       animateTransition(currentIndexRef.current + 1);
     } else {
-      navigation.replace("Welcome");
+      navigation.replace("Login");
     }
   };
 
@@ -129,7 +138,7 @@ export default function OnboardingScreen({ navigation }: Readonly<Props>) {
     }
   };
 
-  const skip = () => navigation.replace("Welcome");
+  const skip = () => navigation.replace("Login");
 
   const panResponder = useRef(
     PanResponder.create({

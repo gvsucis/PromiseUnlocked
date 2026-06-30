@@ -8,16 +8,13 @@ import * as Linking from "expo-linking";
 import * as Crypto from "expo-crypto";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { CONFIG } from "../config/env";
-import {
-  signInWithGoogleTokens,
-  type GuestUpgradeDecision,
-} from "../services/firebase/googleAuthService";
+import { signInWithGoogleTokens } from "../services/firebase/googleAuthService";
+import { waitForAuthenticated } from "../services/auth/authSessionService";
 
 WebBrowser.maybeCompleteAuthSession();
 
 interface UseGoogleSignInOptions {
   onSuccess?: () => void | Promise<void>;
-  getGuestUpgradeDecision?: () => Promise<GuestUpgradeDecision | "cancel">;
 }
 
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -104,7 +101,6 @@ function getErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "";
 
   if (
-    code === "app/anonymous-auth-disabled" ||
     code === "app/firestore-auth-unavailable" ||
     message.includes("auth/admin-restricted-operation")
   ) {
@@ -119,10 +115,8 @@ export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
   const processedResponseUrlRef = useRef<string | null>(null);
 
   const onSuccessRef = useRef(options.onSuccess);
-  const getGuestUpgradeDecisionRef = useRef(options.getGuestUpgradeDecision);
   useEffect(() => {
     onSuccessRef.current = options.onSuccess;
-    getGuestUpgradeDecisionRef.current = options.getGuestUpgradeDecision;
   });
 
   const [googleRequest, googleResponse, promptGoogleSignIn] = Google.useIdTokenAuthRequest({
@@ -135,13 +129,11 @@ export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
   });
 
   const finishSignIn = async (idToken: string, accessToken?: string) => {
-    const guestUpgradeDecision = await getGuestUpgradeDecisionRef.current?.();
-    if (guestUpgradeDecision === "cancel") return;
-
-    const credential = await signInWithGoogleTokens(idToken, accessToken, { guestUpgradeDecision });
+    const credential = await signInWithGoogleTokens(idToken, accessToken);
     const username = credential.user.displayName ?? credential.user.email?.split("@")[0] ?? null;
     if (username) console.log("[Auth] Google sign-in user:", username);
 
+    await waitForAuthenticated();
     await onSuccessRef.current?.();
   };
 

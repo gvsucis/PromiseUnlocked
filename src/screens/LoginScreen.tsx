@@ -15,11 +15,7 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
-import { getMappingStats } from "../services/categoryStorageService";
-import { getCurrentAuthSession, subscribeToAuthSession } from "../services/auth/authSessionService";
-import { getJSONFromStorage, setJSONInStorage } from "../utils/asyncStorage";
-import type { GuestUpgradeDecision } from "../services/firebase/googleAuthService";
-import type { MappedCategory } from "../services/categoryTaxonomyService";
+import { waitForAuthenticated } from "../services/auth/authSessionService";
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
 interface Props {
@@ -27,71 +23,21 @@ interface Props {
 }
 
 export default function LoginScreen({ navigation }: Readonly<Props>) {
-  const { session, signInWithEmail, continueAsGuest, resetPassword } = useAuth();
+  const { signInWithEmail, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [emailLoading, setEmailLoading] = useState(false);
-  const [guestLoading, setGuestLoading] = useState(false);
-  const getGuestUpgradeDecision = async (): Promise<GuestUpgradeDecision | "cancel"> => {
-    if (session.mode !== "guest") return "move";
-    const stats = await getMappingStats();
-    const hasGuestPassportData = stats.totalMapped > 0 || stats.totalInteractions > 0;
-    if (!hasGuestPassportData) return "move";
+  const [loading, setLoading] = useState(false);
 
-    // Save old data to a non-scoped key before the auth switch,
-    // so migrateOrClearGuestData can find it even if AsyncStorage is cleared.
-    if (session.uid) {
-      const key = `@mappedCategories:${session.uid}`;
-      const oldData = await getJSONFromStorage<MappedCategory[]>(key, []);
-      if (oldData.length > 0) {
-        await setJSONInStorage("@_pending_migration", { oldUid: session.uid, data: oldData });
-      }
-    }
-
-    return new Promise<GuestUpgradeDecision | "cancel">((resolve) => {
-      Alert.alert(
-        "Move guest passport?",
-        "We found guest passport progress on this device. Move it to your Google account?",
-        [
-          { text: "Cancel", style: "cancel", onPress: () => resolve("cancel") },
-          { text: "No", onPress: () => resolve("separate") },
-          { text: "Yes", onPress: () => resolve("move") },
-        ]
-      );
-    });
-  };
   const { handleGoogleSignIn, googleLoading, googleReady } = useGoogleSignIn({
-    onSuccess: () => navigation.replace("MainTabs"),
-    getGuestUpgradeDecision,
+    onSuccess: () => navigation.replace("MainTabs" as const, undefined as never),
   });
+
   const emailValid = /.+@.+\..+/.test(email.trim());
   const passwordValid = password.length >= 6;
   const hasEmailError = email.length > 0 && !emailValid;
   const hasPasswordError = password.length > 0 && !passwordValid;
   const formValid = emailValid && passwordValid;
-  const isAnyLoading = emailLoading || guestLoading || googleLoading;
-
-  const getErrorDetails = (error: unknown) => {
-    if (error instanceof Error) {
-      return {
-        code: (error as Error & { code?: string }).code,
-        message: error.message,
-      };
-    }
-    return { code: undefined, message: "Unknown error" };
-  };
-
-  const getFriendlyAuthMessage = (code: string | undefined, message: string): string => {
-    if (
-      code === "app/anonymous-auth-disabled" ||
-      code === "app/firestore-auth-unavailable" ||
-      message.includes("auth/admin-restricted-operation")
-    ) {
-      return "Guest mode is currently unavailable on cloud sync. Please sign in or try again later.";
-    }
-
-    return message;
-  };
+  const isAnyLoading = loading || googleLoading;
 
   const handleForgotPassword = async () => {
     if (!email || !emailValid)
@@ -99,71 +45,42 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
     try {
       await resetPassword(email);
       Alert.alert("Reset Sent", "Check your email for a reset link.");
-    } catch (error: unknown) {
-      const { code, message } = getErrorDetails(error);
-      Alert.alert(
-        "Error",
-        code === "auth/user-not-found" ? "No account exists with that email." : message
-      );
+    } catch {
+      Alert.alert("Error", "No account exists with that email.");
     }
   };
 
   const handleLogin = async () => {
-    if (emailLoading) return;
+    if (loading) return;
     if (!email || !password) return Alert.alert("Missing Info", "Please fill in all fields.");
     try {
-      setEmailLoading(true);
+      setLoading(true);
       await signInWithEmail(email, password);
-
-      const session = getCurrentAuthSession();
-      if (session.mode !== "authenticated") {
-        await new Promise<void>((resolve) => {
-          const unsub = subscribeToAuthSession((s) => {
-            if (s.mode === "authenticated") {
-              unsub();
-              resolve();
-            }
-          });
-        });
-      }
-
-      navigation.replace("MainTabs");
+      await waitForAuthenticated();
+      navigation.replace("MainTabs" as const, undefined as never);
     } catch (error: unknown) {
-      const { code, message } = getErrorDetails(error);
+      const message = error instanceof Error ? error.message : String(error);
       let msg = message;
 
-      if (code === "auth/user-not-found") {
+      if (message.includes("auth/user-not-found")) {
         msg = "No account found with that email.";
-      } else if (code === "auth/wrong-password") {
-        msg = "Incorrect password.";
-      } else if (code === "auth/invalid-credential") {
+      } else if (
+        message.includes("auth/wrong-password") ||
+        message.includes("auth/invalid-credential")
+      ) {
         msg = "Incorrect email or password.";
-      } else if (code === "auth/invalid-email") {
+      } else if (message.includes("auth/invalid-email")) {
         msg = "Invalid email address.";
-      } else if (code === "auth/user-disabled") {
+      } else if (message.includes("auth/user-disabled")) {
         msg = "This account has been disabled. Please contact support.";
-      } else if (code === "auth/too-many-requests") {
+      } else if (message.includes("auth/too-many-requests")) {
         msg = "Too many login attempts. Please wait a bit and try again.";
-      } else if (code === "auth/network-request-failed") {
+      } else if (message.includes("auth/network-request-failed")) {
         msg = "Network error. Check your connection and try again.";
       }
 
       Alert.alert("Error", msg);
-      setEmailLoading(false);
-    }
-  };
-
-  const handleContinueAsGuest = async () => {
-    if (guestLoading) return;
-    try {
-      setGuestLoading(true);
-      await continueAsGuest();
-      navigation.replace("MainTabs");
-    } catch (error: unknown) {
-      const { code, message } = getErrorDetails(error);
-      Alert.alert("Error", getFriendlyAuthMessage(code, message || "Failed to continue as guest."));
-    } finally {
-      setGuestLoading(false);
+      setLoading(false);
     }
   };
 
@@ -183,7 +100,7 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
           </View>
           <Card style={styles.card}>
             <Card.Title
-              title="Welcome back "
+              title="Welcome back"
               subtitle="Sign in to continue"
               titleStyle={styles.cardTitle}
               subtitleStyle={styles.cardSubtitle}
@@ -235,7 +152,7 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
                   disabled={!formValid || isAnyLoading}
                   onPress={handleLogin}
                 >
-                  {emailLoading ? <ActivityIndicator color="#fff" size="small" /> : "Sign in"}
+                  {loading ? <ActivityIndicator color="#fff" size="small" /> : "Sign in"}
                 </Button>
 
                 <Divider style={styles.divider} />
@@ -253,23 +170,6 @@ export default function LoginScreen({ navigation }: Readonly<Props>) {
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     "Sign in with Google"
-                  )}
-                </Button>
-
-                <Divider style={styles.divider} />
-
-                <Button
-                  mode="contained"
-                  style={[styles.pill, styles.secondaryContained]}
-                  contentStyle={styles.primaryContent}
-                  labelStyle={styles.secondaryLabel}
-                  onPress={handleContinueAsGuest}
-                  disabled={isAnyLoading}
-                >
-                  {guestLoading ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    "Continue without signing in"
                   )}
                 </Button>
 
@@ -332,8 +232,6 @@ const styles = StyleSheet.create({
   outlined: { borderColor: "rgba(255,255,255,0.7)", marginBottom: 8 },
   outlinedLabel: { color: "#fff", fontWeight: "600" },
   linkLabel: { color: "#fff" },
-  secondaryContained: { backgroundColor: "rgba(255,255,255,0.18)" },
-  secondaryLabel: { color: "#fff", fontWeight: "600" },
   linkButton: { alignSelf: "center" },
   linkGroup: { alignItems: "center", gap: 4 },
 });

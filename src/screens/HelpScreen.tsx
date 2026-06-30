@@ -12,15 +12,19 @@ import {
   ActivityIndicator,
 } from "react-native";
 
+import { signOut } from "firebase/auth";
+import { auth } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
 
 import { MaterialIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { RootStackParamList } from "../types/navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/ui/text";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
 import { useDialogue } from "../context/DialogueContext";
-import { useLogout } from "../hooks/useLogout";
 import { ImagePickerService } from "../services/imagePickerService";
 import { uploadMultipleImages } from "../services/uploadService";
 
@@ -35,10 +39,17 @@ export default function HelpScreen() {
 
   const { session } = useAuth();
   const { reset } = useDialogue();
-  const { confirmAndLogout } = useLogout();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
   const handleLogout = () => {
-    confirmAndLogout();
+    Alert.alert("Logout", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: () => void signOut(auth).then(() => navigation.replace("Welcome")),
+      },
+    ]);
   };
 
   const pickImages = async () => {

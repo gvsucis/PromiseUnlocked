@@ -4,20 +4,9 @@ import { log } from "../utils/logger";
 
 const TAG = "API";
 
-/** Thrown when an API call is skipped because the current user is a guest (anonymous). */
-export class GuestUserError extends Error {
-  readonly code = "app/guest-user";
-  constructor() {
-    super("API calls are not available for guest users.");
-    this.name = "GuestUserError";
-  }
-}
-
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // Anonymous (guest) or unauthenticated users don't have backend accounts — skip the network
-  // call entirely instead of making a request that will always return 401.
-  if (!auth.currentUser || auth.currentUser.isAnonymous) {
-    throw new GuestUserError();
+  if (!auth.currentUser) {
+    throw new Error("Not authenticated");
   }
 
   const token = await auth.currentUser.getIdToken();
@@ -31,13 +20,22 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   const started = Date.now();
   log.info(TAG, "→ request", { method, url, hasAuth: Boolean(token) });
 
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), CONFIG.REQUEST_TIMEOUT);
+
   let response: Response;
   try {
-    response = await fetch(url, { ...options, headers });
+    response = await fetch(url, {
+      ...options,
+      headers,
+      signal: options.signal ?? timeoutController.signal,
+    });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     log.error(TAG, "✗ network error", { method, url, latencyMs: Date.now() - started, error });
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const latencyMs = Date.now() - started;

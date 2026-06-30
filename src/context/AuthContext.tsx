@@ -1,28 +1,20 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { AppState } from "react-native";
 import type { AppAuthSession } from "../types/auth";
 import {
   bootstrapAuthSession,
-  clearExpiredGuestDataIfNeeded,
-  continueAsGuest,
   getCurrentAuthSession,
-  logoutToGuest,
   resetPassword,
-  saveGuestSessionTimestamp,
   signInWithEmail,
   signUpWithEmail,
   subscribeToAuthSession,
 } from "../services/auth/authSessionService";
-import { flushPendingFirestoreWrites } from "../services/firebase/firestoreWriteQueue";
 
-interface AuthContextValue {
+export interface AuthContextValue {
   session: AppAuthSession;
   isReady: boolean;
-  continueAsGuest: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<unknown>;
-  signUpWithEmail: (email: string, password: string) => Promise<unknown>;
+  signUpWithEmail: (email: string, password: string, displayName?: string) => Promise<unknown>;
   resetPassword: (email: string) => Promise<void>;
-  logoutToGuest: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -41,20 +33,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       setIsReady(true);
     });
 
-    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
-      if (nextState === "active") {
-        void Promise.all([flushPendingFirestoreWrites(), clearExpiredGuestDataIfNeeded()]).catch(
-          (error) => {
-            console.error("[FirestoreQueue] Failed to flush pending writes:", error);
-          }
-        );
-      } else if (nextState === "background") {
-        saveGuestSessionTimestamp().catch(() => {});
-      }
-    });
-
     return () => {
-      appStateSubscription.remove();
       unsubscribe();
     };
   }, []);
@@ -63,11 +42,9 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     () => ({
       session,
       isReady,
-      continueAsGuest,
       signInWithEmail,
       signUpWithEmail,
       resetPassword,
-      logoutToGuest,
     }),
     [isReady, session]
   );

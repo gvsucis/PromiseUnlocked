@@ -33,12 +33,13 @@ import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal"
 import { useDialogueState } from "../hooks/useDialogueState";
 import { useAuth } from "../context/AuthContext";
 import { dialogueResetTarget } from "../context/DialogueContext";
-import { useLogout } from "../hooks/useLogout";
 import { fetchProofStatus, uploadProofImage } from "../services/proofService";
 import { upgradeStampTier } from "../services/categoryStorageService";
 import { getOrStartSession } from "../services/sessionManager";
 import { colors } from "../styles/global";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { signOut } from "firebase/auth";
+import { auth } from "../config/firebase";
 import StampBadge from "../components/stamps/StampBadge";
 
 // FIXME: POC cross-hierarchy bridge — move to DialogueContext when refactoring
@@ -116,7 +117,6 @@ export default function DialogueDashboardScreen() {
   const modalDismissedByBackdropRef = useRef(false);
   const modalIntentionallyOpenedRef = useRef(false);
   const isCombinedImageRef = useRef(false);
-  const suppressSignUpPromptRef = useRef(false);
 
   const insets = useSafeAreaInsets();
 
@@ -144,21 +144,13 @@ export default function DialogueDashboardScreen() {
   continueAfterStampUnlockRef.current = continueAfterStampUnlock;
 
   const { pickImage } = useImagePicker();
-  const { logout } = useLogout();
 
   React.useLayoutEffect(() => {
     navigation.getParent()?.setOptions({
       headerRight: () => (
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            onPress={session.mode === "authenticated" ? handleLogout : handleAccountPress}
-            style={styles.headerActionButton}
-          >
-            <MaterialIcons
-              name={session.mode === "authenticated" ? "logout" : "person"}
-              size={24}
-              color="#fff"
-            />
+          <TouchableOpacity onPress={handleLogout} style={styles.headerActionButton}>
+            <MaterialIcons name="logout" size={24} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleReset}
@@ -188,34 +180,20 @@ export default function DialogueDashboardScreen() {
     return unsubscribe;
   }, [navigation, clearPendingProofRequest, clearProofNotification]);
 
-  // Reload mapped data when auth session changes (e.g. guest→authenticated after login)
   React.useEffect(() => {
     loadData();
   }, [session.uid]);
 
-  const handleAccountPress = () => {
-    navigation.navigate("Login");
-  };
-
   const handleLogout = () => {
-    suppressSignUpPromptRef.current = true;
-    Alert.alert(
-      "Logoutt",
-      "You will keep this account's saved progress, and the app will continue in guest mode.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-          onPress: () => {
-            suppressSignUpPromptRef.current = false;
-          },
+    Alert.alert("Logout", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        onPress: () => {
+          void signOut(auth).then(() => navigation.replace("Login"));
         },
-        {
-          text: "Continue",
-          onPress: () => void logout(() => navigation.replace("Welcome")),
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleReset = () => {
@@ -709,47 +687,6 @@ export default function DialogueDashboardScreen() {
     pdfContextText,
   ]);
 
-  // ── Guest: force sign-in after first mapped category ──
-  // Uses useIsFocused so it fires on both focus changes AND dep changes
-  // (e.g. when loadData finishes and mappedCategories flips from 0 to 1).
-  React.useEffect(() => {
-    if (
-      !isFocused ||
-      session.mode !== "guest" ||
-      mappedCategories.length < 1 ||
-      suppressSignUpPromptRef.current
-    ) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      Alert.alert(
-        "Great start!",
-        "Sign in to save your progress and keep building your skills passport.",
-        [
-          {
-            text: "Sign In",
-            onPress: () => {
-              setPendingQuestion(null);
-              setShowQuestionInputModal(false);
-              clearPendingProofRequest();
-              navigation.navigate("Login");
-            },
-          },
-          {
-            text: "Create Account",
-            onPress: () => {
-              setPendingQuestion(null);
-              setShowQuestionInputModal(false);
-              clearPendingProofRequest();
-              navigation.navigate("Register");
-            },
-          },
-        ]
-      );
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [isFocused, session.mode, mappedCategories.length, navigation]);
-
   React.useEffect(() => {
     if (
       uiState === "idle" &&
@@ -757,8 +694,7 @@ export default function DialogueDashboardScreen() {
       !showQuestionInputModal &&
       !suppressModalReopenRef.current &&
       !modalDismissedByBackdropRef.current &&
-      modalIntentionallyOpenedRef.current &&
-      !(session.mode === "guest" && mappedCategories.length >= 1)
+      modalIntentionallyOpenedRef.current
     ) {
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
@@ -772,8 +708,7 @@ export default function DialogueDashboardScreen() {
       prefetchedQuestion &&
       uiState === "idle" &&
       !pendingProofRequest &&
-      modalIntentionallyOpenedRef.current &&
-      !(session.mode === "guest" && mappedCategories.length >= 1)
+      modalIntentionallyOpenedRef.current
     ) {
       setPendingQuestion(prefetchedQuestion);
       setShowQuestionInputModal(true);
@@ -782,12 +717,6 @@ export default function DialogueDashboardScreen() {
 
   React.useEffect(() => {
     if (!pendingProofRequest) {
-      return;
-    }
-
-    // Guest users can't upload artifacts — silently skip.
-    if (session.mode === "guest") {
-      clearPendingProofRequest();
       return;
     }
 
@@ -808,10 +737,6 @@ export default function DialogueDashboardScreen() {
   React.useEffect(() => {
     if (!pendingProofNotification) {
       setProofSnackbarVisible(false);
-      return;
-    }
-    if (session.mode === "guest") {
-      clearProofNotification();
       return;
     }
     if (showQuestionInputModal) return;
@@ -838,15 +763,8 @@ export default function DialogueDashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.floatingButtons} pointerEvents="box-none">
-          <TouchableOpacity
-            onPress={session.mode === "authenticated" ? handleLogout : handleAccountPress}
-            style={styles.floatingButton}
-          >
-            <MaterialIcons
-              name={session.mode === "authenticated" ? "logout" : "person"}
-              size={24}
-              color={colors.status.error}
-            />
+          <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+            <MaterialIcons name="logout" size={24} color={colors.status.error} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleReset}
@@ -904,9 +822,7 @@ export default function DialogueDashboardScreen() {
                     handleStartButtonPress();
                   }
                 }}
-                disabled={
-                  uiState !== "idle" || (session.mode === "guest" && mappedCategories.length >= 1)
-                }
+                disabled={uiState !== "idle"}
                 activeOpacity={0.8}
               >
                 <MaterialIcons
@@ -1121,14 +1037,9 @@ export default function DialogueDashboardScreen() {
           setShowQuestionInputModal(false);
         }}
         onNewQuestion={() => {
-          // A guest past the question limit can never have the regenerated
-          // question re-surfaced (the reopen effects bail), so skip the wasted
-          // Gemini call and dead-end UX.
-          if (session.mode === "guest" && mappedCategories.length >= 1) return;
           handleSkipQuestion();
         }}
         onNewTopic={() => {
-          if (session.mode === "guest" && mappedCategories.length >= 1) return;
           handleNewTopic();
         }}
       />
