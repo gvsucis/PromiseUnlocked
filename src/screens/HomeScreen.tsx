@@ -15,7 +15,7 @@ import { RootStackParamList } from "../types/navigation";
 
 import { ImagePickerService } from "../services/imagePickerService";
 import { GeminiService } from "../services/geminiService";
-import { AnalysisResult } from "../types";
+
 import ZoomableImageView from "../components/ZoomableImageView";
 import ImageEditor from "../components/ImageEditor";
 
