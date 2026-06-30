@@ -33,7 +33,8 @@ function buildMemoryFilePath(userId: string, fileName: string, timestamp: Date):
   const shortId = crypto.randomUUID().slice(0, 8);
   const ts = formatUploadTimestamp(timestamp);
   const ext = fileName.includes(".") ? (fileName.split(".").pop() ?? "pdf") : "pdf";
-  return `memory-files/${userId}/${monthKey}/${ts}-${shortId}.${ext}`;
+  const stem = fileName.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+  return `memory-files/${userId}/${monthKey}/${stem}_${ts}-${shortId}.${ext}`;
 }
 
 function getBucket() {
