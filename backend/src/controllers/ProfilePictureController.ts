@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from "@/types/firestore";
 import Busboy from "busboy";
 import { admin, db } from "@/services/firestore";
 import { getStorageBucket } from "@/utils/storageBucket";
+import { feedBusboy } from "@/utils/multipart";
 
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const ALLOWED_MIMES = new Set(["image/png", "image/jpeg", "image/jpg", "image/webp"]);
@@ -101,6 +102,6 @@ export class ProfilePictureController {
       }
     });
 
-    req.pipe(bb);
+    feedBusboy(req, bb);
   }
 }

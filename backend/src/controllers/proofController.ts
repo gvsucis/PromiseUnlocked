@@ -5,6 +5,7 @@ import { uploadProofImageToStorage } from "@/services/proofStorageService";
 import { randomUUID } from "node:crypto";
 import { isProofMimeTypeAllowed, normalizeProofMimeType } from "@/services/proofUtils";
 import { createRespondOnce } from "@/utils/respondOnce";
+import { feedBusboy } from "@/utils/multipart";
 import type { ProofVerificationJob } from "@/types/firestore";
 
 const MAX_FILE_SIZE = Number.parseInt(process.env.PROOF_MAX_FILE_SIZE ?? "5000000", 10);
@@ -212,7 +213,7 @@ export class ProofController {
       }
     });
 
-    req.pipe(bb);
+    feedBusboy(req, bb);
   }
 
   static async getProofStatus(

@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from "@/types/firestore";
 import Busboy from "busboy";
 import crypto from "node:crypto";
 import { isAllowedMimeType, uploadMemoryFile } from "@/services/memoryFileStorageService";
+import { feedBusboy } from "@/utils/multipart";
 import {
   createCatalogEntry,
   findByChecksum,
@@ -158,17 +159,7 @@ export class PvaCatalogController {
       if (!res.headersSent) res.status(400).json({ error: err.message || "Upload parsing failed" });
     });
 
-    // Cloud Functions/Run drains the request stream into req.rawBody before the
-    // handler runs, so piping would hang (503 upstream timeout). Feed the captured
-    // buffer when present; fall back to streaming for plain-Express local dev.
-    const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
-    if (Buffer.isBuffer(rawBody) && rawBody.length > 0) {
-      bb.end(rawBody);
-    } else if (Buffer.isBuffer(req.body) && req.body.length > 0) {
-      bb.end(req.body);
-    } else {
-      req.pipe(bb);
-    }
+    feedBusboy(req, bb);
   }
 
   // Selection dropdown source.
