@@ -354,7 +354,7 @@ export default function ProfileScreen() {
               disabled={selectingPva}
             >
               <Text style={styles.pvaSelectText} numberOfLines={1}>
-                {selectedPvaName ?? "Choose a profile…"}
+                {selectedPvaName ?? (profile?.selectedPvaId ? "Loading…" : "Choose a profile…")}
               </Text>
               {selectingPva ? (
                 <ActivityIndicator size="small" color={colors.accent.sky} />
@@ -428,6 +428,19 @@ export default function ProfileScreen() {
                             {item.embeddingStatus === "failed" ? (
                               <Text style={styles.pvaStatusFailed}>Unavailable</Text>
                             ) : null}
+                            <MaterialIcons
+                              name={
+                                item.id === profile?.selectedPvaId
+                                  ? "radio-button-checked"
+                                  : "radio-button-unchecked"
+                              }
+                              size={22}
+                              color={
+                                item.id === profile?.selectedPvaId
+                                  ? colors.accent.sky
+                                  : colors.text.muted
+                              }
+                            />
                           </TouchableOpacity>
                         );
                       })

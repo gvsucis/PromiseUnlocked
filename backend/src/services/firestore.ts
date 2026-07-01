@@ -174,6 +174,7 @@ const participantConverter: FirestoreDataConverter<ParticipantProfile> = {
       ethnicity: data.ethnicity ?? null,
       pageUrl: data.pageUrl ?? null,
       role: data.role ?? null,
+      selectedPvaId: data.selectedPvaId ?? null,
       metadata: data.metadata ?? {},
     };
   },
@@ -199,6 +200,7 @@ const userConverter: FirestoreDataConverter<UserProfile> = {
       ethnicity: data.ethnicity ?? null,
       pageUrl: data.pageUrl ?? null,
       role: data.role ?? null,
+      selectedPvaId: data.selectedPvaId ?? null,
       metadata: data.metadata ?? {},
     };
   },
