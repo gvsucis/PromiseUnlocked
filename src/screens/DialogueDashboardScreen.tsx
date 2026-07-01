@@ -161,17 +161,6 @@ export default function DialogueDashboardScreen() {
           <TouchableOpacity onPress={handleLogout} style={styles.headerActionButton}>
             <MaterialIcons name="logout" size={24} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleReset}
-            style={styles.headerActionButton}
-            disabled={uiState !== "idle" && uiState !== "complete"}
-          >
-            <MaterialIcons
-              name="refresh"
-              size={24}
-              color={uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"}
-            />
-          </TouchableOpacity>
         </View>
       ),
     });
@@ -798,13 +787,6 @@ export default function DialogueDashboardScreen() {
           <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
             <MaterialIcons name="logout" size={24} color={colors.status.error} />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleReset}
-            style={styles.floatingButton}
-            disabled={uiState !== "idle" && uiState !== "complete"}
-          >
-            <MaterialIcons name="refresh" size={24} color={colors.status.error} />
-          </TouchableOpacity>
         </View>
 
         <View style={styles.header}>
@@ -953,12 +935,27 @@ export default function DialogueDashboardScreen() {
                 </View>
                 <View style={styles.stampUpgradeBody}>
                   <View style={styles.stampUpgradePlaceholder}>
-                    <Text style={styles.milestoneBubbleText}>{totalStampsUnlocked}</Text>
+                    <Text style={styles.milestoneBubbleText}>{next.target}</Text>
                   </View>
                   <Text style={styles.stampUpgradeName}>{next.label}</Text>
                   <Text style={styles.stampUpgradeRegion}>
                     {totalStampsUnlocked} / {next.target} stamps
                   </Text>
+                  <TouchableOpacity
+                    style={styles.stampUpgradeButton}
+                    onPress={() => {
+                      if (currentPrompt && !showQuestionInputModal) {
+                        modalIntentionallyOpenedRef.current = true;
+                        setPendingQuestion(currentPrompt);
+                        setShowQuestionInputModal(true);
+                      } else {
+                        modalIntentionallyOpenedRef.current = true;
+                        handleStartButtonPress();
+                      }
+                    }}
+                  >
+                    <Text style={styles.stampUpgradeButtonText}>Earn Stamps</Text>
+                  </TouchableOpacity>
                 </View>
               </Card.Content>
             </Card>
@@ -1343,8 +1340,8 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   milestoneBubbleText: {
-    color: "#fff",
-    fontSize: 16,
+    color: colors.accent.magenta,
+    fontSize: 32,
     fontWeight: "800",
   },
   stampUpgradeBody: {
@@ -1352,10 +1349,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   stampUpgradePlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.accent.sky,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.accent.yellow,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,

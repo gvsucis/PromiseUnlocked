@@ -252,10 +252,6 @@ export default function ProfileScreen() {
             <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
               <MaterialIcons name="logout" size={24} color={colors.background.card} />
             </TouchableOpacity>
-
-            <TouchableOpacity onPress={reset} style={styles.floatingButton}>
-              <MaterialIcons name="refresh" size={24} color={colors.background.card} />
-            </TouchableOpacity>
           </View>
           <View style={styles.bannerContainer}>
             <View style={styles.bannerClip}>
@@ -778,7 +774,7 @@ const styles = StyleSheet.create({
   floatingButtons: {
     position: "absolute",
     right: 16,
-    paddingTop: 2,
+    paddingTop: 0,
     flexDirection: "row",
     gap: 8,
     zIndex: 10,
