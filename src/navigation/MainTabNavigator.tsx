@@ -22,7 +22,7 @@ const TAB_CONFIG = [
   {
     name: "Dashboard",
     component: DialogueDashboardScreen,
-    icon: "dashboard",
+    icon: "home",
     label: "Dashboard",
     size: 32,
   },

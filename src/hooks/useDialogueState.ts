@@ -74,7 +74,12 @@ export interface DialogueState {
     category: string;
     categoryId: string;
     tier: number;
+    sensitive: boolean;
   } | null;
+  showCrisisSupport: boolean;
+  dismissCrisisSupport: () => void;
+  showSensitiveIntro: boolean;
+  dismissSensitiveIntro: () => void;
   pendingProofRequest: {
     question: string;
     answer: string;
@@ -105,7 +110,8 @@ export interface DialogueState {
   mapAnswerToCategory: (
     question: string,
     answer: string,
-    targetRegion?: string
+    targetRegion?: string,
+    checkSensitive?: boolean
   ) => Promise<DialogueMapResult>;
   handleStartButtonPress: () => Promise<void>;
   handleForceNewQuestion: () => Promise<void>;
@@ -124,10 +130,21 @@ export interface DialogueState {
   clearProofNotification: () => void;
   activateProofFromNotification: () => void;
   clearDeferredState: () => void;
+  triggerContentWarning: (message?: string) => void;
 }
 
 export type DialogueMapResult =
-  | { mapped: true; category: string; interactionId: string }
+  | {
+      mapped: true;
+      category: string;
+      interactionId: string;
+      stampUnlock?: {
+        stamp: string;
+        category: string;
+        categoryId: string;
+        tier: number;
+      };
+    }
   | { mapped: false; category: string | null; interactionId: string };
 
 export function useDialogueState(): DialogueState {
@@ -151,7 +168,10 @@ export function useDialogueState(): DialogueState {
     category: string;
     categoryId: string;
     tier: number;
+    sensitive: boolean;
   } | null>(null);
+  const [showCrisisSupport, setShowCrisisSupport] = useState(false);
+  const [showSensitiveIntro, setShowSensitiveIntro] = useState(false);
   const [deferredNextQuestion, setDeferredNextQuestion] = useState<string | null>(null);
   const [deferredCheckCompletion, setDeferredCheckCompletion] = useState(false);
 
@@ -400,7 +420,8 @@ export function useDialogueState(): DialogueState {
   const mapAnswerToCategory = async (
     question: string,
     answer: string,
-    targetRegion?: string
+    targetRegion?: string,
+    checkSensitive: boolean = false
   ): Promise<DialogueMapResult> => {
     setUiState("loading");
     setLoadingMessage("Analyzing your response...");
@@ -465,6 +486,11 @@ export function useDialogueState(): DialogueState {
         specificStamp,
         initialTier,
       } = result;
+
+      if (checkSensitive && result.distressSignal) {
+        setShowCrisisSupport(true);
+      }
+
       const validCategory = findValidCategory(rawCategory);
       const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
       const categoryIdToCheck = validCategory ? validCategory.id : rawCategory;
@@ -535,8 +561,13 @@ export function useDialogueState(): DialogueState {
           );
         }
         setInteractions((prev) => [...prev, interaction]);
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
+        const isSensitive = checkSensitive && !!result.sensitiveExperience;
+        if (isSensitive) {
+          setShowSensitiveIntro(true);
+        } else {
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 3000);
+        }
 
         if (specificStamp) {
           setNewStampUnlock({
@@ -544,6 +575,7 @@ export function useDialogueState(): DialogueState {
             category: categoryNameToCheck,
             categoryId: categoryIdToCheck,
             tier: initialTier ?? 1,
+            sensitive: isSensitive,
           });
 
           setDeferredNextQuestion(nextQuestion ?? null);
@@ -561,6 +593,17 @@ export function useDialogueState(): DialogueState {
               proofTier: result.proofTier ?? 3,
             });
           }
+          return {
+            mapped: true as const,
+            category: categoryNameToCheck,
+            interactionId,
+            stampUnlock: {
+              stamp: specificStamp,
+              category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
+              tier: initialTier ?? 1,
+            },
+          };
         } else {
           if (newMappedCategories.length === TOTAL_CATEGORIES) {
             await endSession("completed");
@@ -790,7 +833,7 @@ export function useDialogueState(): DialogueState {
     setCurrentPrompt("");
     setUserAnswer("");
 
-    mapAnswerToCategory(q, a);
+    mapAnswerToCategory(q, a, undefined, true);
   };
 
   const handleWeakFitTryAgain = () => {
@@ -804,6 +847,14 @@ export function useDialogueState(): DialogueState {
     } else {
       setUiState("answering");
     }
+  };
+
+  const triggerContentWarning = (message?: string) => {
+    setWeakFitJustification(
+      message ?? "That image couldn't be used because it contains inappropriate content."
+    );
+    setContentWarning(true);
+    setUiState("weak-fit");
   };
 
   // Regenerate the next question: brief idle beat, then an abortable Gemini
@@ -902,6 +953,14 @@ export function useDialogueState(): DialogueState {
     setNewStampUnlock(null);
   };
 
+  const dismissCrisisSupport = () => {
+    setShowCrisisSupport(false);
+  };
+
+  const dismissSensitiveIntro = () => {
+    setShowSensitiveIntro(false);
+  };
+
   const continueAfterStampUnlock = () => {
     const nextQuestion = deferredNextQuestion;
     const isComplete = deferredCheckCompletion;
@@ -986,6 +1045,8 @@ export function useDialogueState(): DialogueState {
     pdfContextText: pdfContextRef.current ?? "",
     showConfetti,
     newStampUnlock,
+    showCrisisSupport,
+    showSensitiveIntro,
     pendingProofRequest: proof.proofRequest,
     pendingProofNotification: proof.proofNotification,
     setUserAnswer,
@@ -1010,8 +1071,11 @@ export function useDialogueState(): DialogueState {
     clearPendingProofRequest: proof.clearRequest,
     clearStampUnlock,
     continueAfterStampUnlock,
+    dismissCrisisSupport,
+    dismissSensitiveIntro,
     clearProofNotification: proof.clearNotification,
     activateProofFromNotification: proof.activateFromNotification,
     clearDeferredState,
+    triggerContentWarning,
   };
 }

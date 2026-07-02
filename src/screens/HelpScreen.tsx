@@ -135,9 +135,6 @@ export default function HelpScreen() {
                 color={colors.status.error}
               />
             </TouchableOpacity>
-            <TouchableOpacity onPress={reset} style={styles.floatingButton}>
-              <MaterialIcons name="refresh" size={24} color={colors.status.error} />
-            </TouchableOpacity>
           </View>
 
           <View style={styles.headerBlock}>
@@ -360,7 +357,7 @@ const styles = StyleSheet.create({
 
   floatingButtons: {
     position: "absolute",
-    top: 2,
+    top: 0,
     right: 16,
     flexDirection: "row",
     gap: 8,

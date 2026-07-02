@@ -176,9 +176,6 @@ export default function PassportScreen() {
               color={colors.brand.primary}
             />
           </TouchableOpacity>
-          <TouchableOpacity onPress={reset} style={styles.floatingButton}>
-            <MaterialIcons name="refresh" size={24} color={colors.brand.primary} />
-          </TouchableOpacity>
         </View>
 
         <Text style={styles.title}>My Passport</Text>
@@ -389,7 +386,7 @@ const styles = StyleSheet.create({
   },
   floatingButtons: {
     position: "absolute",
-    top: 2,
+    top: 0,
     right: 16,
     flexDirection: "row",
     gap: 8,

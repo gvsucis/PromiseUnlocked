@@ -23,6 +23,9 @@ import {
   getCategoryIdFromName,
 } from "../services/categoryTaxonomyService";
 import { dialogueBridgeRef } from "./DialogueDashboardScreen";
+import ConfettiCannon from "react-native-confetti-cannon";
+import { StampUnlockModal } from "../components/dialogue/StampUnlockModal";
+import { Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getMappedCategories,
@@ -64,6 +67,13 @@ export default function StampScreen() {
   const [isGenerating, setIsGenerating] = useState(false);
   // Questions already asked for this region, so the model avoids repeating them.
   const askedQuestionsRef = useRef<string[]>([]);
+  const [localStampUnlock, setLocalStampUnlock] = useState<{
+    stamp: string;
+    category: string;
+    tier: number;
+  } | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const { width } = Dimensions.get("window");
 
   const loadUnlocked = useCallback(async () => {
     await ensureAllMappedCategoriesHaveStamps();
@@ -128,6 +138,7 @@ export default function StampScreen() {
           // Avoid only the last few questions — enough to stop repeats without
           // bloating the prompt over a long session.
           avoidQuestion: askedQuestionsRef.current.slice(-5).join("\n") || undefined,
+          exploredStamps: Array.from(unlockedStamps),
         },
         undefined,
         region
@@ -154,8 +165,20 @@ export default function StampScreen() {
       // Save the answer in the background, then refresh the grid to show
       // any newly unlocked stamp.
       if (bridge) {
-        Promise.resolve(bridge.handleRegionAnswer(question, answerText, region))
-          .then(() => loadUnlocked())
+        bridge
+          .handleRegionAnswer(question, answerText, region)
+          .then((result) => {
+            void loadUnlocked();
+            if (result.mapped && result.stampUnlock) {
+              setLocalStampUnlock({
+                stamp: result.stampUnlock.stamp,
+                category: result.stampUnlock.category,
+                tier: result.stampUnlock.tier,
+              });
+              setShowConfetti(true);
+              setTimeout(() => setShowConfetti(false), 3000);
+            }
+          })
           .catch((err) => console.error("Failed to map region answer:", err));
       }
       // Loop: offer the next region question right away.
@@ -266,6 +289,34 @@ export default function StampScreen() {
           }}
         />
       </ScrollView>
+
+      <StampUnlockModal
+        visible={!!localStampUnlock}
+        stampName={localStampUnlock?.stamp ?? ""}
+        tier={localStampUnlock?.tier ?? 1}
+        region={localStampUnlock?.category ?? ""}
+        onContinue={() => setLocalStampUnlock(null)}
+        onViewStamp={() => {
+          if (localStampUnlock) {
+            setLocalStampUnlock(null);
+            navigation.navigate("StampDetails", {
+              stamp: localStampUnlock.stamp,
+              region: localStampUnlock.category,
+              categoryId,
+            });
+          }
+        }}
+      />
+
+      {showConfetti && (
+        <ConfettiCannon
+          count={200}
+          origin={{ x: width / 2, y: 0 }}
+          autoStart={true}
+          fadeOut={true}
+          fallSpeed={3000}
+        />
+      )}
     </SafeAreaView>
   );
 }

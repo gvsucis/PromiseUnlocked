@@ -26,6 +26,8 @@ import ImageEditor from "../components/ImageEditor";
 import { LoadingModal } from "../components/dialogue/LoadingModal";
 import { CompletionModal } from "../components/dialogue/CompletionModal";
 import { WeakFitModal } from "../components/dialogue/WeakFitModal";
+import { CrisisSupportModal } from "../components/dialogue/CrisisSupportModal";
+import { SensitiveExperienceModal } from "../components/dialogue/SensitiveExperienceModal";
 import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
 import { StampUnlockModal } from "../components/dialogue/StampUnlockModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
@@ -49,7 +51,11 @@ export const dialogueBridgeRef = {
     handleForceNewQuestion: () => void;
     handleReset: () => void;
     handleNewTopic: (region?: string) => void;
-    handleRegionAnswer: (question: string, answer: string, region?: string) => Promise<void> | void;
+    handleRegionAnswer: (
+      question: string,
+      answer: string,
+      region?: string
+    ) => Promise<import("../hooks/useDialogueState").DialogueMapResult>;
     interactions: ConversationInteraction[];
     mappedCategories: MappedCategory[];
     pdfContextText: string;
@@ -75,6 +81,10 @@ export default function DialogueDashboardScreen() {
     contentWarning,
     showConfetti,
     newStampUnlock,
+    showCrisisSupport,
+    showSensitiveIntro,
+    dismissCrisisSupport,
+    dismissSensitiveIntro,
     loading,
     prefetchedQuestion,
     pendingProofRequest,
@@ -103,6 +113,7 @@ export default function DialogueDashboardScreen() {
     setLoadingMessage,
     setError,
     loadData,
+    triggerContentWarning,
   } = useDialogueState();
 
   React.useEffect(() => {
@@ -160,17 +171,6 @@ export default function DialogueDashboardScreen() {
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={handleLogout} style={styles.headerActionButton}>
             <MaterialIcons name="logout" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleReset}
-            style={styles.headerActionButton}
-            disabled={uiState !== "idle" && uiState !== "complete"}
-          >
-            <MaterialIcons
-              name="refresh"
-              size={24}
-              color={uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"}
-            />
           </TouchableOpacity>
         </View>
       ),
@@ -234,7 +234,7 @@ export default function DialogueDashboardScreen() {
     setPendingQuestion(null);
     setCurrentPrompt("");
     suppressModalReopenRef.current = false;
-    void mapAnswerToCategory(q, text);
+    void mapAnswerToCategory(q, text, undefined, true);
   };
 
   const handleInputTypeSelect = async (method: "voice" | "image" | "refresh") => {
@@ -292,6 +292,13 @@ export default function DialogueDashboardScreen() {
       const sizeCheck = await GeminiService.validateImageSize(imageUri);
       const skipCompression = sizeCheck.valid;
       const analysisResult = await GeminiService.analyzeActionImage(imageUri, q, skipCompression);
+
+      if (analysisResult.inappropriate) {
+        setIsAnalyzingImage(false);
+        triggerContentWarning();
+        return;
+      }
+
       const imageContext =
         analysisResult.success && analysisResult.rawResponse ? analysisResult.rawResponse : "";
 
@@ -507,8 +514,18 @@ export default function DialogueDashboardScreen() {
         skipCompression
       );
 
-      if (!analysisResult.success || !analysisResult.rawResponse) {
+      if (!analysisResult.success) {
         throw new Error(analysisResult.error || "Failed to analyze image");
+      }
+
+      if (analysisResult.inappropriate) {
+        setSelectedImage(null);
+        triggerContentWarning();
+        return;
+      }
+
+      if (!analysisResult.rawResponse) {
+        throw new Error("Failed to analyze image");
       }
 
       const answer = analysisResult.rawResponse;
@@ -687,10 +704,11 @@ export default function DialogueDashboardScreen() {
       },
       handleRegionAnswer: async (question: string, answer: string, region?: string) => {
         clearAutoProof();
-        await mapAnswerToCategory(question, answer, region);
+        const result = await mapAnswerToCategory(question, answer, region);
         clearStampUnlock();
         clearDeferredState();
         clearPendingProofRequest();
+        return result;
       },
       interactions,
       mappedCategories,
@@ -797,13 +815,6 @@ export default function DialogueDashboardScreen() {
         <View style={styles.floatingButtons} pointerEvents="box-none">
           <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
             <MaterialIcons name="logout" size={24} color={colors.status.error} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleReset}
-            style={styles.floatingButton}
-            disabled={uiState !== "idle" && uiState !== "complete"}
-          >
-            <MaterialIcons name="refresh" size={24} color={colors.status.error} />
           </TouchableOpacity>
         </View>
 
@@ -953,12 +964,27 @@ export default function DialogueDashboardScreen() {
                 </View>
                 <View style={styles.stampUpgradeBody}>
                   <View style={styles.stampUpgradePlaceholder}>
-                    <Text style={styles.milestoneBubbleText}>{totalStampsUnlocked}</Text>
+                    <Text style={styles.milestoneBubbleText}>{next.target}</Text>
                   </View>
                   <Text style={styles.stampUpgradeName}>{next.label}</Text>
                   <Text style={styles.stampUpgradeRegion}>
                     {totalStampsUnlocked} / {next.target} stamps
                   </Text>
+                  <TouchableOpacity
+                    style={styles.stampUpgradeButton}
+                    onPress={() => {
+                      if (currentPrompt && !showQuestionInputModal) {
+                        modalIntentionallyOpenedRef.current = true;
+                        setPendingQuestion(currentPrompt);
+                        setShowQuestionInputModal(true);
+                      } else {
+                        modalIntentionallyOpenedRef.current = true;
+                        handleStartButtonPress();
+                      }
+                    }}
+                  >
+                    <Text style={styles.stampUpgradeButtonText}>Earn Stamps</Text>
+                  </TouchableOpacity>
                 </View>
               </Card.Content>
             </Card>
@@ -1030,10 +1056,11 @@ export default function DialogueDashboardScreen() {
       />
 
       <StampUnlockModal
-        visible={isFocused && !!newStampUnlock}
+        visible={isFocused && !!newStampUnlock && !showSensitiveIntro}
         stampName={newStampUnlock?.stamp ?? ""}
         tier={newStampUnlock?.tier ?? 1}
         region={newStampUnlock?.category ?? ""}
+        sensitive={newStampUnlock?.sensitive ?? false}
         onContinue={handleContinueAfterStampUnlock}
         onViewStamp={() => {
           if (newStampUnlock) {
@@ -1046,6 +1073,16 @@ export default function DialogueDashboardScreen() {
             });
           }
         }}
+      />
+
+      <CrisisSupportModal
+        visible={isFocused && showCrisisSupport}
+        onContinue={dismissCrisisSupport}
+      />
+
+      <SensitiveExperienceModal
+        visible={isFocused && showSensitiveIntro}
+        onContinue={dismissSensitiveIntro}
       />
 
       <QuestionInputModal
@@ -1343,8 +1380,8 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   milestoneBubbleText: {
-    color: "#fff",
-    fontSize: 16,
+    color: colors.accent.magenta,
+    fontSize: 32,
     fontWeight: "800",
   },
   stampUpgradeBody: {
@@ -1352,10 +1389,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   stampUpgradePlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.accent.sky,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.accent.yellow,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,

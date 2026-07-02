@@ -36,6 +36,7 @@ export interface QuestionSynthesisContext {
   embeddingHistorySummary?: string;
   newTopic?: boolean;
   avoidQuestion?: string;
+  exploredStamps?: string[];
 }
 
 export interface MappedCategory {
@@ -53,4 +54,6 @@ export interface MapAnswerResponse {
   initialTier?: number;
   proofTier?: number;
   [key: string]: unknown;
+  distressSignal?: boolean;
+  sensitiveExperience?: boolean;
 }
