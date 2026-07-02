@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from "@/types/firestore";
 import Busboy from "busboy";
 import { admin, db } from "@/services/firestore";
 import { getStorageBucket } from "@/utils/storageBucket";
+import { feedBusboy } from "@/utils/multipart";
 import { randomUUID } from "node:crypto";
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -128,6 +129,6 @@ export class HelpController {
       }
     });
 
-    req.pipe(bb);
+    feedBusboy(req, bb);
   }
 }

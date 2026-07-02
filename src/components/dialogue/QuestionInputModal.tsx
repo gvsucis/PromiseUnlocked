@@ -147,32 +147,32 @@ export function QuestionInputModal({
                   textAlignVertical="top"
                 />
 
-                {attachedImageUri && (
-                  <View style={styles.imagePreviewRow}>
-                    <Image source={{ uri: attachedImageUri }} style={styles.imagePreview} />
-                    <TouchableOpacity
-                      style={styles.removeImageButton}
-                      onPress={() => onRemoveAttachedImage?.()}
-                    >
-                      <Ionicons name="close-circle" size={22} color="#FF6B6B" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Alt input options — right-aligned below text input */}
-                <View style={styles.altInputRow}>
-                  {ALT_INPUT_OPTIONS.map(({ method, label, icon, color }) => (
-                    <TouchableOpacity
-                      key={method}
-                      style={styles.altInputButton}
-                      onPress={() => handleAltInput(method)}
-                    >
-                      <View style={[styles.altIconCircle, { backgroundColor: color }]}>
-                        <Ionicons name={icon} size={20} color="white" />
+                {/* Attachment row: previews left, icons right */}
+                <View style={styles.attachmentRow}>
+                  <View style={styles.previewsLeft}>
+                    {attachedImageUri && (
+                      <View style={styles.previewItem}>
+                        <Image source={{ uri: attachedImageUri }} style={styles.thumbnail} />
+                        <TouchableOpacity
+                          style={styles.removeBtn}
+                          onPress={() => onRemoveAttachedImage?.()}
+                        >
+                          <Ionicons name="close-circle" size={18} color="#FF6B6B" />
+                        </TouchableOpacity>
                       </View>
-                      <Text style={styles.altInputLabel}>{label}</Text>
-                    </TouchableOpacity>
-                  ))}
+                    )}
+                  </View>
+                  <View style={styles.iconsRight}>
+                    {ALT_INPUT_OPTIONS.map(({ method, icon, color }) => (
+                      <TouchableOpacity
+                        key={method}
+                        style={[styles.iconBtn, { backgroundColor: color }]}
+                        onPress={() => handleAltInput(method)}
+                      >
+                        <Ionicons name={icon} size={20} color="white" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
 
                 <View style={styles.actionRow}>
@@ -257,28 +257,44 @@ const styles = StyleSheet.create({
     color: "#222",
     backgroundColor: "#fafafa",
   },
-  altInputRow: {
+  attachmentRow: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    alignItems: "center",
+    justifyContent: "space-between",
     width: "100%",
     marginTop: 10,
-    gap: 12,
+    minHeight: 50,
   },
-  altInputButton: {
+  previewsLeft: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  previewItem: {
+    position: "relative",
+  },
+  thumbnail: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  removeBtn: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+  },
+  iconsRight: {
+    flexDirection: "row",
+    gap: 10,
     alignItems: "center",
   },
-  altIconCircle: {
+  iconBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-  },
-  altInputLabel: {
-    marginTop: 4,
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#555",
   },
   actionRow: {
     flexDirection: "row",
@@ -301,22 +317,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  imagePreviewRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    width: "100%",
-  },
-  imagePreview: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  removeImageButton: {
-    marginLeft: 8,
-  },
+
   closeIconButton: {
     position: "absolute",
     top: 12,

@@ -106,9 +106,16 @@ export default function DialogueDashboardScreen() {
   } = useDialogueState();
 
   React.useEffect(() => {
-    if (isFocused) {
-      loadData();
-    }
+    if (!isFocused) return;
+    const savedPrompt = currentPrompt;
+    const wasIdle = uiState === "idle";
+    loadData().then(() => {
+      if (savedPrompt && wasIdle && !showQuestionInputModal) {
+        modalIntentionallyOpenedRef.current = true;
+        setPendingQuestion(savedPrompt);
+        setShowQuestionInputModal(true);
+      }
+    });
   }, [isFocused]);
 
   const [showQuestionInputModal, setShowQuestionInputModal] = useState(false);
@@ -117,6 +124,8 @@ export default function DialogueDashboardScreen() {
   const modalDismissedByBackdropRef = useRef(false);
   const modalIntentionallyOpenedRef = useRef(false);
   const isCombinedImageRef = useRef(false);
+  const autoProofImageRef = useRef<string | null>(null);
+  const suppressProofAlertRef = useRef(false);
 
   const insets = useSafeAreaInsets();
 
@@ -211,8 +220,14 @@ export default function DialogueDashboardScreen() {
     ]);
   };
 
+  const clearAutoProof = () => {
+    autoProofImageRef.current = null;
+    suppressProofAlertRef.current = false;
+  };
+
   const handleSubmitTextFromModal = (text: string) => {
     if (!text.trim()) return;
+    clearAutoProof();
     suppressModalReopenRef.current = true;
     setShowQuestionInputModal(false);
     const q = pendingQuestion || currentPrompt;
@@ -256,9 +271,7 @@ export default function DialogueDashboardScreen() {
   const handleCombinedImageSelection = async (useCamera: boolean) => {
     const imageUri = await pickImage(useCamera);
     if (!imageUri) return;
-    isCombinedImageRef.current = true;
-    setTempImageUri(imageUri);
-    setShowImageEditor(true);
+    setCombinedImageUri(imageUri);
   };
 
   const handleSubmitTextAndImage = async (text: string, imageUri: string) => {
@@ -284,11 +297,15 @@ export default function DialogueDashboardScreen() {
 
       const mergedAnswer = text + (imageContext ? `\n\n[Image context: ${imageContext}]` : "");
       setIsAnalyzingImage(false);
+      suppressProofAlertRef.current = true;
+      autoProofImageRef.current = imageUri;
       await mapAnswerToCategory(q, mergedAnswer);
     } catch (err) {
       console.error("Error processing combined submission:", err);
       setIsAnalyzingImage(false);
       setUiState("idle");
+      autoProofImageRef.current = null;
+      suppressProofAlertRef.current = false;
       Alert.alert("Error", "Failed to process your answer. Please try again.");
     }
   };
@@ -367,15 +384,17 @@ export default function DialogueDashboardScreen() {
         return;
       }
 
-      const question = currentPrompt;
+      // Don't auto-submit after recording: seed the transcript into the text
+      // input so the user can review/edit it before sending.
       const answer = transcriptionResult.transcript.trim();
 
       setRecordingUri(null);
       setRecordingDuration(0);
-      setCurrentPrompt("");
-
-      await mapAnswerToCategory(question, answer);
-      setIsAnswerFromVoice(false);
+      setUserAnswer(answer);
+      setPendingQuestion(currentPrompt);
+      modalIntentionallyOpenedRef.current = true;
+      setUiState("idle");
+      setShowQuestionInputModal(true);
     } catch (err) {
       console.error("Error processing voice answer:", err);
       let errorMessage = "Failed to process your voice response. Please try again.";
@@ -411,6 +430,10 @@ export default function DialogueDashboardScreen() {
     setIsRecording(false);
     setRecordingUri(null);
     setRecordingDuration(0);
+    if (currentPrompt) {
+      setPendingQuestion(currentPrompt);
+      setShowQuestionInputModal(true);
+    }
   };
 
   // --- Image handling ---
@@ -491,6 +514,7 @@ export default function DialogueDashboardScreen() {
       const answer = analysisResult.rawResponse;
       setSelectedImage(null);
 
+      clearAutoProof();
       await mapAnswerToCategory(currentPrompt, answer);
     } catch (err) {
       console.error("Error processing image:", err);
@@ -572,6 +596,7 @@ export default function DialogueDashboardScreen() {
       setIsUploadingProof(false);
       setShowProofImageEditor(false);
       setTempProofImageUri(null);
+      suppressProofAlertRef.current = false;
       clearPendingProofRequest();
     }
   };
@@ -661,6 +686,7 @@ export default function DialogueDashboardScreen() {
         handleNewTopic(region);
       },
       handleRegionAnswer: async (question: string, answer: string, region?: string) => {
+        clearAutoProof();
         await mapAnswerToCategory(question, answer, region);
         clearStampUnlock();
         clearDeferredState();
@@ -699,10 +725,7 @@ export default function DialogueDashboardScreen() {
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
     }
-    // `userAnswer` is no longer a dependency: the modal seeds its own input
-    // from `seedText`, so this effect should not re-run on every keystroke.
   }, [uiState, currentPrompt, showQuestionInputModal]);
-
   React.useEffect(() => {
     if (
       prefetchedQuestion &&
@@ -715,8 +738,17 @@ export default function DialogueDashboardScreen() {
     }
   }, [prefetchedQuestion, uiState, pendingProofRequest]);
 
+  // Auto-submit attached image as proof when submitted via text+image flow
   React.useEffect(() => {
-    if (!pendingProofRequest) {
+    if (pendingProofRequest && autoProofImageRef.current) {
+      const uri = autoProofImageRef.current;
+      autoProofImageRef.current = null;
+      void submitProofImage(uri);
+    }
+  }, [pendingProofRequest]);
+
+  React.useEffect(() => {
+    if (!pendingProofRequest || suppressProofAlertRef.current) {
       return;
     }
 
