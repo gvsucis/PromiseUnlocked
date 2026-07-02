@@ -50,11 +50,13 @@ export default function StampBadge({
       <Image
         source={TIER_WRAPPERS[tier]}
         style={[styles.wrapper, isDetail ? styles.wrapperDetail : styles.wrapperList]}
+        cachePolicy="memory-disk"
         onError={() => setError(true)}
       />
       <Image
         source={getStampBaseImage(stampName)}
         style={[styles.base, isDetail ? styles.baseDetail : styles.baseList]}
+        cachePolicy="memory-disk"
       />
     </>
   );

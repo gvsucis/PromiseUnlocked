@@ -99,3 +99,4 @@ function computeAvailableStamps(): Stamp[] {
 }
 
 export const AVAILABLE_STAMPS: Stamp[] = computeAvailableStamps();
+export const TOTAL_STAMPS = AVAILABLE_STAMPS.length;

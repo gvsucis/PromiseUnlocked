@@ -4,12 +4,35 @@ import { log } from "../utils/logger";
 
 const TAG = "API";
 
+/** Reject after `ms` if `promise` hasn't settled, so a stalled call can't hang forever. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!auth.currentUser) {
     throw new Error("Not authenticated");
   }
 
-  const token = await auth.currentUser.getIdToken();
+  // getIdToken can silently refresh over the network; without a bound it can hang
+  // indefinitely (a spinner that never stops). The AbortController below only covers fetch.
+  const token = await withTimeout(
+    auth.currentUser.getIdToken(),
+    CONFIG.REQUEST_TIMEOUT,
+    "getIdToken"
+  );
   const method = (options.method ?? "GET").toUpperCase();
   const url = `${CONFIG.API_BASE_URL}${path}`;
   const headers = {

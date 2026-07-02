@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { ActivityIndicator, AppState, AppStateStatus, Image, View } from "react-native";
+import { ActivityIndicator, AppState, AppStateStatus, View } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { getAllPreloadUrls } from "./src/config/stampConstants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NavigationContainer } from "@react-navigation/native";
@@ -44,7 +45,9 @@ function AppNavigator() {
     // Kick off background probes — neither blocks the UI.
     void checkBackendHealth(3000);
     void flushPendingFirestoreWrites();
-    getAllPreloadUrls().forEach((uri) => Image.prefetch(uri));
+    // Warm expo-image's cache (StampBadge renders via expo-image, so RN's
+    // Image.prefetch would populate a different cache and never be read).
+    void ExpoImage.prefetch(getAllPreloadUrls(), { cachePolicy: "memory-disk" });
 
     const subscription = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       if (nextState === "active") {
