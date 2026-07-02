@@ -109,7 +109,7 @@ function PlaybackInterface({
           disabled={isProcessingAudio}
         >
           <Text style={[styles.voiceActionButtonText, styles.voiceActionButtonTextPrimary]}>
-            {isProcessingAudio ? "Processing..." : "Submit Recording"}
+            {isProcessingAudio ? "Processing..." : "Use Recording"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -142,6 +142,13 @@ export function VoiceRecordingModal({
         <View style={styles.modalOverlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalContent}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={onCancel}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={22} color="#666" />
+              </TouchableOpacity>
               <Text style={styles.questionTitle}>Voice Response</Text>
               <Text style={styles.questionText}>{currentPrompt || "(No question loaded)"}</Text>
 
@@ -188,6 +195,18 @@ const styles = StyleSheet.create({
     padding: 25,
     width: "90%",
     maxWidth: 450,
+  },
+  closeButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 1,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#f0f0f0",
+    justifyContent: "center",
+    alignItems: "center",
   },
   questionTitle: {
     fontSize: 20,
