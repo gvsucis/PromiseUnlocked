@@ -54,4 +54,6 @@ export interface MapAnswerResponse {
   initialTier?: number;
   proofTier?: number;
   [key: string]: unknown;
+  distressSignal?: boolean;
+  sensitiveExperience?: boolean;
 }

@@ -17,6 +17,7 @@ interface StampUnlockModalProps {
   stampName: string;
   tier?: number;
   region: string;
+  sensitive?: boolean;
   onContinue: () => void;
   onViewStamp: () => void;
 }
@@ -26,6 +27,7 @@ export function StampUnlockModal({
   stampName,
   tier = DEFAULT_TIER,
   region,
+  sensitive = false,
   onContinue,
   onViewStamp,
 }: Readonly<StampUnlockModalProps>) {
@@ -43,7 +45,9 @@ export function StampUnlockModal({
                 color={colors.accent.yellow}
                 style={styles.celebrationIcon}
               />
-              <Text style={styles.title}>Congratulations!</Text>
+              <Text style={styles.title}>
+                {sensitive ? "We unlocked a new stamp." : "Congratulations!"}
+              </Text>
 
               <View style={styles.stampContainer}>
                 <StampBadge stampName={stampName} tier={tier} size="detail" />
@@ -53,7 +57,11 @@ export function StampUnlockModal({
                 <Text style={styles.tierText}>{tierCfg.label}</Text>
               </View>
 
-              <Text style={styles.subtitle}>You unlocked a new stamp!</Text>
+              <Text style={styles.subtitle}>
+                {sensitive
+                  ? "We've added a new experience to your profile."
+                  : "You unlocked a new stamp!"}
+              </Text>
 
               <Text style={styles.regionLabel}>{region}</Text>
 

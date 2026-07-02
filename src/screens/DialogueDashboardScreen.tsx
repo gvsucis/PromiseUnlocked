@@ -26,6 +26,8 @@ import ImageEditor from "../components/ImageEditor";
 import { LoadingModal } from "../components/dialogue/LoadingModal";
 import { CompletionModal } from "../components/dialogue/CompletionModal";
 import { WeakFitModal } from "../components/dialogue/WeakFitModal";
+import { CrisisSupportModal } from "../components/dialogue/CrisisSupportModal";
+import { SensitiveExperienceModal } from "../components/dialogue/SensitiveExperienceModal";
 import { QuestionInputModal } from "../components/dialogue/QuestionInputModal";
 import { StampUnlockModal } from "../components/dialogue/StampUnlockModal";
 import { AnswerModal } from "../components/dialogue/AnswerModal";
@@ -79,6 +81,10 @@ export default function DialogueDashboardScreen() {
     contentWarning,
     showConfetti,
     newStampUnlock,
+    showCrisisSupport,
+    showSensitiveIntro,
+    dismissCrisisSupport,
+    dismissSensitiveIntro,
     loading,
     prefetchedQuestion,
     pendingProofRequest,
@@ -107,6 +113,7 @@ export default function DialogueDashboardScreen() {
     setLoadingMessage,
     setError,
     loadData,
+    triggerContentWarning,
   } = useDialogueState();
 
   React.useEffect(() => {
@@ -227,7 +234,7 @@ export default function DialogueDashboardScreen() {
     setPendingQuestion(null);
     setCurrentPrompt("");
     suppressModalReopenRef.current = false;
-    void mapAnswerToCategory(q, text);
+    void mapAnswerToCategory(q, text, undefined, true);
   };
 
   const handleInputTypeSelect = async (method: "voice" | "image" | "refresh") => {
@@ -285,6 +292,13 @@ export default function DialogueDashboardScreen() {
       const sizeCheck = await GeminiService.validateImageSize(imageUri);
       const skipCompression = sizeCheck.valid;
       const analysisResult = await GeminiService.analyzeActionImage(imageUri, q, skipCompression);
+
+      if (analysisResult.inappropriate) {
+        setIsAnalyzingImage(false);
+        triggerContentWarning();
+        return;
+      }
+
       const imageContext =
         analysisResult.success && analysisResult.rawResponse ? analysisResult.rawResponse : "";
 
@@ -500,8 +514,18 @@ export default function DialogueDashboardScreen() {
         skipCompression
       );
 
-      if (!analysisResult.success || !analysisResult.rawResponse) {
+      if (!analysisResult.success) {
         throw new Error(analysisResult.error || "Failed to analyze image");
+      }
+
+      if (analysisResult.inappropriate) {
+        setSelectedImage(null);
+        triggerContentWarning();
+        return;
+      }
+
+      if (!analysisResult.rawResponse) {
+        throw new Error("Failed to analyze image");
       }
 
       const answer = analysisResult.rawResponse;
@@ -1032,10 +1056,11 @@ export default function DialogueDashboardScreen() {
       />
 
       <StampUnlockModal
-        visible={isFocused && !!newStampUnlock}
+        visible={isFocused && !!newStampUnlock && !showSensitiveIntro}
         stampName={newStampUnlock?.stamp ?? ""}
         tier={newStampUnlock?.tier ?? 1}
         region={newStampUnlock?.category ?? ""}
+        sensitive={newStampUnlock?.sensitive ?? false}
         onContinue={handleContinueAfterStampUnlock}
         onViewStamp={() => {
           if (newStampUnlock) {
@@ -1048,6 +1073,16 @@ export default function DialogueDashboardScreen() {
             });
           }
         }}
+      />
+
+      <CrisisSupportModal
+        visible={isFocused && showCrisisSupport}
+        onContinue={dismissCrisisSupport}
+      />
+
+      <SensitiveExperienceModal
+        visible={isFocused && showSensitiveIntro}
+        onContinue={dismissSensitiveIntro}
       />
 
       <QuestionInputModal

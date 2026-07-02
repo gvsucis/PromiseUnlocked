@@ -417,7 +417,12 @@ export class GeminiService {
     imageUri: string,
     questionContext?: string,
     skipCompression?: boolean
-  ): Promise<{ success: boolean; rawResponse?: string; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    rawResponse?: string;
+    error?: string;
+    inappropriate?: boolean;
+  }> {
     try {
       const optimizedImageUri = skipCompression
         ? imageUri
@@ -434,13 +439,14 @@ export class GeminiService {
 Question to answer: "${questionContext ?? "What are you typically doing when you lose track of time?"}"
 
 Instructions:
-1. Infer the likely activity shown in the image.
-2. Write a concise first-person answer the user can submit (2-3 sentences).
-3. Keep it specific, natural, and grounded in what is visible.
-4. Mention concrete skills/strengths implied by the activity.
-5. Do not include disclaimers, markdown, bullet points, or references to "the image".
+1. First, check the image for inappropriate content: nudity, sexual content, graphic violence, gore, drugs/drug paraphernalia, weapons used to threaten or harm, hate symbols, or anything unsafe or inappropriate for a student skill-building app. If ANY of these are present, set "inappropriate" to true and set "answer" to an empty string — do not describe or reference the content further.
+2. If the image is appropriate, infer the likely activity shown in the image.
+3. Write a concise first-person answer the user can submit (2-3 sentences).
+4. Keep it specific, natural, and grounded in what is visible.
+5. Mention concrete skills/strengths implied by the activity.
+6. Do not include disclaimers, markdown, bullet points, or references to "the image".
 
-Return only the final answer text.`,
+Return JSON only, matching this shape: { "inappropriate": boolean, "answer": string }`,
               },
               { inline_data: { mime_type: "image/jpeg", data: base64Image } },
             ],
@@ -450,6 +456,15 @@ Return only the final answer text.`,
           temperature: 0.35,
           maxOutputTokens: 400,
           thinkingConfig: this.DISABLE_THINKING,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              inappropriate: { type: "boolean" },
+              answer: { type: "string" },
+            },
+            required: ["inappropriate", "answer"],
+          },
         },
       };
 
@@ -469,22 +484,31 @@ Return only the final answer text.`,
       }
 
       const text = this.extractGeneratedText(result.data);
-
       if (!text) {
         throw new Error("No analysis generated from Gemini");
       }
 
+      const jsonString = extractJson(text);
+      const parsed = jsonString
+        ? (JSON.parse(jsonString) as { inappropriate?: boolean; answer?: string })
+        : null;
+
+      if (!parsed) {
+        throw new Error("Failed to parse image analysis response");
+      }
+
+      if (parsed.inappropriate) {
+        return { success: true, inappropriate: true, rawResponse: "" };
+      }
+
       return {
         success: true,
-        rawResponse: text.trim(),
+        inappropriate: false,
+        rawResponse: (parsed.answer ?? "").trim(),
       };
     } catch (error) {
       const errorMessage = this.getActionImageErrorMessage(error);
-
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -604,6 +628,8 @@ Rules:
     - Tier 2: Detailed, multi-sentence, specific personal experience or reflection.
     If suggestArtifactUpload is true, also set proofTier to 3 or 4 based on how much stronger the stamp would become with verified proof (3 = meaningful proof, 4 = exceptional/certifiable proof).
 14. The goal is accurate mapping, not maximizing the number of badges earned. Avoid assigning a badge unless there is clear supporting evidence in the user's answer.
+15. Independently of category mapping, set distressSignal to true if the answer expresses or strongly implies self-harm, suicidal ideation, or an acute personal crisis warranting support resources. Evaluate this regardless of whether the answer maps to a category, is weak fit, or is flagged inappropriate. Default to false — do not flag general sadness, stress, or difficult-but-non-crisis topics.
+16. Independently of category mapping, set sensitiveExperience to true if the answer describes the death or serious illness of a loved one, or another significant grief/loss experience. Default to false.
 ${contextBlock}${regionHint}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
@@ -628,6 +654,8 @@ ${contextBlock}${regionHint}`;
                 specificStamp: { type: "string" },
                 initialTier: { type: "number" },
                 proofTier: { type: "number" },
+                distressSignal: { type: "boolean" },
+                sensitiveExperience: { type: "boolean" },
               },
               required: ["category", "justification", "suggestArtifactUpload", "initialTier"],
             },
