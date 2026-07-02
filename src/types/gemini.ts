@@ -36,6 +36,7 @@ export interface QuestionSynthesisContext {
   embeddingHistorySummary?: string;
   newTopic?: boolean;
   avoidQuestion?: string;
+  exploredStamps?: string[];
 }
 
 export interface MappedCategory {

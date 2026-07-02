@@ -49,7 +49,11 @@ export const dialogueBridgeRef = {
     handleForceNewQuestion: () => void;
     handleReset: () => void;
     handleNewTopic: (region?: string) => void;
-    handleRegionAnswer: (question: string, answer: string, region?: string) => Promise<void> | void;
+    handleRegionAnswer: (
+      question: string,
+      answer: string,
+      region?: string
+    ) => Promise<import("../hooks/useDialogueState").DialogueMapResult>;
     interactions: ConversationInteraction[];
     mappedCategories: MappedCategory[];
     pdfContextText: string;
@@ -676,10 +680,11 @@ export default function DialogueDashboardScreen() {
       },
       handleRegionAnswer: async (question: string, answer: string, region?: string) => {
         clearAutoProof();
-        await mapAnswerToCategory(question, answer, region);
+        const result = await mapAnswerToCategory(question, answer, region);
         clearStampUnlock();
         clearDeferredState();
         clearPendingProofRequest();
+        return result;
       },
       interactions,
       mappedCategories,

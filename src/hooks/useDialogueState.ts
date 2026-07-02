@@ -127,7 +127,17 @@ export interface DialogueState {
 }
 
 export type DialogueMapResult =
-  | { mapped: true; category: string; interactionId: string }
+  | {
+      mapped: true;
+      category: string;
+      interactionId: string;
+      stampUnlock?: {
+        stamp: string;
+        category: string;
+        categoryId: string;
+        tier: number;
+      };
+    }
   | { mapped: false; category: string | null; interactionId: string };
 
 export function useDialogueState(): DialogueState {
@@ -561,6 +571,17 @@ export function useDialogueState(): DialogueState {
               proofTier: result.proofTier ?? 3,
             });
           }
+          return {
+            mapped: true as const,
+            category: categoryNameToCheck,
+            interactionId,
+            stampUnlock: {
+              stamp: specificStamp,
+              category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
+              tier: initialTier ?? 1,
+            },
+          };
         } else {
           if (newMappedCategories.length === TOTAL_CATEGORIES) {
             await endSession("completed");

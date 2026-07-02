@@ -882,8 +882,10 @@ ${contextBlock}${regionHint}`;
   ): string {
     // In "New Topic" mode we deliberately drop the latest turn so the question
     // pivots to a new dimension instead of continuing the current thread.
+    const isRegionExplore = !!targetRegion && !context?.newTopic;
+
     const latestTurnBlock =
-      !context?.newTopic && (context?.latestQuestion || context?.latestAnswer)
+      !context?.newTopic && !isRegionExplore && (context?.latestQuestion || context?.latestAnswer)
         ? `\nLATEST_TURN:\nQ: ${context.latestQuestion ?? ""}\nA: ${context.latestAnswer ?? ""}\n`
         : "\n";
     const embeddingHistoryBlock = context?.embeddingHistorySummary
@@ -899,6 +901,10 @@ ${contextBlock}${regionHint}`;
       ? `\nAVOID: The user just skipped this question — do NOT repeat it or merely rephrase it. Ask about a clearly different angle:\n"${context.avoidQuestion}"\n`
       : "";
 
+    const exploredStampsBlock = context?.exploredStamps?.length
+      ? `\nSTAMPS ALREADY EXPLORED IN THIS REGION (choose a different stamp from the taxonomy — do not target these again):\n${context.exploredStamps.join(", ")}\n`
+      : "";
+
     const strictClause = strict
       ? " The question must be at least 8 words and 24 characters, and ask for concrete details (what, where, how, or why)."
       : "";
@@ -906,19 +912,21 @@ ${contextBlock}${regionHint}`;
 
     const leadInstruction = context?.newTopic
       ? `Based on the taxonomy (including the NO_OP category as a mapping option) and the categories already mapped to me, synthesize a clear, specific new question that DELIBERATELY CHANGES THE TOPIC to a fresh dimension. Do NOT build on, reference, or continue the most recent answer or the current thread — start a genuinely new line of conversation. Choose a dimension likely to surface one of the categories NOT yet mapped to me. The question must end with a "?".${strictClause} Use any embedding/background context about me to pick a new dimension that fits my experience.${userCenterClause}`
-      : `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strictClause} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.${userCenterClause}`;
+      : isRegionExplore
+        ? `You are exploring the "${targetRegion}" region to uncover NEW evidence for stamps within it, not to continue a prior conversation thread. Review the "Available Stamps" listed for this region in the taxonomy and select ONE stamp that is not already mapped and is not in STAMPS ALREADY EXPLORED below. Prefer moving to a different stamp rather than continuing whatever topic came up most recently, even if it seemed related — only continue a prior topic if the user's own last answer explicitly asked to keep going with it. If my known interests or personality profile suggest a natural bridge into the new stamp (e.g. "you mentioned coding — have you ever done a hackathon?"), use that bridge, but never name the stamp itself or say you're trying to unlock it. The question must end with a "?".${strictClause}${userCenterClause}`
+        : `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question that follows naturally from the latest answer and might help tease out which additional categories might map to me. The question must end with a "?".${strictClause} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.${userCenterClause}`;
 
     // "New Topic" mode deliberately pivots away from the existing thread, so we
     // withhold the full Q/A HISTORY (which would anchor the model back to it)
     // and steer purely from the mapped categories + embedding background.
-    const historyBlock = context?.newTopic ? "" : `HISTORY:\n${history}\n\n`;
+    const historyBlock = context?.newTopic || isRegionExplore ? "" : `HISTORY:\n${history}\n\n`;
 
     return `${leadInstruction}
 ${historyBlock}${latestTurnBlock}TAXONOMY:
 ${taxonomyString}
 
 CATEGORIES MAPPED: ${mappedCategoriesList}
-${regionBlock}${avoidQuestionBlock}
+${regionBlock}${avoidQuestionBlock}${exploredStampsBlock}
 ${embeddingHistoryBlock}
 RESPOND ONLY with the text of the new question. Do not include any other text, explanation, or formatting.`;
   }
