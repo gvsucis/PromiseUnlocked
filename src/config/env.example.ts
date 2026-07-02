@@ -7,12 +7,6 @@ export const CONFIG = {
   GEMINI_API_URL: "https://generativelanguage.googleapis.com/v1beta/models",
   TEXT_MODEL: "gemini-2.5-flash-lite",
 
-  // Image Processing Configuration
-  MAX_IMAGE_SIZE: 4 * 1024 * 1024,
-  MAX_IMAGE_DIMENSION: 1024,
-  IMAGE_QUALITY: 0.8,
-  IMAGE_ASPECT_RATIO: [4, 3] as [number, number],
-
   // Timeout for backend API calls (ms)
   REQUEST_TIMEOUT: 60000,
 
