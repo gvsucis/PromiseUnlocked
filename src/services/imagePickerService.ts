@@ -1,7 +1,10 @@
 import * as ImagePicker from "expo-image-picker";
 import { ImageUploadResult } from "../types";
-import { CONFIG } from "../config/env";
 import { compressImage } from "../utils/compressImage";
+
+const MAX_IMAGE_DIMENSION = 1024;
+const IMAGE_QUALITY = 0.8;
+const IMAGE_ASPECT_RATIO: [number, number] = [4, 3];
 
 export class ImagePickerService {
   public static async requestPermissions(): Promise<boolean> {
@@ -12,22 +15,23 @@ export class ImagePickerService {
   }
 
   public static async pickImageFromGalleryWithOptions(
-    allowEditing: boolean = false
+    allowEditing: boolean = false,
+    aspect: [number, number] = IMAGE_ASPECT_RATIO
   ): Promise<ImageUploadResult> {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: allowEditing,
-        aspect: allowEditing ? CONFIG.IMAGE_ASPECT_RATIO : undefined,
-        quality: CONFIG.IMAGE_QUALITY,
+        aspect: allowEditing ? aspect : undefined,
+        quality: IMAGE_QUALITY,
         allowsMultipleSelection: false,
       });
 
       if (!result?.canceled && result?.assets?.[0]) {
         // Convert to JPEG to ensure compatibility with Gemini API
         const jpegUri = await compressImage(result.assets[0].uri, {
-          maxDimension: CONFIG.MAX_IMAGE_DIMENSION,
-          quality: CONFIG.IMAGE_QUALITY,
+          maxDimension: MAX_IMAGE_DIMENSION,
+          quality: IMAGE_QUALITY,
         });
 
         return {
@@ -49,19 +53,22 @@ export class ImagePickerService {
     }
   }
 
-  public static async takePhotoWithCamera(allowEdit: boolean = false): Promise<ImageUploadResult> {
+  public static async takePhotoWithCamera(
+    allowEdit: boolean = false,
+    aspect: [number, number] = IMAGE_ASPECT_RATIO
+  ): Promise<ImageUploadResult> {
     try {
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: allowEdit,
-        aspect: allowEdit ? CONFIG.IMAGE_ASPECT_RATIO : undefined,
-        quality: CONFIG.IMAGE_QUALITY,
+        aspect: allowEdit ? aspect : undefined,
+        quality: IMAGE_QUALITY,
       });
 
       if (!result?.canceled && result?.assets?.[0]) {
         // Convert to JPEG to ensure compatibility with Gemini API
         const jpegUri = await compressImage(result.assets[0].uri, {
-          maxDimension: CONFIG.MAX_IMAGE_DIMENSION,
-          quality: CONFIG.IMAGE_QUALITY,
+          maxDimension: MAX_IMAGE_DIMENSION,
+          quality: IMAGE_QUALITY,
         });
 
         return {

@@ -189,9 +189,10 @@ export default function ProfileScreen() {
       Alert.alert("Permissions Required", "Camera and photo library permissions are required.");
       return;
     }
+
     const result = useCamera
-      ? await ImagePickerService.takePhotoWithCamera(true)
-      : await ImagePickerService.pickImageFromGalleryWithOptions(true);
+      ? await ImagePickerService.takePhotoWithCamera(true, [1, 1])
+      : await ImagePickerService.pickImageFromGalleryWithOptions(true, [1, 1]);
 
     if (result.success && result.imageUri) {
       setLocalPhotoUri(result.imageUri);
@@ -267,6 +268,7 @@ export default function ProfileScreen() {
                   <Image
                     source={{ uri: localPhotoUri ?? profile?.photoURL ?? "" }}
                     style={styles.avatarImage}
+                    resizeMode="cover"
                   />
                 ) : (
                   <MaterialIcons name="person" size={40} color={colors.text.inverse} />
