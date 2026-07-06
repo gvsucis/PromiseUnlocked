@@ -665,7 +665,7 @@ export function useDialogueState(): DialogueState {
             sensitiveExperience: isSensitive,
           };
         } else {
-          if (newMappedCategories.length === TOTAL_CATEGORIES) {
+          if (freshCategories.length === TOTAL_CATEGORIES) {
             await endSession("completed");
             setUserAnswer("");
             setUiState("complete");
