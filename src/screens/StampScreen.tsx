@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
@@ -25,8 +26,9 @@ import {
 import { dialogueBridgeRef } from "./DialogueDashboardScreen";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { StampUnlockModal } from "../components/dialogue/StampUnlockModal";
+
 import { LoadingModal } from "../components/dialogue/LoadingModal";
-import { Dimensions } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getMappedCategories,

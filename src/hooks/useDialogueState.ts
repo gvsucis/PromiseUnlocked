@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   waitForAuthReady,
   hydratePassportMappings,
@@ -29,6 +29,7 @@ import {
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { STAMPS_LIST } from "../config/stampConstants";
+import { TOTAL_STAMPS } from "../config/skillsTaxonomy";
 import { getPvaContext } from "../services/profileEmbeddingService";
 import { endSession, getUserId, getActiveSessionId } from "../services/sessionManager";
 import { savePassportMapping } from "../services/firebase/firestoreService";
@@ -154,6 +155,14 @@ export type DialogueMapResult =
       distressSignal?: boolean;
     };
 
+/** Total unique stamps unlocked across all mapped categories. */
+function countUnlockedStamps(categories: MappedCategory[]): number {
+  return categories.reduce(
+    (sum, mc) => sum + (Array.isArray(mc.unlockedStamps) ? mc.unlockedStamps.length : 0),
+    0
+  );
+}
+
 export function useDialogueState(): DialogueState {
   const [mappedCategories, setMappedCategories] = useState<MappedCategory[]>([]);
   const [interactions, setInteractions] = useState<ConversationInteraction[]>([]);
@@ -182,8 +191,17 @@ export function useDialogueState(): DialogueState {
   const [deferredNextQuestion, setDeferredNextQuestion] = useState<string | null>(null);
   const [deferredCheckCompletion, setDeferredCheckCompletion] = useState(false);
 
+  const totalUniqueStamps = useMemo(
+    () => countUnlockedStamps(mappedCategories),
+    [mappedCategories]
+  );
+
   // Proof-request workflow.
   const proof = useProofWorkflow();
+
+  // Ensures the session is marked completed at most once, whether completion is
+  // reached via the effect below or via continueAfterStampUnlock.
+  const completionHandledRef = useRef(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const deferredAdvanceOptsRef = useRef<{
@@ -262,6 +280,20 @@ export function useDialogueState(): DialogueState {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (
+      totalUniqueStamps >= TOTAL_STAMPS &&
+      !deferredCheckCompletion &&
+      !completionHandledRef.current
+    ) {
+      completionHandledRef.current = true;
+      void endSession("completed");
+      setUiState("complete");
+      setPrefetchedQuestion(null);
+      setIsPrefetching(false);
+    }
+  }, [totalUniqueStamps, deferredCheckCompletion]);
+
   const getFriendlyDialogueErrorMessage = (error: unknown): string => {
     const code =
       typeof error === "object" && error !== null && "code" in error
@@ -286,15 +318,6 @@ export function useDialogueState(): DialogueState {
 
     return "Failed to process your answer. Please try again.";
   };
-
-  useEffect(() => {
-    if (mappedCategories.length === TOTAL_CATEGORIES && !deferredCheckCompletion) {
-      void endSession("completed");
-      setUiState("complete");
-      setPrefetchedQuestion(null);
-      setIsPrefetching(false);
-    }
-  }, [mappedCategories.length, deferredCheckCompletion]);
 
   const loadData = async () => {
     try {
@@ -560,9 +583,10 @@ export function useDialogueState(): DialogueState {
           timesMapped: 1,
         };
         await saveMappedCategory(newMappedCategory);
-        const newMappedCategories = [...mappedCategories, newMappedCategory];
-        setMappedCategories(newMappedCategories);
         await maybeUnlockStamp(categoryIdToCheck, specificStamp, initialTier ?? 1);
+        // Re-read after the unlock so state reflects the persisted unlockedStamps.
+        const freshCategories = await getMappedCategories();
+        setMappedCategories(freshCategories);
 
         const interaction: ConversationInteraction = {
           question,
@@ -613,7 +637,7 @@ export function useDialogueState(): DialogueState {
           });
 
           setDeferredNextQuestion(nextQuestion ?? null);
-          setDeferredCheckCompletion(newMappedCategories.length === TOTAL_CATEGORIES);
+          setDeferredCheckCompletion(countUnlockedStamps(freshCategories) >= TOTAL_STAMPS);
           setUiState("idle");
           if (result.suggestArtifactUpload) {
             proof.deferAfterUnlock({
@@ -641,17 +665,11 @@ export function useDialogueState(): DialogueState {
             sensitiveExperience: isSensitive,
           };
         } else {
-          if (newMappedCategories.length === TOTAL_CATEGORIES) {
+          if (freshCategories.length === TOTAL_CATEGORIES) {
             await endSession("completed");
             setUserAnswer("");
             setUiState("complete");
-            return {
-              mapped: true as const,
-              category: categoryNameToCheck,
-              interactionId,
-              distressSignal,
-              sensitiveExperience: isSensitive,
-            };
+            return { mapped: true as const, category: categoryNameToCheck, interactionId };
           }
           if (result.suggestArtifactUpload) {
             proof.requestNow({
@@ -679,16 +697,13 @@ export function useDialogueState(): DialogueState {
 
       if (await isCategoryMapped(categoryNameToCheck)) {
         const mappedCategory = await getMappedCategory(categoryNameToCheck);
-        const updatedMappedCategory = await updateMappedCategoryCounter({
+        await updateMappedCategoryCounter({
           ...mappedCategory,
           justification: justification || mappedCategory.justification,
         });
         await maybeUnlockStamp(categoryIdToCheck, specificStamp, initialTier ?? 1);
-        setMappedCategories(
-          mappedCategories.map((c) =>
-            c.categoryId === updatedMappedCategory.categoryId ? updatedMappedCategory : c
-          )
-        );
+        const freshCategories = await getMappedCategories();
+        setMappedCategories(freshCategories);
         const interaction: ConversationInteraction = {
           question,
           answer,
@@ -1023,6 +1038,7 @@ export function useDialogueState(): DialogueState {
 
     if (isComplete) {
       proof.clearDeferred();
+      completionHandledRef.current = true;
       void endSession("completed");
       setUserAnswer("");
       setUiState("complete");

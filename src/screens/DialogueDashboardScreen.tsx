@@ -852,33 +852,31 @@ export default function DialogueDashboardScreen() {
               <View style={[styles.progressFill, { width: `${completionPercentage}%` }]} />
             </View>
 
-            {mappedCategories.length < TOTAL_CATEGORIES && (
-              <TouchableOpacity
-                style={styles.startButton}
-                onPress={() => {
-                  if (currentPrompt && !showQuestionInputModal) {
-                    modalIntentionallyOpenedRef.current = true;
-                    setPendingQuestion(currentPrompt);
-                    setShowQuestionInputModal(true);
-                  } else {
-                    modalIntentionallyOpenedRef.current = true;
-                    handleStartButtonPress();
-                  }
-                }}
-                disabled={uiState !== "idle"}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons
-                  name="play-arrow"
-                  size={28}
-                  color="white"
-                  style={styles.startButtonIcon}
-                />
-                <Text style={styles.startButtonText}>
-                  {mappedCategories.length === 0 ? "Start" : "Continue"}
-                </Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={() => {
+                if (currentPrompt && !showQuestionInputModal) {
+                  modalIntentionallyOpenedRef.current = true;
+                  setPendingQuestion(currentPrompt);
+                  setShowQuestionInputModal(true);
+                } else {
+                  modalIntentionallyOpenedRef.current = true;
+                  handleStartButtonPress();
+                }
+              }}
+              disabled={uiState !== "idle"}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons
+                name="play-arrow"
+                size={28}
+                color="white"
+                style={styles.startButtonIcon}
+              />
+              <Text style={styles.startButtonText}>
+                {mappedCategories.length === 0 ? "Start" : "Continue"}
+              </Text>
+            </TouchableOpacity>
           </Card.Content>
         </Card>
         {/* Card 1: Upgrade a stamp */}
