@@ -145,8 +145,15 @@ export type DialogueMapResult =
         categoryId: string;
         tier: number;
       };
+      distressSignal?: boolean;
+      sensitiveExperience?: boolean;
     }
-  | { mapped: false; category: string | null; interactionId: string };
+  | {
+      mapped: false;
+      category: string | null;
+      interactionId: string;
+      distressSignal?: boolean;
+    };
 
 /** Total unique stamps unlocked across all mapped categories. */
 function countUnlockedStamps(categories: MappedCategory[]): number {
@@ -510,7 +517,8 @@ export function useDialogueState(): DialogueState {
         initialTier,
       } = result;
 
-      if (checkSensitive && result.distressSignal) {
+      const distressSignal = checkSensitive && !!result.distressSignal;
+      if (distressSignal) {
         setShowCrisisSupport(true);
       }
 
@@ -519,11 +527,31 @@ export function useDialogueState(): DialogueState {
       const categoryIdToCheck = validCategory ? validCategory.id : rawCategory;
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
+        // Crisis takes precedence over weak-fit/content-warning for this turn:
+        // the crisis modal was already triggered above via setShowCrisisSupport,
+        // so we must not also push uiState into "weak-fit" or the WeakFitModal
+        // will render on top of it.
+        if (distressSignal) {
+          const interaction: ConversationInteraction = {
+            question,
+            answer,
+            mappedCategory: "NO-OP (WEAK FIT)",
+            timestamp: new Date().toISOString(),
+            mappingOutcome: "weak_fit",
+            matchedToCategory: null,
+            matchedToSequenceIndex: null,
+          };
+          const interactionId = await saveConversationInteraction(interaction, justification ?? "");
+          setInteractions((prev) => [...prev, interaction]);
+          setUiState("idle");
+          return { mapped: false as const, category: null, interactionId, distressSignal };
+        }
+
         if (justification?.startsWith("INAPPROPRIATE_CONTENT:")) {
           setWeakFitJustification(justification.replace("INAPPROPRIATE_CONTENT:", "").trim());
           setContentWarning(true);
           setUiState("weak-fit");
-          return { mapped: false as const, category: null, interactionId: "" };
+          return { mapped: false as const, category: null, interactionId: "", distressSignal };
         }
         const interaction: ConversationInteraction = {
           question,
@@ -538,7 +566,7 @@ export function useDialogueState(): DialogueState {
         setInteractions((prev) => [...prev, interaction]);
         setWeakFitJustification(justification ?? "");
         setUiState("weak-fit");
-        return { mapped: false as const, category: null, interactionId };
+        return { mapped: false as const, category: null, interactionId, distressSignal };
       }
 
       if (validCategory && !(await isCategoryMapped(categoryIdToCheck))) {
@@ -585,8 +613,14 @@ export function useDialogueState(): DialogueState {
           );
         }
         setInteractions((prev) => [...prev, interaction]);
-        const isSensitive = checkSensitive && !!result.sensitiveExperience;
-        if (isSensitive) {
+        // Crisis always wins: if distressSignal fired, skip both the confetti
+        // celebration and the sensitive-experience modal for this turn — the
+        // crisis modal was already triggered above and shouldn't compete with
+        // either.
+        const isSensitive = !distressSignal && checkSensitive && !!result.sensitiveExperience;
+        if (distressSignal) {
+          // no-op: crisis modal takes the whole turn
+        } else if (isSensitive) {
           setShowSensitiveIntro(true);
         } else {
           setShowConfetti(true);
@@ -627,8 +661,16 @@ export function useDialogueState(): DialogueState {
               categoryId: categoryIdToCheck,
               tier: initialTier ?? 1,
             },
+            distressSignal,
+            sensitiveExperience: isSensitive,
           };
         } else {
+          if (newMappedCategories.length === TOTAL_CATEGORIES) {
+            await endSession("completed");
+            setUserAnswer("");
+            setUiState("complete");
+            return { mapped: true as const, category: categoryNameToCheck, interactionId };
+          }
           if (result.suggestArtifactUpload) {
             proof.requestNow({
               question,
@@ -644,7 +686,13 @@ export function useDialogueState(): DialogueState {
           await advanceToNextQuestion(nextQuestion, advanceOpts);
         }
 
-        return { mapped: true as const, category: categoryNameToCheck, interactionId };
+        return {
+          mapped: true as const,
+          category: categoryNameToCheck,
+          interactionId,
+          distressSignal,
+          sensitiveExperience: isSensitive,
+        };
       }
 
       if (await isCategoryMapped(categoryNameToCheck)) {
@@ -677,7 +725,12 @@ export function useDialogueState(): DialogueState {
         );
         setInteractions((prev) => [...prev, interaction]);
         await advanceToNextQuestion(nextQuestion, advanceOpts);
-        return { mapped: false as const, category: categoryNameToCheck, interactionId };
+        return {
+          mapped: false as const,
+          category: categoryNameToCheck,
+          interactionId,
+          distressSignal,
+        };
       }
 
       const interaction: ConversationInteraction = {
@@ -692,7 +745,7 @@ export function useDialogueState(): DialogueState {
       const interactionId = await saveConversationInteraction(interaction, justification ?? "");
       setInteractions((prev) => [...prev, interaction]);
       await advanceToNextQuestion(nextQuestion, advanceOpts);
-      return { mapped: false as const, category: null, interactionId };
+      return { mapped: false as const, category: null, interactionId, distressSignal };
     } catch (err) {
       console.error("Error mapping answer:", err);
       setError(getFriendlyDialogueErrorMessage(err));

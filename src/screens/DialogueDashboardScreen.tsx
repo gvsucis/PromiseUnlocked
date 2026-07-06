@@ -704,7 +704,7 @@ export default function DialogueDashboardScreen() {
       },
       handleRegionAnswer: async (question: string, answer: string, region?: string) => {
         clearAutoProof();
-        const result = await mapAnswerToCategory(question, answer, region);
+        const result = await mapAnswerToCategory(question, answer, region, true);
         clearStampUnlock();
         clearDeferredState();
         clearPendingProofRequest();
@@ -999,15 +999,12 @@ export default function DialogueDashboardScreen() {
         {error}
       </Snackbar>
 
-      <LoadingModal visible={isFocused && uiState === "loading"} message={loadingMessage} />
+      <LoadingModal visible={uiState === "loading"} message={loadingMessage} />
 
-      <CompletionModal
-        visible={isFocused && uiState === "complete"}
-        onDismiss={() => setUiState("idle")}
-      />
+      <CompletionModal visible={uiState === "complete"} onDismiss={() => setUiState("idle")} />
 
       <WeakFitModal
-        visible={isFocused && uiState === "weak-fit"}
+        visible={uiState === "weak-fit"}
         justification={weakFitJustification}
         isContentWarning={contentWarning}
         onTryAgain={handleWeakFitTryAgain}
@@ -1015,7 +1012,7 @@ export default function DialogueDashboardScreen() {
       />
 
       <AnswerModal
-        visible={isFocused && uiState === "answering"}
+        visible={uiState === "answering"}
         currentPrompt={currentPrompt}
         userAnswer={userAnswer}
         selectedImage={selectedImage}
@@ -1037,7 +1034,7 @@ export default function DialogueDashboardScreen() {
       />
 
       <VoiceRecordingModal
-        visible={isFocused && uiState === "voice-recording"}
+        visible={uiState === "voice-recording"}
         currentPrompt={currentPrompt}
         isRecording={isRecording}
         recordingDuration={recordingDuration}
@@ -1054,7 +1051,7 @@ export default function DialogueDashboardScreen() {
       />
 
       <StampUnlockModal
-        visible={isFocused && !!newStampUnlock && !showSensitiveIntro}
+        visible={!!newStampUnlock && !showSensitiveIntro}
         stampName={newStampUnlock?.stamp ?? ""}
         tier={newStampUnlock?.tier ?? 1}
         region={newStampUnlock?.category ?? ""}
@@ -1073,18 +1070,12 @@ export default function DialogueDashboardScreen() {
         }}
       />
 
-      <CrisisSupportModal
-        visible={isFocused && showCrisisSupport}
-        onContinue={dismissCrisisSupport}
-      />
+      <CrisisSupportModal visible={showCrisisSupport} onContinue={dismissCrisisSupport} />
 
-      <SensitiveExperienceModal
-        visible={isFocused && showSensitiveIntro}
-        onContinue={dismissSensitiveIntro}
-      />
+      <SensitiveExperienceModal visible={showSensitiveIntro} onContinue={dismissSensitiveIntro} />
 
       <QuestionInputModal
-        visible={isFocused && showQuestionInputModal && !!pendingQuestion}
+        visible={showQuestionInputModal && !!pendingQuestion}
         question={pendingQuestion || ""}
         seedText={userAnswer}
         onSelectInputType={handleInputTypeSelect}
@@ -1163,7 +1154,7 @@ export default function DialogueDashboardScreen() {
         </View>
       )}
 
-      {isFocused && showConfetti && (
+      {showConfetti && (
         <ConfettiCannon
           count={200}
           origin={{ x: width / 2, y: 0 }}

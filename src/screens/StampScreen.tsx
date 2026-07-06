@@ -26,6 +26,9 @@ import {
 import { dialogueBridgeRef } from "./DialogueDashboardScreen";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { StampUnlockModal } from "../components/dialogue/StampUnlockModal";
+
+import { LoadingModal } from "../components/dialogue/LoadingModal";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getMappedCategories,
@@ -170,13 +173,15 @@ export default function StampScreen() {
           .then((result) => {
             void loadUnlocked();
             if (result.mapped && result.stampUnlock) {
+              if (!result.sensitiveExperience) {
+                setShowConfetti(true);
+                setTimeout(() => setShowConfetti(false), 3000);
+              }
               setLocalStampUnlock({
                 stamp: result.stampUnlock.stamp,
                 category: result.stampUnlock.category,
                 tier: result.stampUnlock.tier,
               });
-              setShowConfetti(true);
-              setTimeout(() => setShowConfetti(false), 3000);
             }
           })
           .catch((err) => console.error("Failed to map region answer:", err));
@@ -270,6 +275,8 @@ export default function StampScreen() {
             {isGenerating ? "Exploring..." : "Explore region"}
           </Text>
         </TouchableOpacity>
+
+        <LoadingModal visible={isGenerating} message="Exploring this region..." />
 
         <QuestionInputModal
           visible={showQuestionModal}
