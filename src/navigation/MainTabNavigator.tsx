@@ -66,8 +66,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
         const onPress = () => {
           if (config.name === "Chat") {
-            navigation.getParent()?.navigate("MainTabs", { screen: "Dashboard" });
-            setTimeout(() => dialogueBridgeRef.current?.handleForceNewQuestion(), 300);
+            dialogueBridgeRef.current?.handleForceNewQuestion();
             return;
           }
           const event = navigation.emit({
