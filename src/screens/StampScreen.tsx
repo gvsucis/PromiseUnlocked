@@ -36,6 +36,17 @@ import {
 } from "../services/categoryStorageService";
 
 import { colors } from "../styles/global";
+
+import { useImagePicker } from "../hooks/useImagePicker";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from "expo-audio";
+import ImageEditor from "../components/ImageEditor";
+import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
+
 const DERIVED_SKILLS = computeDerivedSkills();
 
 function findNearestWithUnlocks(
@@ -77,6 +88,21 @@ export default function StampScreen() {
   } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const { width } = Dimensions.get("window");
+
+  const { pickImage } = useImagePicker();
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingUri, setRecordingUri] = useState<string | null>(null);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [tempImageUri, setTempImageUri] = useState<string | null>(null);
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [combinedImageUri, setCombinedImageUri] = useState<string | null>(null);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
 
   const loadUnlocked = useCallback(async () => {
     await ensureAllMappedCategoriesHaveStamps();
@@ -199,6 +225,154 @@ export default function StampScreen() {
     return bare ? unlockedStamps.has(bare) : false;
   });
 
+  const handleInputTypeSelect = (method: "voice" | "image" | "refresh") => {
+    if (method === "voice") {
+      setShowQuestionModal(false);
+      setShowVoiceModal(true);
+    } else if (method === "image") {
+      setShowQuestionModal(false);
+      showImageSourceDialog();
+    } else {
+      handleGenerateQuestion();
+    }
+  };
+
+  const showImageSourceDialog = () => {
+    Alert.alert(
+      "Choose Image Source",
+      "Select an image to attach for your answer.",
+      [
+        { text: "Take Photo", onPress: () => handleImageSelection(true) },
+        { text: "Choose from Gallery", onPress: () => handleImageSelection(false) },
+        { text: "Cancel", style: "cancel", onPress: () => setShowQuestionModal(true) },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleImageSelection = async (useCamera: boolean) => {
+    const imageUri = await pickImage(useCamera);
+    if (!imageUri) {
+      setShowQuestionModal(true);
+      return;
+    }
+    setCombinedImageUri(imageUri);
+    setShowQuestionModal(true);
+  };
+
+  const handleSubmitTextAndImage = async (text: string, imageUri: string) => {
+    setShowQuestionModal(false);
+    setCombinedImageUri(null);
+    setIsAnalyzingImage(true);
+    try {
+      const sizeCheck = await GeminiService.validateImageSize(imageUri);
+      const analysisResult = await GeminiService.analyzeActionImage(
+        imageUri,
+        generatedQuestion,
+        sizeCheck.valid
+      );
+      if (analysisResult.inappropriate) {
+        setIsAnalyzingImage(false);
+        Alert.alert("Content Warning", "This image couldn't be used. Please try a different one.");
+        return;
+      }
+      const imageContext =
+        analysisResult.success && analysisResult.rawResponse ? analysisResult.rawResponse : "";
+      const mergedAnswer = text + (imageContext ? `\n\n[Image context: ${imageContext}]` : "");
+      setIsAnalyzingImage(false);
+      void handleRegionSubmit(generatedQuestion, mergedAnswer);
+    } catch (err) {
+      console.error("Error processing combined submission:", err);
+      setIsAnalyzingImage(false);
+      Alert.alert("Error", "Failed to process your answer. Please try again.");
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const { status } = await requestRecordingPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please grant microphone permission to continue.");
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      timerRef.current = setInterval(() => setRecordingDuration((prev) => prev + 1), 1000);
+    } catch (err) {
+      console.error("Failed to start recording", err);
+      Alert.alert("Error", "Failed to start recording. Please check your microphone permissions.");
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recorder.isRecording) return;
+    try {
+      setIsRecording(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      if (recorder.uri) setRecordingUri(recorder.uri);
+    } catch (err) {
+      console.error("Error stopping recording:", err);
+      Alert.alert("Error", "Failed to stop recording");
+    }
+  };
+
+  const handleVoiceSubmit = async () => {
+    if (!recordingUri) {
+      Alert.alert("Error", "No recording available");
+      return;
+    }
+    setIsProcessingAudio(true);
+    try {
+      const transcriptionResult = await GeminiService.transcribeAudio(recordingUri);
+      if (!transcriptionResult.success || !transcriptionResult.transcript?.trim()) {
+        Alert.alert(
+          "Transcription Error",
+          transcriptionResult.error ||
+            "Could not transcribe your audio. Please try recording again."
+        );
+        return;
+      }
+      const answer = transcriptionResult.transcript.trim();
+      setRecordingUri(null);
+      setRecordingDuration(0);
+      setShowVoiceModal(false);
+      void handleRegionSubmit(generatedQuestion, answer);
+    } catch (err) {
+      console.error("Error processing voice answer:", err);
+      Alert.alert("Processing Error", "Failed to process your voice response. Please try again.");
+    } finally {
+      setIsProcessingAudio(false);
+    }
+  };
+
+  const handleVoiceCancel = async () => {
+    if (isRecording && recorder.isRecording) {
+      try {
+        await recorder.stop();
+        await setAudioModeAsync({ allowsRecording: false });
+      } catch (err) {
+        console.error("Error stopping recording on cancel:", err);
+      }
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingUri(null);
+    setRecordingDuration(0);
+    setShowVoiceModal(false);
+    setShowQuestionModal(true);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -284,17 +458,42 @@ export default function StampScreen() {
           onSubmitText={(text) => {
             void handleRegionSubmit(generatedQuestion, text);
           }}
+          onSubmitTextAndImage={handleSubmitTextAndImage}
+          attachedImageUri={combinedImageUri}
+          onAttachImage={showImageSourceDialog}
+          onRemoveAttachedImage={() => setCombinedImageUri(null)}
           onClose={() => {
             setShowQuestionModal(false);
             setGeneratedQuestion("");
+            setCombinedImageUri(null);
           }}
-          onSelectInputType={() => {}}
+          onSelectInputType={handleInputTypeSelect}
           onNewQuestion={() => {
             setShowQuestionModal(false);
             setGeneratedQuestion("");
+            setCombinedImageUri(null);
             handleGenerateQuestion();
           }}
         />
+
+        <VoiceRecordingModal
+          visible={showVoiceModal}
+          currentPrompt={generatedQuestion}
+          isRecording={isRecording}
+          recordingDuration={recordingDuration}
+          recordingUri={recordingUri}
+          isProcessingAudio={isProcessingAudio}
+          onStartRecording={startRecording}
+          onStopRecording={stopRecording}
+          onRecordAgain={() => {
+            setRecordingUri(null);
+            setRecordingDuration(0);
+          }}
+          onSubmit={handleVoiceSubmit}
+          onCancel={handleVoiceCancel}
+        />
+
+        <LoadingModal visible={isAnalyzingImage} message="Analyzing your image..." />
       </ScrollView>
 
       <StampUnlockModal
