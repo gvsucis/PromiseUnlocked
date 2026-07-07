@@ -305,6 +305,8 @@ export default function DialogueDashboardScreen() {
       setIsAnalyzingImage(false);
       suppressProofAlertRef.current = true;
       autoProofImageRef.current = imageUri;
+      // Pass text as answer and imageContext separately so the model sees both
+      // as distinct signals instead of a merged blob that dilutes stamp detection.
       await mapAnswerToCategory(q, text, undefined, false, imageContext || undefined);
     } catch (err) {
       console.error("Error processing combined submission:", err);
@@ -314,6 +316,8 @@ export default function DialogueDashboardScreen() {
       suppressProofAlertRef.current = false;
       Alert.alert("Error", "Failed to process your answer. Please try again.");
     } finally {
+      // Reset reopen guard after mapping completes so the StampUnlockModal
+      // has a chance to render before the next question auto-opens.
       suppressModalReopenRef.current = false;
     }
   };

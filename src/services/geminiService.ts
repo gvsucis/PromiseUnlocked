@@ -585,6 +585,9 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
     interactions: DialogueInteraction[],
     mappedCategories: MappedCategory[],
     taxonomyString: string,
+    // imageContext: Gemini analysis of an image the user uploaded alongside their answer.
+    // Passed as a separate IMAGE_ANALYSIS section in the prompt so the model can
+    // use it for stamp detection without diluting the user's actual answer text.
     options?: {
       pdfContextText?: string;
       signal?: AbortSignal;
@@ -609,6 +612,7 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
     const regionHint = options?.targetRegion
       ? `\n13. The user is exploring the "${options.targetRegion}" region. If the answer fits this category, prefer mapping to "${options.targetRegion}" over other categories.`
       : "";
+    // When the user attached a photo, hint the model to use IMAGE_ANALYSIS for stamp detection.
     const imageHint = options?.imageContext
       ? `\n\nWhen determining specificStamp, also consider the IMAGE_ANALYSIS section below alongside the user's answer and the question context — the user uploaded a photo relevant to their response.`
       : "";
@@ -638,6 +642,7 @@ Rules:
 17. PRIORITY WHEN MULTIPLE SIGNALS COULD APPLY: Only one support-flow signal should govern a single turn, in this order: (a) distressSignal — if true, do NOT also use the INAPPROPRIATE_CONTENT justification (rule 5) or set sensitiveExperience to true; still attempt a genuine category mapping if the answer clearly supports one, otherwise use NO_MAP_WEAK_FIT with a neutral (non-INAPPROPRIATE_CONTENT) justification. (b) INAPPROPRIATE_CONTENT — if distressSignal is false but the content is genuinely abusive or policy-violating, flag it per rule 5. (c) NO_MAP_WEAK_FIT for vague, generic, or insufficiently detailed answers — only applies if neither (a) nor (b) does.
 ${contextBlock}${regionHint}`;
 
+    // Separate IMAGE_ANALYSIS section so the answer text and photo analysis are distinct signals.
     const imageBlock = options?.imageContext
       ? `\nIMAGE_ANALYSIS: The user uploaded a photo in response to the question. Analysis of the photo: ${options.imageContext}`
       : "";
@@ -650,6 +655,7 @@ ${contextBlock}${regionHint}`;
           contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature: 0.5,
+            // Bumped from 1200 to reduce MAX_TOKENS truncation risk with the added image context.
             maxOutputTokens: 2048,
             responseMimeType: "application/json",
             responseSchema: {

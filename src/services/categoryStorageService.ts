@@ -51,6 +51,9 @@ async function mirrorStampUnlockToFirestore(
   }
 }
 
+// Uses Math.random (not crypto) — the ID only needs uniqueness, not secrecy.
+// Firestore security rules (not ID secrecy) control access. node:crypto is
+// unavailable in React Native/Hermes, so webcrypto would crash on device.
 function generateInteractionId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -363,6 +366,8 @@ export async function fetchPassportJustifications(
     if (!snapshot.exists()) return [];
     const data = snapshot.data() as SkillPassportDocument;
     const items = data.mappings ?? [];
+    // Include entries without a specificStamp (general category mappings) so
+    // justifications aren't hidden when the model didn't identify a specific stamp.
     return items
       .filter(
         (m) => m.justification && (!stampName || !m.specificStamp || m.specificStamp === stampName)

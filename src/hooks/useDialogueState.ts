@@ -589,6 +589,8 @@ export function useDialogueState(): DialogueState {
         // Re-read after the unlock so state reflects the persisted unlockedStamps.
         const freshCategories = await getMappedCategories();
         setMappedCategories(freshCategories);
+        // Refresh advanceOpts with the new category so advanceToNextQuestion doesn't
+        // generate a question for the same region (it was captured before the save).
         advanceOpts.mappedCategories = freshCategories;
         deferredAdvanceOptsRef.current!.mappedCategories = freshCategories;
 
