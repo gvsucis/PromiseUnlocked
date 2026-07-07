@@ -46,6 +46,10 @@ plans/
 # typescript
 *.tsbuildinfo
 
+# CNG: EAS regenerates native projects from app.json; local ios/android folders used for dev.
+/ios
+/android
+
 # Native build artifacts (EAS regenerates these; keep android/ & ios/ SOURCE).
 android/build/
 android/.gradle/

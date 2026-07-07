@@ -364,7 +364,9 @@ export async function fetchPassportJustifications(
     const data = snapshot.data() as SkillPassportDocument;
     const items = data.mappings ?? [];
     return items
-      .filter((m) => m.justification && (!stampName || m.specificStamp === stampName))
+      .filter(
+        (m) => m.justification && (!stampName || !m.specificStamp || m.specificStamp === stampName)
+      )
       .map((m) => m.justification);
   } catch {
     return [];
@@ -391,7 +393,7 @@ export async function saveConversationInteraction(
 
   try {
     const { userId, sessionId } = await getFirestoreWriteContext();
-    await saveInteraction(userId, sessionId, null, {
+    await saveInteraction(userId, sessionId, interactionId, {
       sequenceIndex,
       question: interaction.question,
       answer: interaction.answer,

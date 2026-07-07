@@ -74,7 +74,9 @@
       ],
       "expo-web-browser",
       "expo-build-properties",
-      "expo-audio"
+      "expo-audio",
+      "expo-font",
+      "expo-asset"
     ],
     "extra": {
       "eas": {

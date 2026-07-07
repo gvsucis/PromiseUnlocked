@@ -282,7 +282,6 @@ export default function DialogueDashboardScreen() {
     setPendingQuestion(null);
     setCurrentPrompt("");
     setCombinedImageUri(null);
-    suppressModalReopenRef.current = false;
 
     setIsAnalyzingImage(true);
     setUiState("loading");
@@ -295,6 +294,7 @@ export default function DialogueDashboardScreen() {
 
       if (analysisResult.inappropriate) {
         setIsAnalyzingImage(false);
+        suppressModalReopenRef.current = false;
         triggerContentWarning();
         return;
       }
@@ -302,11 +302,10 @@ export default function DialogueDashboardScreen() {
       const imageContext =
         analysisResult.success && analysisResult.rawResponse ? analysisResult.rawResponse : "";
 
-      const mergedAnswer = text + (imageContext ? `\n\n[Image context: ${imageContext}]` : "");
       setIsAnalyzingImage(false);
       suppressProofAlertRef.current = true;
       autoProofImageRef.current = imageUri;
-      await mapAnswerToCategory(q, mergedAnswer);
+      await mapAnswerToCategory(q, text, undefined, false, imageContext || undefined);
     } catch (err) {
       console.error("Error processing combined submission:", err);
       setIsAnalyzingImage(false);
@@ -314,6 +313,8 @@ export default function DialogueDashboardScreen() {
       autoProofImageRef.current = null;
       suppressProofAlertRef.current = false;
       Alert.alert("Error", "Failed to process your answer. Please try again.");
+    } finally {
+      suppressModalReopenRef.current = false;
     }
   };
 

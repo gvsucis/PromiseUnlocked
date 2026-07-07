@@ -77,7 +77,13 @@ export default function StampDetailScreen() {
       await syncFromFirestore();
       const history = await getConversationHistory();
       const stampHistoryItems = history
-        .filter((i) => i.specificStamp === stamp && i.justification)
+        .filter(
+          (i) =>
+            i.mappingOutcome !== "invalid" &&
+            i.mappingOutcome !== "weak_fit" &&
+            i.justification &&
+            (!i.specificStamp || i.specificStamp === stamp)
+        )
         .map((i) => ({ justification: i.justification! }));
       if (stampHistoryItems.length > 0) {
         setJustifications(stampHistoryItems);

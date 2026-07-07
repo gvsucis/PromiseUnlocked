@@ -112,7 +112,8 @@ export interface DialogueState {
     question: string,
     answer: string,
     targetRegion?: string,
-    checkSensitive?: boolean
+    checkSensitive?: boolean,
+    imageContext?: string
   ) => Promise<DialogueMapResult>;
   handleStartButtonPress: () => Promise<void>;
   handleForceNewQuestion: () => Promise<void>;
@@ -451,7 +452,8 @@ export function useDialogueState(): DialogueState {
     question: string,
     answer: string,
     targetRegion?: string,
-    checkSensitive: boolean = false
+    checkSensitive: boolean = false,
+    imageContext?: string
   ): Promise<DialogueMapResult> => {
     setUiState("loading");
     setLoadingMessage("Analyzing your response...");
@@ -506,7 +508,7 @@ export function useDialogueState(): DialogueState {
         interactions,
         mappedCategories,
         taxonomyString,
-        { pdfContextText, signal: controller.signal, targetRegion }
+        { pdfContextText, signal: controller.signal, targetRegion, imageContext }
       );
 
       const {
@@ -570,11 +572,11 @@ export function useDialogueState(): DialogueState {
       }
 
       if (validCategory && !(await isCategoryMapped(categoryIdToCheck))) {
-        // An unlocking stamp must carry a justification; fall back to the answer
-        // when the model returns none so the stamp detail screen isn't left blank.
         const effectiveJustification =
           justification?.trim() ||
-          (specificStamp ? `Demonstrated through your response: "${answer.trim()}"` : "");
+          (specificStamp
+            ? `Demonstrated through your response: "${answer.trim()}"`
+            : `Mapped to "${categoryNameToCheck}" based on your response.`);
         const newMappedCategory: MappedCategory = {
           category: categoryNameToCheck,
           categoryId: categoryIdToCheck,
@@ -587,6 +589,8 @@ export function useDialogueState(): DialogueState {
         // Re-read after the unlock so state reflects the persisted unlockedStamps.
         const freshCategories = await getMappedCategories();
         setMappedCategories(freshCategories);
+        advanceOpts.mappedCategories = freshCategories;
+        deferredAdvanceOptsRef.current!.mappedCategories = freshCategories;
 
         const interaction: ConversationInteraction = {
           question,
@@ -603,15 +607,13 @@ export function useDialogueState(): DialogueState {
           interaction,
           effectiveJustification
         );
-        if (effectiveJustification) {
-          savePassportMappingToFirestore(
-            interactionId,
-            categoryNameToCheck,
-            categoryIdToCheck,
-            effectiveJustification,
-            specificStamp ?? undefined
-          );
-        }
+        savePassportMappingToFirestore(
+          interactionId,
+          categoryNameToCheck,
+          categoryIdToCheck,
+          effectiveJustification,
+          specificStamp ?? undefined
+        );
         setInteractions((prev) => [...prev, interaction]);
         // Crisis always wins: if distressSignal fired, skip both the confetti
         // celebration and the sensitive-experience modal for this turn — the

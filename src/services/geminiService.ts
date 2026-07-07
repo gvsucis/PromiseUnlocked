@@ -589,6 +589,7 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
       pdfContextText?: string;
       signal?: AbortSignal;
       targetRegion?: string;
+      imageContext?: string;
     }
   ): Promise<MapAnswerResponse> {
     // Cap history at 5 turns to keep the prompt under the token limit.
@@ -608,6 +609,10 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
     const regionHint = options?.targetRegion
       ? `\n13. The user is exploring the "${options.targetRegion}" region. If the answer fits this category, prefer mapping to "${options.targetRegion}" over other categories.`
       : "";
+    const imageHint = options?.imageContext
+      ? `\n\nWhen determining specificStamp, also consider the IMAGE_ANALYSIS section below alongside the user's answer and the question context — the user uploaded a photo relevant to their response.`
+      : "";
+
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
 Your task is to map the answer to exactly one skill stamp taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
 Rules:
@@ -620,7 +625,7 @@ Rules:
 7. Keep the justification short and factual, with at most 40 words.
 8. Generate a thoughtful follow-up question that directly follows from the user's answer and helps identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists. Keep the question in the register of activities, projects, responsibilities, and choices. Never ask the user to locate feelings or sensations in their body, rate distress/pain, describe physical or emotional symptoms, or do body-scanning/mindfulness-style reflection. Do not introduce mental health, trauma, family conflict, finances, romantic relationships, religion, or immigration status as topics — only engage with those if the user's own answer already raised them, and even then stay on the skill/experience angle rather than the personal one.
 9. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.
-10. Pick the single most specific stamp name from the category's "Available Stamps" list. Set specificStamp only if the answer clearly and directly indicates that exact stamp. If no specific stamp is evident, set specificStamp to null — do not guess or default.
+10. Pick the single most specific stamp name from the category's "Available Stamps" list. Set specificStamp only if the answer clearly and directly indicates that exact stamp. If no specific stamp is evident, set specificStamp to null — do not guess or default.${imageHint}
 11. Before mapping, consider the three strongest candidate categories. Only select a category if it is clearly a better fit than the others. If two or more categories seem equally plausible, use the QUESTION'S intent to break the tie. Only return NO_MAP_WEAK_FIT if none of the candidates are a strong fit. Ask yourself: "Would an impartial observer clearly agree this answer belongs in this category?" If the connection requires more than one logical step, use NO_MAP_WEAK_FIT.
 12. Consider the QUESTION's intent alongside the answer. The question is designed to probe specific categories. If the question targets a particular type of experience and the answer aligns with it, treat that as supporting evidence for that category.
 13. Organically assign an initialTier (1 or 2) based on the richness and depth of the user's answer:
@@ -633,7 +638,10 @@ Rules:
 17. PRIORITY WHEN MULTIPLE SIGNALS COULD APPLY: Only one support-flow signal should govern a single turn, in this order: (a) distressSignal — if true, do NOT also use the INAPPROPRIATE_CONTENT justification (rule 5) or set sensitiveExperience to true; still attempt a genuine category mapping if the answer clearly supports one, otherwise use NO_MAP_WEAK_FIT with a neutral (non-INAPPROPRIATE_CONTENT) justification. (b) INAPPROPRIATE_CONTENT — if distressSignal is false but the content is genuinely abusive or policy-violating, flag it per rule 5. (c) NO_MAP_WEAK_FIT for vague, generic, or insufficiently detailed answers — only applies if neither (a) nor (b) does.
 ${contextBlock}${regionHint}`;
 
-    const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
+    const imageBlock = options?.imageContext
+      ? `\nIMAGE_ANALYSIS: The user uploaded a photo in response to the question. Analysis of the photo: ${options.imageContext}`
+      : "";
+    const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}${imageBlock}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
     try {
       const result = await this.requestGemini(
@@ -642,7 +650,7 @@ ${contextBlock}${regionHint}`;
           contents: [{ parts: [{ text: userPrompt }] }],
           generationConfig: {
             temperature: 0.5,
-            maxOutputTokens: 1200,
+            maxOutputTokens: 2048,
             responseMimeType: "application/json",
             responseSchema: {
               type: "object",
