@@ -54,6 +54,7 @@ export type UIState =
 
 export interface DialogueState {
   // State
+  continueAfterStampTierUpgrade: () => void;
   mappedCategories: MappedCategory[];
   interactions: ConversationInteraction[];
   uiState: UIState;
@@ -190,6 +191,13 @@ export function useDialogueState(): DialogueState {
   const [showSensitiveIntro, setShowSensitiveIntro] = useState(false);
   const [deferredNextQuestion, setDeferredNextQuestion] = useState<string | null>(null);
   const [deferredCheckCompletion, setDeferredCheckCompletion] = useState(false);
+  const [stampTierUpgrade, setStampTierUpgrade] = useState<{
+    stamp: string;
+    category: string;
+    categoryId: string;
+    previousTier: number;
+    newTier: number;
+  } | null>(null);
 
   const totalUniqueStamps = useMemo(
     () => countUnlockedStamps(mappedCategories),
@@ -395,15 +403,17 @@ export function useDialogueState(): DialogueState {
     categoryId: string,
     stamp: string | null | undefined,
     tier: number = 1
-  ) => {
-    if (!stamp) return;
+  ): Promise<{ previousTier: number; newTier: number } | null> => {
+    if (!stamp) return null;
     if (stamp in STAMPS_LIST) {
-      await addStampUnlock(categoryId, stamp, tier);
-    } else if (__DEV__) {
+      return await addStampUnlock(categoryId, stamp, tier);
+    }
+    if (__DEV__) {
       console.warn(
         `Invalid stamp name "${stamp}" for category "${categoryId}" — not in STAMPS_LIST, skipping unlock`
       );
     }
+    return null;
   };
 
   const advanceToNextQuestion = async (
@@ -671,6 +681,32 @@ export function useDialogueState(): DialogueState {
             setUiState("complete");
             return { mapped: true as const, category: categoryNameToCheck, interactionId };
           }
+          if (tierChange && specificStamp) {
+            setDeferredNextQuestion(nextQuestion ?? null);
+            setDeferredCheckCompletion(false);
+
+            if (result.suggestArtifactUpload) {
+              proof.deferAfterUnlock({
+                question,
+                answer,
+                interactionId,
+                category: categoryNameToCheck,
+                categoryId: categoryIdToCheck,
+                stampName: specificStamp ?? undefined,
+                artifactUploadReason: result.artifactUploadReason,
+                proofTier: result.proofTier ?? 3,
+              });
+            }
+
+            setUiState("idle");
+
+            return {
+              mapped: false as const,
+              category: categoryNameToCheck,
+              interactionId,
+              distressSignal,
+            };
+          }
           if (result.suggestArtifactUpload) {
             proof.requestNow({
               question,
@@ -683,7 +719,15 @@ export function useDialogueState(): DialogueState {
               proofTier: result.proofTier ?? 3,
             });
           }
+
           await advanceToNextQuestion(nextQuestion, advanceOpts);
+
+          return {
+            mapped: false as const,
+            category: categoryNameToCheck,
+            interactionId,
+            distressSignal,
+          };
         }
 
         return {
@@ -695,15 +739,31 @@ export function useDialogueState(): DialogueState {
         };
       }
 
-      if (await isCategoryMapped(categoryNameToCheck)) {
-        const mappedCategory = await getMappedCategory(categoryNameToCheck);
-        await updateMappedCategoryCounter({
+      if (await isCategoryMapped(categoryIdToCheck)) {
+        const mappedCategory = await getMappedCategory(categoryIdToCheck);
+        const updatedMappedCategory = await updateMappedCategoryCounter({
           ...mappedCategory,
           justification: justification || mappedCategory.justification,
         });
-        await maybeUnlockStamp(categoryIdToCheck, specificStamp, initialTier ?? 1);
-        const freshCategories = await getMappedCategories();
-        setMappedCategories(freshCategories);
+        const tierChange = await maybeUnlockStamp(
+          categoryIdToCheck,
+          specificStamp,
+          initialTier ?? 1
+        );
+        if (tierChange && specificStamp) {
+          setStampTierUpgrade({
+            stamp: specificStamp,
+            category: categoryNameToCheck,
+            categoryId: categoryIdToCheck,
+            previousTier: tierChange.previousTier,
+            newTier: tierChange.newTier,
+          });
+        }
+        setMappedCategories(
+          mappedCategories.map((c) =>
+            c.categoryId === updatedMappedCategory.categoryId ? updatedMappedCategory : c
+          )
+        );
         const interaction: ConversationInteraction = {
           question,
           answer,
@@ -724,6 +784,18 @@ export function useDialogueState(): DialogueState {
           specificStamp ?? undefined
         );
         setInteractions((prev) => [...prev, interaction]);
+        if (result.suggestArtifactUpload) {
+          proof.requestNow({
+            question,
+            answer,
+            interactionId,
+            category: categoryNameToCheck,
+            categoryId: categoryIdToCheck,
+            stampName: specificStamp ?? undefined,
+            artifactUploadReason: result.artifactUploadReason,
+            proofTier: result.proofTier ?? 3,
+          });
+        }
         await advanceToNextQuestion(nextQuestion, advanceOpts);
         return {
           mapped: false as const,
@@ -1021,6 +1093,10 @@ export function useDialogueState(): DialogueState {
     setNewStampUnlock(null);
   };
 
+  const clearStampTierUpgrade = () => {
+    setStampTierUpgrade(null);
+  };
+
   const dismissCrisisSupport = () => {
     setShowCrisisSupport(false);
   };
@@ -1050,6 +1126,41 @@ export function useDialogueState(): DialogueState {
     if (nextQuestion) {
       setUiState("loading");
       setLoadingMessage("Preparing your next question...");
+      setTimeout(() => {
+        setPrefetchedQuestion(nextQuestion);
+        setUiState("idle");
+      }, 600);
+    } else {
+      void advanceToNextQuestion(null, {
+        ...deferredAdvanceOptsRef.current!,
+        signal: abortControllerRef.current?.signal ?? new AbortController().signal,
+      });
+    }
+  };
+
+  const continueAfterStampTierUpgrade = () => {
+    const nextQuestion = deferredNextQuestion;
+    const isComplete = deferredCheckCompletion;
+
+    clearStampTierUpgrade();
+
+    setDeferredNextQuestion(null);
+    setDeferredCheckCompletion(false);
+
+    if (isComplete) {
+      proof.clearDeferred();
+      void endSession("completed");
+      setUserAnswer("");
+      setUiState("complete");
+      return;
+    }
+
+    proof.surfaceDeferred();
+
+    if (nextQuestion) {
+      setUiState("loading");
+      setLoadingMessage("Preparing your next question...");
+
       setTimeout(() => {
         setPrefetchedQuestion(nextQuestion);
         setUiState("idle");
@@ -1146,5 +1257,9 @@ export function useDialogueState(): DialogueState {
     activateProofFromNotification: proof.activateFromNotification,
     clearDeferredState,
     triggerContentWarning,
+    newStampUnlock,
+    stampTierUpgrade,
+    clearStampTierUpgrade,
+    continueAfterStampTierUpgrade,
   };
 }

@@ -38,6 +38,12 @@ import { logErrorToFile } from "../utils/logToFile";
 const MAPPED_CATEGORIES_KEY = "@mappedCategories";
 const INTERACTIONS_KEY = "@userInteractions";
 
+// Number of times a stamp must be re-earned via remapping before it
+// auto-upgrades to Tier 3 ("even more mappings"), independent of what
+// Gemini's per-answer initialTier says. Tier 4 stays exclusive to the
+// proof-upload/verification flow (upgradeStampTier).
+const COUNT_BASED_TIER_3_THRESHOLD = 4;
+
 async function mirrorStampUnlockToFirestore(
   categoryId: string,
   stampName: string,
@@ -129,33 +135,35 @@ export async function upgradeStampTier(
   categoryId: string,
   stampName: string,
   minTier: number
-): Promise<void> {
+): Promise<{ previousTier: number; newTier: number } | null> {
   try {
     const current = await getMappedCategories();
     const idx = current.findIndex((c) => c.categoryId === categoryId);
-    if (idx === -1) return;
+    if (idx === -1) return null;
 
     const entry = current[idx];
     const stamps = entry.unlockedStamps ?? [];
     const existingIdx = stamps.findIndex((s) => s.name === stampName);
-    if (existingIdx < 0) return;
+    if (existingIdx < 0) return null;
+
+    const previousTier = stamps[existingIdx].tier ?? DEFAULT_TIER;
+    const newTier = Math.max(previousTier, minTier);
 
     stamps[existingIdx] = {
       ...stamps[existingIdx],
       category: stamps[existingIdx].category ?? entry.category,
       categoryId: stamps[existingIdx].categoryId ?? categoryId,
-      tier: Math.max(stamps[existingIdx].tier ?? DEFAULT_TIER, minTier),
+      tier: newTier,
     };
 
     current[idx] = { ...entry, unlockedStamps: stamps };
     const storageKey = await getMappedCategoriesStorageKey();
     await setJSONInStorage(storageKey, current);
 
-    await mirrorStampUnlockToFirestore(
-      categoryId,
-      stampName,
-      stamps[existingIdx].tier ?? DEFAULT_TIER
-    );
+    await mirrorStampUnlockToFirestore(categoryId, stampName, newTier);
+
+    if (newTier <= previousTier) return null;
+    return { previousTier, newTier };
   } catch (error) {
     logErrorToFile("Error upgrading stamp tier:", error);
     throw error;
@@ -169,24 +177,36 @@ export async function addStampUnlock(
   categoryId: string,
   stampName: string,
   tier: number = DEFAULT_TIER
-): Promise<void> {
+): Promise<{ previousTier: number; newTier: number } | null> {
   try {
     const current = await getMappedCategories();
     const idx = current.findIndex((c) => c.categoryId === categoryId);
-    if (idx === -1) return;
+    if (idx === -1) return null;
 
     const entry = current[idx];
     const stamps = entry.unlockedStamps ?? [];
     const existingIdx = stamps.findIndex((s) => s.name === stampName);
 
+    let resolvedTier = tier;
+    let tierChange: { previousTier: number; newTier: number } | null = null;
+
     if (existingIdx >= 0) {
+      const previousTier = stamps[existingIdx].tier ?? DEFAULT_TIER;
+      const newTimesUnlocked = stamps[existingIdx].timesUnlocked + 1;
+      const countTier = newTimesUnlocked >= COUNT_BASED_TIER_3_THRESHOLD ? 3 : 0;
+      resolvedTier = Math.max(previousTier, tier, countTier);
+
       stamps[existingIdx] = {
         ...stamps[existingIdx],
         category: stamps[existingIdx].category ?? entry.category,
         categoryId: stamps[existingIdx].categoryId ?? categoryId,
-        timesUnlocked: stamps[existingIdx].timesUnlocked + 1,
-        tier: Math.max(stamps[existingIdx].tier ?? DEFAULT_TIER, tier),
+        timesUnlocked: newTimesUnlocked,
+        tier: resolvedTier,
       };
+
+      if (resolvedTier > previousTier) {
+        tierChange = { previousTier, newTier: resolvedTier };
+      }
     } else {
       stamps.push({
         name: stampName,
@@ -201,7 +221,8 @@ export async function addStampUnlock(
     const storageKey = await getMappedCategoriesStorageKey();
     await setJSONInStorage(storageKey, current);
 
-    await mirrorStampUnlockToFirestore(categoryId, stampName, tier);
+    await mirrorStampUnlockToFirestore(categoryId, stampName, resolvedTier);
+    return tierChange;
   } catch (error) {
     logErrorToFile("Error adding stamp unlock:", error);
     throw error;

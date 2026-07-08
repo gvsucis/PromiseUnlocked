@@ -14,6 +14,7 @@ import {
   ConversationInteraction,
 } from "../services/categoryTaxonomyService";
 import { GeminiService } from "../services/geminiService";
+import { StampUpgradeModal } from "../components/dialogue/StampUpgradeModal";
 import { useImagePicker } from "../hooks/useImagePicker";
 import {
   RecordingPresets,
@@ -114,6 +115,8 @@ export default function DialogueDashboardScreen() {
     setError,
     loadData,
     triggerContentWarning,
+    stampTierUpgrade,
+    clearStampTierUpgrade,
   } = useDialogueState();
 
   React.useEffect(() => {
@@ -162,6 +165,14 @@ export default function DialogueDashboardScreen() {
   const [proofSnackbarVisible, setProofSnackbarVisible] = React.useState(false);
   const continueAfterStampUnlockRef = useRef(continueAfterStampUnlock);
   continueAfterStampUnlockRef.current = continueAfterStampUnlock;
+
+  const [stampUpgrade, setStampUpgrade] = useState<{
+    stamp: string;
+    category: string;
+    categoryId: string;
+    previousTier: number;
+    newTier: number;
+  } | null>(null);
 
   const { pickImage } = useImagePicker();
 
@@ -590,6 +601,7 @@ export default function DialogueDashboardScreen() {
       const proofStatus = latestStatus.proofStatus ?? latestStatus.status ?? "pending";
       const feedback = latestStatus.userFeedbackMessage ?? "Proof uploaded and queued for review.";
 
+      let upgradeResult: { previousTier: number; newTier: number } | null = null;
       if (
         proofStatus === "approved" &&
         pendingProofRequest.stampName &&
@@ -598,14 +610,24 @@ export default function DialogueDashboardScreen() {
         const targetTier =
           pendingProofRequest.proofTier ??
           Math.min(Number.parseInt(latestStatus.proofTier ?? "2", 10) || 2, 4);
-        await upgradeStampTier(
+        upgradeResult = await upgradeStampTier(
           pendingProofRequest.categoryId ?? pendingProofRequest.category,
           pendingProofRequest.stampName,
           targetTier
         );
       }
 
-      Alert.alert(proofStatus === "approved" ? "Proof approved" : "Proof submitted", feedback);
+      if (upgradeResult && pendingProofRequest.stampName && pendingProofRequest.category) {
+        setStampUpgrade({
+          stamp: pendingProofRequest.stampName,
+          category: pendingProofRequest.category,
+          categoryId: pendingProofRequest.categoryId ?? pendingProofRequest.category,
+          previousTier: upgradeResult.previousTier,
+          newTier: upgradeResult.newTier,
+        });
+      } else {
+        Alert.alert(proofStatus === "approved" ? "Proof approved" : "Proof submitted", feedback);
+      }
     } catch (error) {
       console.error("Error uploading proof image:", error);
       Alert.alert("Error", "Failed to upload proof image. Please try again.");
@@ -666,6 +688,8 @@ export default function DialogueDashboardScreen() {
     return candidates[Math.floor(Date.now() / 60000) % candidates.length];
   }, [mappedCategories]);
 
+  const activeStampUpgrade = stampUpgrade ?? stampTierUpgrade;
+
   // Up to 3 unexplored regions (zero unlocked stamps)
   const unexploredRegions = React.useMemo(() => {
     const exploredSet = new Set(
@@ -707,7 +731,6 @@ export default function DialogueDashboardScreen() {
         const result = await mapAnswerToCategory(question, answer, region, true);
         clearStampUnlock();
         clearDeferredState();
-        clearPendingProofRequest();
         return result;
       },
       interactions,
@@ -749,12 +772,13 @@ export default function DialogueDashboardScreen() {
       prefetchedQuestion &&
       uiState === "idle" &&
       !pendingProofRequest &&
+      !activeStampUpgrade &&
       modalIntentionallyOpenedRef.current
     ) {
       setPendingQuestion(prefetchedQuestion);
       setShowQuestionInputModal(true);
     }
-  }, [prefetchedQuestion, uiState, pendingProofRequest]);
+  }, [prefetchedQuestion, uiState, pendingProofRequest, activeStampUpgrade]);
 
   // Auto-submit attached image as proof when submitted via text+image flow
   React.useEffect(() => {
@@ -1065,6 +1089,29 @@ export default function DialogueDashboardScreen() {
               stamp: newStampUnlock.stamp,
               region: newStampUnlock.category,
               categoryId: newStampUnlock.categoryId,
+            });
+          }
+        }}
+      />
+
+      <StampUpgradeModal
+        visible={!!activeStampUpgrade}
+        stampName={activeStampUpgrade?.stamp ?? ""}
+        previousTier={activeStampUpgrade?.previousTier ?? 1}
+        newTier={activeStampUpgrade?.newTier ?? 1}
+        region={activeStampUpgrade?.category ?? ""}
+        onContinue={() => {
+          continueAfterStampTierUpgrade();
+        }}
+        onViewStamp={() => {
+          if (activeStampUpgrade) {
+            const target = activeStampUpgrade;
+            setStampUpgrade(null);
+            clearStampTierUpgrade();
+            navigation.navigate("StampDetails", {
+              stamp: target.stamp,
+              region: target.category,
+              categoryId: target.categoryId,
             });
           }
         }}
