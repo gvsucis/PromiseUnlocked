@@ -117,6 +117,7 @@ export default function DialogueDashboardScreen() {
     triggerContentWarning,
     stampTierUpgrade,
     clearStampTierUpgrade,
+    continueAfterStampTierUpgrade,
   } = useDialogueState();
 
   React.useEffect(() => {
@@ -956,7 +957,9 @@ export default function DialogueDashboardScreen() {
                 >
                   <View style={styles.nextStepsRowLeft}>
                     <MaterialIcons
-                      name={(cat.icon as any) ?? "place"}
+                      name={
+                        (cat.icon as React.ComponentProps<typeof MaterialIcons>["name"]) ?? "place"
+                      }
                       size={20}
                       color={colors.accent.sky}
                     />

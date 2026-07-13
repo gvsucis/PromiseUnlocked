@@ -26,6 +26,7 @@ import {
 import { dialogueBridgeRef } from "./DialogueDashboardScreen";
 import ConfettiCannon from "react-native-confetti-cannon";
 import { StampUnlockModal } from "../components/dialogue/StampUnlockModal";
+import { StampUpgradeModal } from "../components/dialogue/StampUpgradeModal";
 
 import { LoadingModal } from "../components/dialogue/LoadingModal";
 
@@ -44,7 +45,7 @@ import {
   setAudioModeAsync,
   useAudioRecorder,
 } from "expo-audio";
-import ImageEditor from "../components/ImageEditor";
+//import ImageEditor from "../components/ImageEditor";
 import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
 
 const DERIVED_SKILLS = computeDerivedSkills();
@@ -86,6 +87,13 @@ export default function StampScreen() {
     category: string;
     tier: number;
   } | null>(null);
+  const [localStampTierUpgrade, setLocalStampTierUpgrade] = useState<{
+    stamp: string;
+    category: string;
+    categoryId: string;
+    previousTier: number;
+    newTier: number;
+  } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const { width } = Dimensions.get("window");
 
@@ -99,8 +107,8 @@ export default function StampScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [tempImageUri, setTempImageUri] = useState<string | null>(null);
-  const [showImageEditor, setShowImageEditor] = useState(false);
+  //const [tempImageUri, setTempImageUri] = useState<string | null>(null);
+  //const [showImageEditor, setShowImageEditor] = useState(false);
   const [combinedImageUri, setCombinedImageUri] = useState<string | null>(null);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
 
@@ -208,6 +216,9 @@ export default function StampScreen() {
                 category: result.stampUnlock.category,
                 tier: result.stampUnlock.tier,
               });
+            }
+            if (!result.mapped && result.stampTierUpgrade) {
+              setLocalStampTierUpgrade(result.stampTierUpgrade);
             }
           })
           .catch((err) => console.error("Failed to map region answer:", err));
@@ -403,7 +414,7 @@ export default function StampScreen() {
         {unlockedList.length > 0 ? (
           <View style={styles.grid}>
             {unlockedList.map((stamp) => {
-              const count = stampCounts[stamp] ?? 1;
+              //const count = stampCounts[stamp] ?? 1;
               const tier = stampTiers[stamp] ?? DEFAULT_TIER;
               return (
                 <TouchableOpacity
@@ -413,11 +424,6 @@ export default function StampScreen() {
                 >
                   <View style={styles.stampCircle}>
                     <StampBadge stampName={stamp} tier={tier} size="list" />
-                    {count > 1 && (
-                      <View style={styles.countBadge}>
-                        <Text style={styles.countText}>×{count}</Text>
-                      </View>
-                    )}
                   </View>
                   <Text style={[styles.stampText, styles.stampTextUnlocked]}>{stamp}</Text>
                 </TouchableOpacity>
@@ -508,6 +514,26 @@ export default function StampScreen() {
             navigation.navigate("StampDetails", {
               stamp: localStampUnlock.stamp,
               region: localStampUnlock.category,
+              categoryId,
+            });
+          }
+        }}
+      />
+
+      <StampUpgradeModal
+        visible={!!localStampTierUpgrade}
+        stampName={localStampTierUpgrade?.stamp ?? ""}
+        previousTier={localStampTierUpgrade?.previousTier ?? 1}
+        newTier={localStampTierUpgrade?.newTier ?? 1}
+        region={localStampTierUpgrade?.category ?? ""}
+        onContinue={() => setLocalStampTierUpgrade(null)}
+        onViewStamp={() => {
+          if (localStampTierUpgrade) {
+            const target = localStampTierUpgrade;
+            setLocalStampTierUpgrade(null);
+            navigation.navigate("StampDetails", {
+              stamp: target.stamp,
+              region: target.category,
               categoryId,
             });
           }

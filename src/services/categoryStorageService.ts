@@ -38,12 +38,6 @@ import { logErrorToFile } from "../utils/logToFile";
 const MAPPED_CATEGORIES_KEY = "@mappedCategories";
 const INTERACTIONS_KEY = "@userInteractions";
 
-// Number of times a stamp must be re-earned via remapping before it
-// auto-upgrades to Tier 3 ("even more mappings"), independent of what
-// Gemini's per-answer initialTier says. Tier 4 stays exclusive to the
-// proof-upload/verification flow (upgradeStampTier).
-const COUNT_BASED_TIER_3_THRESHOLD = 4;
-
 async function mirrorStampUnlockToFirestore(
   categoryId: string,
   stampName: string,
@@ -193,8 +187,7 @@ export async function addStampUnlock(
     if (existingIdx >= 0) {
       const previousTier = stamps[existingIdx].tier ?? DEFAULT_TIER;
       const newTimesUnlocked = stamps[existingIdx].timesUnlocked + 1;
-      const countTier = newTimesUnlocked >= COUNT_BASED_TIER_3_THRESHOLD ? 3 : 0;
-      resolvedTier = Math.max(previousTier, tier, countTier);
+      resolvedTier = Math.max(previousTier, tier);
 
       stamps[existingIdx] = {
         ...stamps[existingIdx],
@@ -266,6 +259,13 @@ export async function getUnlockedStampsForCategory(categoryId: string): Promise<
   } catch {
     return [];
   }
+}
+
+export async function getStampUnlockSummary(categoryId: string): Promise<string> {
+  const stamps = await getUnlockedStampsForCategory(categoryId);
+  return stamps
+    .map((s) => `${s.name}: unlocked ${s.timesUnlocked}x (tier ${s.tier ?? DEFAULT_TIER})`)
+    .join(", ");
 }
 
 export async function clearAllData(): Promise<void> {

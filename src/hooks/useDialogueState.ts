@@ -29,6 +29,7 @@ import {
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { STAMPS_LIST } from "../config/stampConstants";
+//import { getStampUnlockSummary } from "./categoryStorageService";
 import { TOTAL_STAMPS } from "../config/skillsTaxonomy";
 import { getPvaContext } from "../services/profileEmbeddingService";
 import { endSession, getUserId, getActiveSessionId } from "../services/sessionManager";
@@ -78,6 +79,14 @@ export interface DialogueState {
     tier: number;
     sensitive: boolean;
   } | null;
+  stampTierUpgrade: {
+    stamp: string;
+    category: string;
+    categoryId: string;
+    previousTier: number;
+    newTier: number;
+  } | null;
+  clearStampTierUpgrade: () => void;
   showCrisisSupport: boolean;
   dismissCrisisSupport: () => void;
   showSensitiveIntro: boolean;
@@ -154,6 +163,13 @@ export type DialogueMapResult =
       category: string | null;
       interactionId: string;
       distressSignal?: boolean;
+      stampTierUpgrade?: {
+        stamp: string;
+        category: string;
+        categoryId: string;
+        previousTier: number;
+        newTier: number;
+      };
     };
 
 /** Total unique stamps unlocked across all mapped categories. */
@@ -404,7 +420,14 @@ export function useDialogueState(): DialogueState {
     stamp: string | null | undefined,
     tier: number = 1
   ): Promise<{ previousTier: number; newTier: number } | null> => {
-    if (!stamp) return null;
+    if (!stamp) {
+      if (__DEV__) {
+        console.warn(
+          `maybeUnlockStamp: no specificStamp returned for category "${categoryId}" — skipping unlock/upgrade`
+        );
+      }
+      return null;
+    }
     if (stamp in STAMPS_LIST) {
       return await addStampUnlock(categoryId, stamp, tier);
     }
@@ -537,10 +560,6 @@ export function useDialogueState(): DialogueState {
       const categoryIdToCheck = validCategory ? validCategory.id : rawCategory;
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
-        // Crisis takes precedence over weak-fit/content-warning for this turn:
-        // the crisis modal was already triggered above via setShowCrisisSupport,
-        // so we must not also push uiState into "weak-fit" or the WeakFitModal
-        // will render on top of it.
         if (distressSignal) {
           const interaction: ConversationInteraction = {
             question,
@@ -623,13 +642,9 @@ export function useDialogueState(): DialogueState {
           );
         }
         setInteractions((prev) => [...prev, interaction]);
-        // Crisis always wins: if distressSignal fired, skip both the confetti
-        // celebration and the sensitive-experience modal for this turn — the
-        // crisis modal was already triggered above and shouldn't compete with
-        // either.
         const isSensitive = !distressSignal && checkSensitive && !!result.sensitiveExperience;
         if (distressSignal) {
-          // no-op: crisis modal takes the whole turn
+          // No-op: crisis support modal is already triggered above via setShowCrisisSupport.
         } else if (isSensitive) {
           setShowSensitiveIntro(true);
         } else {
@@ -681,32 +696,6 @@ export function useDialogueState(): DialogueState {
             setUiState("complete");
             return { mapped: true as const, category: categoryNameToCheck, interactionId };
           }
-          if (tierChange && specificStamp) {
-            setDeferredNextQuestion(nextQuestion ?? null);
-            setDeferredCheckCompletion(false);
-
-            if (result.suggestArtifactUpload) {
-              proof.deferAfterUnlock({
-                question,
-                answer,
-                interactionId,
-                category: categoryNameToCheck,
-                categoryId: categoryIdToCheck,
-                stampName: specificStamp ?? undefined,
-                artifactUploadReason: result.artifactUploadReason,
-                proofTier: result.proofTier ?? 3,
-              });
-            }
-
-            setUiState("idle");
-
-            return {
-              mapped: false as const,
-              category: categoryNameToCheck,
-              interactionId,
-              distressSignal,
-            };
-          }
           if (result.suggestArtifactUpload) {
             proof.requestNow({
               question,
@@ -750,15 +739,6 @@ export function useDialogueState(): DialogueState {
           specificStamp,
           initialTier ?? 1
         );
-        if (tierChange && specificStamp) {
-          setStampTierUpgrade({
-            stamp: specificStamp,
-            category: categoryNameToCheck,
-            categoryId: categoryIdToCheck,
-            previousTier: tierChange.previousTier,
-            newTier: tierChange.newTier,
-          });
-        }
         setMappedCategories(
           mappedCategories.map((c) =>
             c.categoryId === updatedMappedCategory.categoryId ? updatedMappedCategory : c
@@ -784,6 +764,50 @@ export function useDialogueState(): DialogueState {
           specificStamp ?? undefined
         );
         setInteractions((prev) => [...prev, interaction]);
+
+        if (tierChange && specificStamp) {
+          // Mirror the new-stamp flow: hold the next question (and any proof
+          // prompt) until the user dismisses the tier-upgrade modal, instead
+          // of letting advanceToNextQuestion churn uiState underneath it.
+          setStampTierUpgrade({
+            stamp: specificStamp,
+            category: categoryNameToCheck,
+            categoryId: categoryIdToCheck,
+            previousTier: tierChange.previousTier,
+            newTier: tierChange.newTier,
+          });
+          setDeferredNextQuestion(nextQuestion ?? null);
+          setDeferredCheckCompletion(false);
+          setUiState("idle");
+
+          if (result.suggestArtifactUpload) {
+            proof.deferAfterUnlock({
+              question,
+              answer,
+              interactionId,
+              category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
+              stampName: specificStamp ?? undefined,
+              artifactUploadReason: result.artifactUploadReason,
+              proofTier: result.proofTier ?? 3,
+            });
+          }
+
+          return {
+            mapped: false as const,
+            category: categoryNameToCheck,
+            interactionId,
+            distressSignal,
+            stampTierUpgrade: {
+              stamp: specificStamp,
+              category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
+              previousTier: tierChange.previousTier,
+              newTier: tierChange.newTier,
+            },
+          };
+        }
+
         if (result.suggestArtifactUpload) {
           proof.requestNow({
             question,
@@ -804,7 +828,6 @@ export function useDialogueState(): DialogueState {
           distressSignal,
         };
       }
-
       const interaction: ConversationInteraction = {
         question,
         answer,
@@ -1257,7 +1280,6 @@ export function useDialogueState(): DialogueState {
     activateProofFromNotification: proof.activateFromNotification,
     clearDeferredState,
     triggerContentWarning,
-    newStampUnlock,
     stampTierUpgrade,
     clearStampTierUpgrade,
     continueAfterStampTierUpgrade,
