@@ -41,6 +41,7 @@ export interface QuestionSynthesisContext {
 
 export interface MappedCategory {
   category: string;
+  categoryId?: string;
   timesMapped?: number;
 }
 

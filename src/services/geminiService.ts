@@ -14,6 +14,7 @@ import {
   QuestionSynthesisContext,
 } from "../types/gemini";
 import { Alert } from "react-native";
+import { getStampUnlockSummary } from "./categoryStorageService";
 
 export class GeminiService {
   private static readonly MODEL_NAME = CONFIG.TEXT_MODEL;
@@ -589,6 +590,9 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
       pdfContextText?: string;
       signal?: AbortSignal;
       targetRegion?: string;
+      currentTier?: number;
+      timesUnlocked?: number;
+      hasArtifact?: boolean;
     }
   ): Promise<MapAnswerResponse> {
     // Cap history at 5 turns to keep the prompt under the token limit.
@@ -608,30 +612,55 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
     const regionHint = options?.targetRegion
       ? `\n13. The user is exploring the "${options.targetRegion}" region. If the answer fits this category, prefer mapping to "${options.targetRegion}" over other categories.`
       : "";
+    // geminiService.ts — replace the targetCategoryId/stampUnlockSummary block
+
+    const categoriesWithIds = mappedCategories.filter(
+      (c): c is MappedCategory & { categoryId: string } => !!c.categoryId
+    );
+    const stampSummaries = await Promise.all(
+      categoriesWithIds.map(async (c) => {
+        const summary = await getStampUnlockSummary(c.categoryId);
+        return summary ? `- ${c.category}: ${summary}` : null;
+      })
+    );
+    const progressionSummaryText = stampSummaries.filter(Boolean).join("\n  ");
+
+    const progressionContext = `
+      CURRENT STAMP PROGRESSION (check this for the specific stamp's prior tier before setting initialTier — see rule 13):
+      ${progressionSummaryText || "  none yet"}
+      - Artifact Attached: ${options?.hasArtifact ? "Yes" : "No"}
+      `;
     const systemInstruction = `You are a sophisticated trait mapper and question generator.
 Your task is to map the answer to exactly one skill stamp taxonomy category, or to 'NO_MAP_WEAK_FIT' when the fit is weak, uncertain, generic, off-topic, or does not clearly respond to the question.
 Rules:
-1. Choose the single most applicable skill stamp category from the taxonomy.
+1. Choose the single most applicable skill stamp category from the taxonomybased on what the answer itself describes, not on whether it directly responds to the question asked. A tangential or off-topic answer that clearly demonstrates a real skill/experience should still be mapped.
 2. Only map to a real category if the fit is obvious and rigorous. When genuinely uncertain, prefer NO_MAP_WEAK_FIT rather than forcing a category.
 3. Prefer unmapped categories, but if the answer genuinely matches an already-mapped category, you may still select it (its counter will increment). Never force a weak match just because it's unmapped.
-4. If the answer is generic filler, unrelated, or only partially addresses the question, use 'NO_MAP_WEAK_FIT'.
+4. Use 'NO_MAP_WEAK_FIT' only when the answer itself is generic filler, too vague to point to any category, gibberish, or spam — not merely because it didn't address the question. A detailed, substantive answer about something real should be mapped even if it ignores the question entirely.
 5. If the answer contains abusive, offensive, or inappropriate language, or is gibberish/spam/unrelated to any category, you MUST use 'NO_MAP_WEAK_FIT' with justification EXACTLY starting with 'INAPPROPRIATE_CONTENT:'. Set nextQuestion to null. Do NOT use the answer text in follow-up questions. See rule 17 if distressSignal also applies — only one of these should govern the turn.
 6. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
 7. Keep the justification short and factual, with at most 40 words.
 8. Generate a thoughtful follow-up question that directly follows from the user's answer and helps identify other unmapped categories, or set nextQuestion to null if no useful follow-up exists. Keep the question in the register of activities, projects, responsibilities, and choices. Never ask the user to locate feelings or sensations in their body, rate distress/pain, describe physical or emotional symptoms, or do body-scanning/mindfulness-style reflection. Do not introduce mental health, trauma, family conflict, finances, romantic relationships, religion, or immigration status as topics — only engage with those if the user's own answer already raised them, and even then stay on the skill/experience angle rather than the personal one.
 9. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.
 10. Pick the single most specific stamp name from the category's "Available Stamps" list. Set specificStamp only if the answer clearly and directly indicates that exact stamp. If no specific stamp is evident, set specificStamp to null — do not guess or default.
+10b. If the answer maps to an ALREADY-MAPPED category (see rule 3), you must still identify which specific stamp within that category this answer best supports, using the same "Available Stamps" list — even though the category itself was mapped before. Do not leave specificStamp null just because the category is already mapped; only leave it null if the answer genuinely doesn't point to any specific stamp. Never show the user this thinking in the question.
 11. Before mapping, consider the three strongest candidate categories. Only select a category if it is clearly a better fit than the others. If two or more categories seem equally plausible, use the QUESTION'S intent to break the tie. Only return NO_MAP_WEAK_FIT if none of the candidates are a strong fit. Ask yourself: "Would an impartial observer clearly agree this answer belongs in this category?" If the connection requires more than one logical step, use NO_MAP_WEAK_FIT.
 12. Consider the QUESTION's intent alongside the answer. The question is designed to probe specific categories. If the question targets a particular type of experience and the answer aligns with it, treat that as supporting evidence for that category.
-13. Organically assign an initialTier (1 or 2) based on the richness and depth of the user's answer:
-    - Tier 1: Basic, one sentence, shallow or generic response.
-    - Tier 2: Detailed, multi-sentence, specific personal experience or reflection.
-    If suggestArtifactUpload is true, also set proofTier to 3 or 4 based on how much stronger the stamp would become with verified proof (3 = meaningful proof, 4 = exceptional/certifiable proof).
+13. Set initialTier to the tier THIS submission should result in — not just the starting tier. Judge holistically on specificity and substance, not length.
+- If this stamp has never been unlocked before: initialTier = 1, regardless of how strong the answer is. (Richness still matters — see below.)
+- If this stamp was already unlocked: start from its highest previously earned tier (see CURRENT STAMP PROGRESSION). Evaluate whether THIS answer, combined with prior submissions to this same stamp, now clears the bar for the next tier up. If yes, set initialTier = previousTier + 1. If not, set initialTier = previousTier (unchanged — this is the normal, expected outcome for most repeat submissions).
+- At most one tier gained per submission. Never skip a tier except for truly exceptional, unambiguous depth.
+- Repeat count is a real but partial signal: several genuinely detailed, substantive answers about the same stamp (not just repeated mentions) can satisfy Tier 3's "sustained engagement over time" criterion on their own, even without a single standout answer or an attached artifact. Count alone without substance does not earn an upgrade — three one-line answers stay at tier 1.
+Tier rubric:
+- Tier 1: The claim alone, or not yet enough combined evidence for tier 2.
+- Tier 2: The claim plus concrete elaboration — a specific instance, anecdote, or "why/how" reflection.
+- Tier 3: EITHER (a) sustained engagement over time (can be shown across multiple submissions to this stamp) combined with reflection on what it taught them or how it shaped them, OR (b) direct supporting evidence is attached that verifies the claim.
+- Tier 4: Exceptionally rare, verifiable-caliber achievement — competitive results, awards, leadership, founding something, professional/high-level involvement.
 14. The goal is accurate mapping, not maximizing the number of badges earned. Avoid assigning a badge unless there is clear supporting evidence in the user's answer.
 15. Independently of category mapping, set distressSignal to true if the answer expresses or strongly implies self-harm, suicidal ideation, or an acute personal crisis warranting support resources. Evaluate this even if the answer would otherwise map to a category, be weak fit, or be flagged inappropriate — but see rule 17: distressSignal takes precedence and suppresses those other flags for this turn. Default to false — do not flag general sadness, stress, or difficult-but-non-crisis topics.
 16. Independently of category mapping, set sensitiveExperience to true if the answer describes the death or serious illness of a loved one, or another significant grief/loss experience. Default to false. If distressSignal is also true, set sensitiveExperience to false — an acute crisis takes precedence over the grief-support flow for this turn.
 17. PRIORITY WHEN MULTIPLE SIGNALS COULD APPLY: Only one support-flow signal should govern a single turn, in this order: (a) distressSignal — if true, do NOT also use the INAPPROPRIATE_CONTENT justification (rule 5) or set sensitiveExperience to true; still attempt a genuine category mapping if the answer clearly supports one, otherwise use NO_MAP_WEAK_FIT with a neutral (non-INAPPROPRIATE_CONTENT) justification. (b) INAPPROPRIATE_CONTENT — if distressSignal is false but the content is genuinely abusive or policy-violating, flag it per rule 5. (c) NO_MAP_WEAK_FIT for vague, generic, or insufficiently detailed answers — only applies if neither (a) nor (b) does.
-${contextBlock}${regionHint}`;
+${contextBlock}${regionHint}${progressionContext}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
@@ -658,7 +687,13 @@ ${contextBlock}${regionHint}`;
                 distressSignal: { type: "boolean" },
                 sensitiveExperience: { type: "boolean" },
               },
-              required: ["category", "justification", "suggestArtifactUpload", "initialTier"],
+              required: [
+                "category",
+                "justification",
+                "suggestArtifactUpload",
+                "initialTier",
+                "specificStamp",
+              ],
             },
           },
         },
