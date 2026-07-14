@@ -48,3 +48,6 @@ env.*
 AGENTS.md
 docs/agents/
 .scratch/
+
+# promptfoo config
+promptfooconfig*.yaml

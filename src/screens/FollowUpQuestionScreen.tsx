@@ -19,7 +19,12 @@ import { RootStackParamList } from "../types/navigation";
 import { ImagePickerService } from "../services/imagePickerService";
 import { GeminiService } from "../services/geminiService";
 import ZoomableImageView from "../components/ZoomableImageView";
-import { Audio } from "expo-av";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from "expo-audio";
 
 type FollowUpQuestionScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -45,15 +50,15 @@ export default function FollowUpQuestionScreen({ navigation, route }: Readonly<P
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [voiceUri, setVoiceUri] = useState<string | null>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recordingTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => {
       if (recordingTimer.current) clearInterval(recordingTimer.current);
-      // Stop any in-progress recording so the mic isn't left engaged / leaked.
-      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
-      recordingRef.current = null;
+      if (recorder.isRecording) {
+        recorder.stop().catch(() => {});
+      }
     };
   }, []);
 
@@ -86,16 +91,14 @@ export default function FollowUpQuestionScreen({ navigation, route }: Readonly<P
 
   const handleStartRecording = async () => {
     try {
-      const perm = await Audio.requestPermissionsAsync();
-      if (!perm.granted) {
+      const { status } = await requestRecordingPermissionsAsync();
+      if (status !== "granted") {
         showSnackbar("Microphone permission is required");
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setRecordingDuration(0);
       setIsRecording(true);
       recordingTimer.current = setInterval(() => {
@@ -108,18 +111,16 @@ export default function FollowUpQuestionScreen({ navigation, route }: Readonly<P
   };
 
   const handleStopRecording = async () => {
-    const recording = recordingRef.current;
-    if (!recording) return;
+    if (!recorder.isRecording) return;
     try {
-      await recording.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-      setVoiceUri(recording.getURI());
       setIsRecording(false);
       if (recordingTimer.current) {
         clearInterval(recordingTimer.current);
         recordingTimer.current = null;
       }
-      recordingRef.current = null;
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      if (recorder.uri) setVoiceUri(recorder.uri);
     } catch (error) {
       console.error("Failed to stop recording:", error);
       showSnackbar("Failed to stop recording");
