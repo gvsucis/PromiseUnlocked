@@ -14,8 +14,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "buildNumber": "2",
       "supportsTablet": true,
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to camera to take photos of your academic transcript.",
         "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select images of your academic transcript.",
         "NSMicrophoneUsageDescription": "We use the mic to transcribe your speech on device.",
@@ -28,7 +30,7 @@
           }
         ]
       },
-      "bundleIdentifier": "com.anonymous.promiseUnlocked"
+      "bundleIdentifier": "edu.gvsu.bluenucleus.pu"
     },
     "android": {
       "adaptiveIcon": {
@@ -43,7 +45,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "com.anonymous.promiseUnlocked",
+      "package": "edu.gvsu.bluenucleus.pu",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -74,21 +76,24 @@
       ],
       "expo-web-browser",
       "expo-build-properties",
-      "expo-audio"
+      "expo-audio",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.26141705792-gbbbkovfgpsdqtlhbkfv0ebuvuibhoj3"
+        }
+      ]
     ],
     "extra": {
       "eas": {
         "projectId": "62341192-c723-4426-aeb9-7f9186e2accb"
       }
     },
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "1.1.0",
     "updates": {
       "url": "https://u.expo.dev/62341192-c723-4426-aeb9-7f9186e2accb",
       "enabled": true,
-      "fallbackToCacheTimeout": 0,
-      "requestHeaders": {
-        "expo-channel-name": "preview"
-      }
+      "fallbackToCacheTimeout": 0
     }
   }
 }

@@ -32,6 +32,7 @@ import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWr
 import { checkBackendHealth } from "./src/services/backendHealth";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { DialogueProvider } from "./src/context/DialogueContext";
+import RootErrorBoundary from "./src/components/RootErrorBoundary";
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -206,12 +207,14 @@ function AppNavigator() {
 
 export default function App() {
   return (
-    <PaperProvider>
-      <AuthProvider>
-        <DialogueProvider>
-          <AppNavigator />
-        </DialogueProvider>
-      </AuthProvider>
-    </PaperProvider>
+    <RootErrorBoundary>
+      <PaperProvider>
+        <AuthProvider>
+          <DialogueProvider>
+            <AppNavigator />
+          </DialogueProvider>
+        </AuthProvider>
+      </PaperProvider>
+    </RootErrorBoundary>
   );
 }

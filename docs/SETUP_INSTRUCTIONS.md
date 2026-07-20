@@ -1,14 +1,14 @@
 # Quick Setup Instructions
 
-## 🚀 Get Started in 5 Minutes
+## Get Started in 5 Minutes
 
 ### Step 1: Prerequisites Check
 
 Make sure you have:
 
-- ✅ Node.js (v16 or higher)
-- ✅ npm or yarn
-- ✅ A Google account (for Gemini API)
+- Node.js (v16 or higher)
+- npm or yarn
+- A Google account (for Gemini API)
 
 ### Step 2: Get Your Gemini API Key
 
@@ -40,7 +40,7 @@ npx expo start
 - **Web**: Press `w` in the terminal or run `npm run web`
 - **Physical Device**: Install Expo Go app and scan the QR code
 
-## 🔧 Alternative Setup Methods
+## Alternative Setup Methods
 
 ### Method 1: Automated Setup Script
 
@@ -63,7 +63,7 @@ npm install
 npx expo start
 ```
 
-## 📱 Running on Physical Devices
+## Running on Physical Devices
 
 ### iOS Device
 
@@ -79,14 +79,14 @@ npx expo start
 3. Scan the QR code from terminal
 4. Grant camera and photo permissions when prompted
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### "Analysis Failed" Error
 
-- ✅ Check your internet connection
-- ✅ Verify API key is correctly set
-- ✅ Try with a clearer, better-lit image
-- ✅ Ensure transcript text is readable
+- Check your internet connection
+- Verify API key is correctly set
+- Try with a clearer, better-lit image
+- Ensure transcript text is readable
 
 ### Build Errors
 
@@ -102,7 +102,7 @@ npx expo start --clear
 - iOS: Go to Settings > Privacy & Security > Camera/Photos
 - Android: Go to Settings > Apps > Expo Go > Permissions
 
-## 📋 Testing the App
+## Testing the App
 
 1. **Take a Test Photo:**
 
@@ -117,20 +117,20 @@ npx expo start --clear
    - Overall GPA (if visible)
    - Institution details (if visible)
 
-## 🔒 Security Notes
+## Security Notes
 
 - Your API key is stored locally in the app
 - Images are processed by Google's servers
 - No data is stored permanently
 - Consider using environment variables for production
 
-## 📞 Need Help?
+## Need Help?
 
-- Check the main README.md for detailed documentation
+- See [App Overview](APP_OVERVIEW.md) for detailed documentation
 - Review Expo documentation: https://docs.expo.dev/
 - Check Gemini API documentation: https://ai.google.dev/docs
 
-## 🎯 Next Steps
+## Next Steps
 
 After successful setup:
 
@@ -141,4 +141,4 @@ After successful setup:
 
 ---
 
-**Happy coding! 🎓📱**
+**Happy coding!**

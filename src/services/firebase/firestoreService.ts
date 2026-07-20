@@ -21,7 +21,6 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebase";
 import { setJSONInStorage } from "../../utils/asyncStorage";
-import { waitForAuthReady } from "../auth/authSessionService";
 import type {
   SessionDocument,
   InteractionDocument,
@@ -101,6 +100,7 @@ async function ensureFirebaseUserForWrites(): Promise<string> {
 }
 
 export async function getOrCreateUserId(): Promise<string> {
+  const { waitForAuthReady } = await import("../auth/authSessionService");
   await waitForAuthReady();
 
   if (_cachedUserId && auth.currentUser?.uid === _cachedUserId) {

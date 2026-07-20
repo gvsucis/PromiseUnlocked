@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Platform } from "react-native";
-import * as Google from "expo-auth-session/providers/google";
-import { discovery as googleDiscovery } from "expo-auth-session/providers/google";
-import { AuthRequest, ResponseType } from "expo-auth-session";
+import { Alert } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import * as Crypto from "expo-crypto";
+import { AuthRequest, ResponseType } from "expo-auth-session";
+import { discovery as googleDiscovery } from "expo-auth-session/providers/google";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { CONFIG } from "../config/env";
 import { signInWithGoogleTokens } from "../services/firebase/googleAuthService";
@@ -33,18 +32,6 @@ const RETRY_ERROR_MESSAGE = "Google sign-in failed. Please try again.";
 const UNAVAILABLE_ERROR_MESSAGE =
   "Google sign-in is temporarily unavailable. Please try again later.";
 const MISSING_ID_TOKEN_MESSAGE = "Google sign-in did not return an ID token.";
-
-function getNativeGoogleRedirectUri(clientId: string): string {
-  const prefix = clientId.replace(".apps.googleusercontent.com", "");
-  return `com.googleusercontent.apps.${prefix}:/oauthredirect`;
-}
-
-function resolveRedirectUri(): string {
-  if (IS_EXPO_GO) return EXPO_PROXY_BASE;
-  const platformClientId =
-    Platform.OS === "ios" ? CONFIG.GOOGLE_IOS_CLIENT_ID : CONFIG.GOOGLE_ANDROID_CLIENT_ID;
-  return getNativeGoogleRedirectUri(platformClientId);
-}
 
 async function generateNonceHex(byteLength = 16): Promise<string> {
   const bytes = await Crypto.getRandomBytesAsync(byteLength);
@@ -110,22 +97,39 @@ function getErrorMessage(error: unknown): string {
   return GENERIC_ERROR_MESSAGE;
 }
 
+let gsiModule: typeof import("@react-native-google-signin/google-signin") | undefined;
+function loadGSI(): typeof import("@react-native-google-signin/google-signin") | undefined {
+  if (gsiModule) return gsiModule;
+  try {
+    gsiModule = require("@react-native-google-signin/google-signin");
+  } catch {
+    console.warn("[GoogleSignIn] Native module not loaded; will fall back to Expo proxy");
+  }
+  return gsiModule;
+}
+
+let gsiInitialized = false;
+function ensureConfigured() {
+  if (gsiInitialized) return;
+  const gsi = loadGSI();
+  if (!gsi) return;
+  gsi.GoogleSignin.configure({
+    webClientId: CONFIG.GOOGLE_EXPO_CLIENT_ID,
+    iosClientId: CONFIG.GOOGLE_IOS_CLIENT_ID,
+    offlineAccess: false,
+    scopes: GOOGLE_SCOPES,
+  });
+  gsiInitialized = true;
+}
+
 export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
   const [loading, setLoading] = useState(false);
-  const processedResponseUrlRef = useRef<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const signInInFlightRef = useRef(false);
 
   const onSuccessRef = useRef(options.onSuccess);
   useEffect(() => {
     onSuccessRef.current = options.onSuccess;
-  });
-
-  const [googleRequest, googleResponse, promptGoogleSignIn] = Google.useIdTokenAuthRequest({
-    iosClientId: IS_EXPO_GO ? undefined : CONFIG.GOOGLE_IOS_CLIENT_ID,
-    androidClientId: IS_EXPO_GO ? undefined : CONFIG.GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: CONFIG.GOOGLE_EXPO_CLIENT_ID,
-    clientId: IS_EXPO_GO ? CONFIG.GOOGLE_EXPO_CLIENT_ID : undefined,
-    redirectUri: resolveRedirectUri(),
-    selectAccount: true,
   });
 
   const finishSignIn = async (idToken: string, accessToken?: string) => {
@@ -139,46 +143,59 @@ export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
 
   useEffect(() => {
     if (IS_EXPO_GO) return;
-    if (!loading || !googleResponse) return;
+    ensureConfigured();
+    setReady(Boolean(loadGSI()));
+  }, []);
 
-    const responseKey =
-      "url" in googleResponse ? googleResponse.url : `non-url-response:${googleResponse.type}`;
-
-    if (processedResponseUrlRef.current === responseKey) return;
-
-    if (googleResponse.type !== "success") {
-      processedResponseUrlRef.current = responseKey;
-      setLoading(false);
-      if (googleResponse.type === "error") {
-        Alert.alert("Error", googleResponse.error?.message ?? GENERIC_ERROR_MESSAGE);
+  const handleNativeSignIn = async () => {
+    if (signInInFlightRef.current) return;
+    signInInFlightRef.current = true;
+    setLoading(true);
+    try {
+      ensureConfigured();
+      const gsi = loadGSI();
+      if (!gsi) {
+        Alert.alert("Error", "Google Sign-In is not available. Please rebuild the app.");
+        return;
       }
-      return;
-    }
+      await gsi.GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
-    const idToken = googleResponse.params.id_token ?? googleResponse.authentication?.idToken;
-    const accessToken =
-      googleResponse.params.access_token ?? googleResponse.authentication?.accessToken;
+      const response = await gsi.GoogleSignin.signIn();
 
-    if (!idToken && googleResponse.params.code && !googleResponse.authentication) return;
+      if (gsi.isCancelledResponse(response)) return;
 
-    processedResponseUrlRef.current = responseKey;
-
-    if (!idToken) {
-      setLoading(false);
-      Alert.alert("Error", MISSING_ID_TOKEN_MESSAGE);
-      return;
-    }
-
-    void (async () => {
-      try {
-        await finishSignIn(idToken, accessToken);
-      } catch (error: unknown) {
-        Alert.alert("Error", getErrorMessage(error));
-      } finally {
-        setLoading(false);
+      if (gsi.isSuccessResponse(response)) {
+        const { idToken } = response.data;
+        if (!idToken) {
+          Alert.alert("Error", MISSING_ID_TOKEN_MESSAGE);
+          return;
+        }
+        await finishSignIn(idToken);
+        return;
       }
-    })();
-  }, [googleResponse, loading]);
+
+      // Unrecognized response shape — surface an error instead of a dead button.
+      Alert.alert("Error", GENERIC_ERROR_MESSAGE);
+    } catch (error: unknown) {
+      const gsi = loadGSI();
+      if (gsi?.isErrorWithCode(error)) {
+        switch (error.code) {
+          case gsi.statusCodes.SIGN_IN_CANCELLED:
+            return;
+          case gsi.statusCodes.IN_PROGRESS:
+            console.warn("[GoogleSignIn] Already in progress");
+            return;
+          case gsi.statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            Alert.alert("Error", "Google Play Services are not available on this device.");
+            return;
+        }
+      }
+      Alert.alert("Error", getErrorMessage(error));
+    } finally {
+      signInInFlightRef.current = false;
+      setLoading(false);
+    }
+  };
 
   const handleExpoGoSignIn = async () => {
     try {
@@ -203,23 +220,6 @@ export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
     }
   };
 
-  const handleNativeSignIn = async () => {
-    if (!googleRequest) {
-      Alert.alert("Google Sign-In Unavailable", "Google Sign-In is not ready yet. Try again.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      processedResponseUrlRef.current = null;
-      const result = await promptGoogleSignIn();
-      if (result.type !== "success") setLoading(false);
-    } catch (error: unknown) {
-      setLoading(false);
-      Alert.alert("Error", getErrorMessage(error));
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     if (loading) return;
     if (IS_EXPO_GO) {
@@ -232,6 +232,6 @@ export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
   return {
     handleGoogleSignIn,
     googleLoading: loading,
-    googleReady: IS_EXPO_GO || Boolean(googleRequest),
+    googleReady: IS_EXPO_GO || ready,
   };
 }

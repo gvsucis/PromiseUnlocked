@@ -23,9 +23,7 @@ function createFirestoreInstance() {
   }
 
   try {
-    return initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-    });
+    return initializeFirestore(app);
   } catch {
     // Firestore can already be initialized during hot reload; reuse existing instance.
     return getFirestore(app);
