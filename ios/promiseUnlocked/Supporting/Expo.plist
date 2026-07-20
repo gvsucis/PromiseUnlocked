@@ -9,13 +9,8 @@
     <key>EXUpdatesLaunchWaitMs</key>
     <integer>0</integer>
     <key>EXUpdatesRuntimeVersion</key>
-    <string>1.0.0</string>
+    <string>1.1.0</string>
     <key>EXUpdatesURL</key>
     <string>https://u.expo.dev/62341192-c723-4426-aeb9-7f9186e2accb</string>
-    <key>EXUpdatesRequestHeaders</key>
-    <dict>
-      <key>expo-channel-name</key>
-      <string>preview</string>
-    </dict>
   </dict>
 </plist>

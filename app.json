@@ -55,7 +55,10 @@
               "scheme": "com.googleusercontent.apps.26141705792-ulrjshvjas4g8akq5n466dpc9n5c5tu9"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -73,23 +76,24 @@
       ],
       "expo-web-browser",
       "expo-build-properties",
-      "expo-audio"
+      "expo-audio",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.26141705792-gbbbkovfgpsdqtlhbkfv0ebuvuibhoj3"
+        }
+      ]
     ],
     "extra": {
       "eas": {
         "projectId": "62341192-c723-4426-aeb9-7f9186e2accb"
       }
     },
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
+    "runtimeVersion": "1.1.0",
     "updates": {
       "url": "https://u.expo.dev/62341192-c723-4426-aeb9-7f9186e2accb",
       "enabled": true,
-      "fallbackToCacheTimeout": 0,
-      "requestHeaders": {
-        "expo-channel-name": "preview"
-      }
+      "fallbackToCacheTimeout": 0
     }
   }
 }
