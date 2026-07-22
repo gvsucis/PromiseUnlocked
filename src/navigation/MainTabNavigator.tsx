@@ -2,7 +2,8 @@ import React from "react";
 import { View, StyleSheet, TouchableOpacity, Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { MaterialIcons } from "@expo/vector-icons";
-import DialogueDashboardScreen, { dialogueBridgeRef } from "../screens/DialogueDashboardScreen";
+import { useDialogue } from "../context/DialogueProvider";
+import DialogueDashboardScreen from "../screens/DialogueDashboardScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import PassportScreen from "../screens/PassportScreen";
 import HelpScreen from "../screens/HelpScreen";
@@ -63,10 +64,11 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         const { options } = descriptors[route.key];
         const config = TAB_CONFIG[index];
         const isFocused = state.index === index;
+        const dialogue = useDialogue();
 
         const onPress = () => {
           if (config.name === "Chat") {
-            dialogueBridgeRef.current?.handleForceNewQuestion();
+            dialogue.forceNewQuestion();
             return;
           }
           const event = navigation.emit({

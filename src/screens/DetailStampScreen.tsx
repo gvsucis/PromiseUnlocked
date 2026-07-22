@@ -22,6 +22,7 @@ import {
 } from "../services/categoryStorageService";
 
 import { colors } from "../styles/global";
+import { DialogueButton } from "../components/dialogue/DialogueButton";
 
 const DERIVED_SKILLS = computeDerivedSkills();
 
@@ -185,6 +186,8 @@ export default function StampDetailScreen() {
         ) : (
           <Text style={styles.justificationEmpty}>No justification recorded for this stamp.</Text>
         )}
+
+        <DialogueButton variant="addDetail" stamp={stamp} region={region} />
       </ScrollView>
     </SafeAreaView>
   );
