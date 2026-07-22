@@ -7,7 +7,6 @@ import type { RootStackParamList } from "../types/navigation";
 import { REGIONS } from "../config/stampTaxonomy";
 import { RadarChart } from "react-native-gifted-charts";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../config/firebase";
 import {
   getMappedCategories,
   ensureAllMappedCategoriesHaveStamps,
@@ -18,7 +17,7 @@ import type { MappedCategory } from "../services/categoryTaxonomyService";
 import { getCategoryIdFromName } from "../services/categoryTaxonomyService";
 import { colors } from "../styles/global";
 import { signOut } from "firebase/auth";
-import { auth } from "../config/firebase";
+import { auth, db } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useDialogue } from "../context/DialogueContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

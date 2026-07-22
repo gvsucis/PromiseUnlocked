@@ -690,8 +690,9 @@ export function useDialogueState(): DialogueState {
             sensitiveExperience: isSensitive,
           };
         } else {
-          if (freshCategories.length === TOTAL_CATEGORIES) {
-            await endSession("completed");
+          if (countUnlockedStamps(freshCategories) >= TOTAL_STAMPS) {
+            completionHandledRef.current = true;
+            void endSession("completed");
             setUserAnswer("");
             setUiState("complete");
             return { mapped: true as const, category: categoryNameToCheck, interactionId };
@@ -718,14 +719,6 @@ export function useDialogueState(): DialogueState {
             distressSignal,
           };
         }
-
-        return {
-          mapped: true as const,
-          category: categoryNameToCheck,
-          interactionId,
-          distressSignal,
-          sensitiveExperience: isSensitive,
-        };
       }
 
       if (await isCategoryMapped(categoryIdToCheck)) {

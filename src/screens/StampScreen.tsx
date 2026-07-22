@@ -125,8 +125,6 @@ export default function StampScreen() {
       if (!mc.unlockedStamps?.length) continue;
       regionsWithUnlocks.add(mc.category);
       for (const s of mc.unlockedStamps) {
-        const stampCategory = s.category || mc.category;
-        if (stampCategory !== region) continue;
         names.add(s.name);
         counts[s.name] = s.timesUnlocked;
         tiers[s.name] = s.tier ?? DEFAULT_TIER;
@@ -138,7 +136,7 @@ export default function StampScreen() {
     setStampTiers(tiers);
     setPrevRegion(findNearestWithUnlocks(REGIONS, currentIndex, -1, regionsWithUnlocks));
     setNextRegion(findNearestWithUnlocks(REGIONS, currentIndex, 1, regionsWithUnlocks));
-  }, [region, currentIndex]);
+  }, [currentIndex]);
 
   useFocusEffect(
     useCallback(() => {

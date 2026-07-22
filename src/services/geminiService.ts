@@ -59,7 +59,7 @@ export class GeminiService {
   }
 
   private static buildApiUrl(): string {
-    const baseUrl = CONFIG.GEMINI_API_URL.replaceAll(/\/+$/g, "");
+    const baseUrl = CONFIG.GEMINI_API_URL.replace(/\/+$/, "");
     const apiKey = encodeURIComponent(getGeminiApiKey());
     return `${baseUrl}/${this.MODEL_NAME}:generateContent?key=${apiKey}`;
   }

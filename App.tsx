@@ -7,7 +7,6 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { Provider as PaperProvider } from "react-native-paper";
 import { StatusBar } from "expo-status-bar";
-
 import WelcomeScreen from "./src/screens/WelcomeScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
