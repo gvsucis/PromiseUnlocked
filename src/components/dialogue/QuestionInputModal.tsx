@@ -176,15 +176,17 @@ export function QuestionInputModal({
                 </View>
 
                 <View style={styles.actionRow}>
-                  <TouchableOpacity
-                    style={styles.newQuestionButton}
-                    onPress={() => {
-                      onNewQuestion?.();
-                      handleClose();
-                    }}
-                  >
-                    <Text style={styles.newQuestionText}>Skip</Text>
-                  </TouchableOpacity>
+                  {onNewQuestion && (
+                    <TouchableOpacity
+                      style={styles.newQuestionButton}
+                      onPress={() => {
+                        onNewQuestion();
+                        handleClose();
+                      }}
+                    >
+                      <Text style={styles.newQuestionText}>Skip</Text>
+                    </TouchableOpacity>
+                  )}
                   {onNewTopic && (
                     <TouchableOpacity
                       style={styles.newTopicButton}

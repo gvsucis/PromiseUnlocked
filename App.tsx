@@ -27,11 +27,12 @@ import DetailStampScreen from "./src/screens/DetailStampScreen";
 import EditProfileScreen from "./src/screens/EditProfileScreen";
 import { RootStackParamList } from "./src/types/navigation";
 import MainTabNavigator from "./src/navigation/MainTabNavigator";
+import { DialogueProvider } from "./src/context/DialogueProvider";
+import { DialogueModals } from "./src/components/dialogue/DialogueModals";
 import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWriteQueue";
 import { checkBackendHealth } from "./src/services/backendHealth";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
-import { DialogueProvider } from "./src/context/DialogueContext";
-import RootErrorBoundary from "./src/components/RootErrorBoundary";
+//import { DialogueProvider } from "./src/context/DialogueContext";
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -88,6 +89,7 @@ function AppNavigator() {
   return (
     <NavigationContainer>
       <StatusBar style="auto" />
+      <DialogueModals />
       <Stack.Navigator
         initialRouteName={getInitialRoute()}
         screenOptions={{

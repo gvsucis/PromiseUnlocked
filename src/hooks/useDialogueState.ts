@@ -131,8 +131,8 @@ export interface DialogueState {
   prepareImageQuestion: () => boolean;
   handleSubmitAnswer: () => void;
   handleWeakFitTryAgain: () => void;
-  handleWeakFitNewQuestion: () => Promise<void>;
-  handleSkipQuestion: () => Promise<void>;
+  handleWeakFitNewQuestion: (region?: string) => Promise<void>;
+  handleSkipQuestion: (region?: string) => Promise<void>;
   handleNewTopic: (region?: string) => Promise<void>;
   dismissAnswerModal: () => void;
   clearPendingProofRequest: () => void;
@@ -553,6 +553,12 @@ export function useDialogueState(): DialogueState {
       const distressSignal = checkSensitive && !!result.distressSignal;
       if (distressSignal) {
         setShowCrisisSupport(true);
+        setSavedQuestion("");
+        setSavedAnswer("");
+        setCurrentPrompt("");
+        setUserAnswer("");
+        setUiState("idle");
+        return { mapped: false as const, category: null, interactionId: "", distressSignal };
       }
 
       const validCategory = findValidCategory(rawCategory);
@@ -1015,8 +1021,12 @@ export function useDialogueState(): DialogueState {
 
   // Regenerate the next question: brief idle beat, then an abortable Gemini
   // call whose result is prefetched. Callers reset their own state and pass context.
+  // `region`, when provided, keeps the regeneration scoped to that region's
+  // taxonomy instead of falling back to the full taxonomy — this is what keeps
+  // "skip" inside a region/addDetail flow from silently going generic.
   const synthesizeAndPrefetch = async (
-    context?: Parameters<typeof GeminiService.synthesizeNextQuestion>[3]
+    context?: Parameters<typeof GeminiService.synthesizeNextQuestion>[3],
+    region?: string
   ) => {
     setError("");
     setUiState("idle");
@@ -1033,9 +1043,10 @@ export function useDialogueState(): DialogueState {
       const newQuestion = await GeminiService.synthesizeNextQuestion(
         interactions,
         mappedCategories,
-        getTaxonomyString(),
+        region ? getFilteredTaxonomyString(region) : getTaxonomyString(),
         context,
-        controller.signal
+        controller.signal,
+        region
       );
 
       setPrefetchedQuestion(newQuestion);
@@ -1051,23 +1062,26 @@ export function useDialogueState(): DialogueState {
     }
   };
 
-  const handleWeakFitNewQuestion = async () => {
+  const handleWeakFitNewQuestion = async (region?: string) => {
     setWeakFitJustification("");
     setContentWarning(false);
     setSavedAnswer("");
     setSavedQuestion("");
-    await synthesizeAndPrefetch({
-      embeddingHistorySummary: pdfContextRef.current,
-    });
+    await synthesizeAndPrefetch({ embeddingHistorySummary: pdfContextRef.current }, region);
   };
 
   // Skip: regenerate with an "avoid this" signal so the model returns something
-  // genuinely different rather than a rephrasing.
-  const handleSkipQuestion = async () => {
-    await synthesizeAndPrefetch({
-      avoidQuestion: currentPrompt || undefined,
-      embeddingHistorySummary: pdfContextRef.current,
-    });
+  // genuinely different rather than a rephrasing. `region` keeps skip scoped to
+  // whichever of the 4 entry flows (home / navbar+ / region / addDetail) is
+  // currently active — the caller (DialogueProvider) supplies this from flowContext.
+  const handleSkipQuestion = async (region?: string) => {
+    await synthesizeAndPrefetch(
+      {
+        avoidQuestion: currentPrompt || undefined,
+        embeddingHistorySummary: pdfContextRef.current,
+      },
+      region
+    );
   };
 
   const handleNewTopic = async (region?: string) => {
