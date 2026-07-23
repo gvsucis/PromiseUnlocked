@@ -18,7 +18,6 @@ import {
 import { auth, db } from "../../config/firebase";
 import { getJSONFromStorage, setJSONInStorage } from "../../utils/asyncStorage";
 import { DEFAULT_TIER } from "../../config/stampConstants";
-import { getActiveSessionId } from "../sessionManager";
 import { getInProgressSession } from "../firebase/firestoreService";
 import type { AppAuthSession, PassportEntry } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
@@ -208,7 +207,7 @@ async function backfillLocalStampsToFirestore(uid: string): Promise<void> {
     // Only back local stamps into an existing in_progress session. Never mint a
     // new session here — that would resurrect a completed passport the user has
     // already moved on from.
-    const sessionId = await getActiveSessionId();
+    const sessionId = await getInProgressSession(uid);
     if (!sessionId) {
       if (__DEV__) console.log("[AuthSession] Skipping backfill — no in_progress session");
       return;
