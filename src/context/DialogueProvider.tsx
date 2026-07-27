@@ -107,6 +107,7 @@ interface DialogueContextValue {
   startAddDetailQuestion: (stamp: string, region: string) => void;
   handleWeakFitTryAgain: ReturnType<typeof useDialogueState>["handleWeakFitTryAgain"];
   handleWeakFitNewQuestion: () => Promise<void>;
+  handleWeakFitAcceptAnswer: () => Promise<void>;
 
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
@@ -220,6 +221,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     prepareImageQuestion,
     handleSkipQuestion: handleSkipQuestionBase,
     handleWeakFitNewQuestion: handleWeakFitNewQuestionBase,
+    handleWeakFitAcceptAnswer: handleWeakFitAcceptAnswerBase,
     handleWeakFitTryAgain,
     handleNewTopic: handleNewTopicBase,
     clearPendingProofRequest,
@@ -602,6 +604,10 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
   const handleWeakFitNewQuestion = useCallback(() => {
     return handleWeakFitNewQuestionBase(flowRegion);
   }, [handleWeakFitNewQuestionBase, flowRegion]);
+
+  const handleWeakFitAcceptAnswer = useCallback(() => {
+    return handleWeakFitAcceptAnswerBase(flowRegion);
+  }, [handleWeakFitAcceptAnswerBase, flowRegion]);
 
   // New Topic is only ever shown when flowContext.mode === "default" (see
   // DialogueModals), so it's semantically already a "back to default" action —
@@ -1054,6 +1060,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     handleNewTopic,
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
+    handleWeakFitAcceptAnswer,
     startAddDetailQuestion,
     startRecording,
     stopRecording,

@@ -126,6 +126,7 @@ export interface DialogueState {
   handleSubmitAnswer: () => void;
   handleWeakFitTryAgain: () => void;
   handleWeakFitNewQuestion: (region?: string) => Promise<void>;
+  handleWeakFitAcceptAnswer: (region?: string) => Promise<void>;
   handleSkipQuestion: (region?: string) => Promise<void>;
   handleNewTopic: (region?: string) => Promise<void>;
   dismissAnswerModal: () => void;
@@ -1077,6 +1078,14 @@ export function useDialogueState(): DialogueState {
     await synthesizeAndPrefetch({ embeddingHistorySummary: pdfContextRef.current }, region);
   };
 
+  const handleWeakFitAcceptAnswer = async (region?: string) => {
+    setWeakFitJustification("");
+    setContentWarning(false);
+    setSavedAnswer("");
+    setSavedQuestion("");
+    await synthesizeAndPrefetch({ embeddingHistorySummary: pdfContextRef.current }, region);
+  };
+
   // Skip: regenerate with an "avoid this" signal so the model returns something
   // genuinely different rather than a rephrasing. `region` keeps skip scoped to
   // whichever of the 4 entry flows (home / navbar+ / region / addDetail) is
@@ -1253,6 +1262,7 @@ export function useDialogueState(): DialogueState {
     handleSubmitAnswer,
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
+    handleWeakFitAcceptAnswer,
     handleSkipQuestion,
     handleNewTopic,
     dismissAnswerModal,
