@@ -73,7 +73,6 @@ export function DialogueModals() {
         isContentWarning={d.contentWarning}
         onTryAgain={d.handleWeakFitTryAgain}
         onNewQuestion={d.handleWeakFitNewQuestion}
-        onAcceptAnswer={d.contentWarning ? undefined : d.handleWeakFitAcceptAnswer}
       />
 
       <AnswerModal

@@ -15,7 +15,6 @@ interface WeakFitModalProps {
   isContentWarning?: boolean;
   onTryAgain: () => void;
   onNewQuestion: () => void;
-  onAcceptAnswer?: () => void;
 }
 
 export function WeakFitModal({
@@ -24,7 +23,6 @@ export function WeakFitModal({
   isContentWarning = false,
   onTryAgain,
   onNewQuestion,
-  onAcceptAnswer,
 }: Readonly<WeakFitModalProps>) {
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
@@ -39,13 +37,13 @@ export function WeakFitModal({
                 style={styles.weakFitIcon}
               />
               <Text style={styles.weakFitTitle}>
-                {isContentWarning ? "Inappropriate Content" : "Just checking"}
+                {isContentWarning ? "Inappropriate Content" : "Need More Details"}
               </Text>
               <Text style={styles.weakFitJustification}>{justification}</Text>
               <Text style={styles.weakFitPrompt}>
                 {isContentWarning
                   ? "Please keep your response respectful and try again."
-                  : "You can add detail, try a new question, or keep your answer as-is."}
+                  : "Would you like to provide more details about your answer, or move to a different question?"}
               </Text>
               <View style={styles.weakFitButtons}>
                 {isContentWarning ? (
@@ -65,15 +63,6 @@ export function WeakFitModal({
                       <MaterialIcons name="skip-next" size={20} color="#667eea" />
                       <Text style={styles.weakFitButtonTextSecondary}>New Question</Text>
                     </TouchableOpacity>
-                    {onAcceptAnswer && (
-                      <TouchableOpacity
-                        style={[styles.weakFitButton, styles.weakFitButtonOutline]}
-                        onPress={onAcceptAnswer}
-                      >
-                        <MaterialIcons name="check" size={20} color="#667eea" />
-                        <Text style={styles.weakFitButtonTextSecondary}>My answer</Text>
-                      </TouchableOpacity>
-                    )}
                     <TouchableOpacity
                       style={[styles.weakFitButton, styles.weakFitButtonPrimary]}
                       onPress={onTryAgain}
@@ -104,7 +93,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 30,
     width: "85%",
-    maxWidth: 440,
+    maxWidth: 400,
     alignItems: "center",
   },
   weakFitIcon: {
@@ -150,11 +139,6 @@ const styles = StyleSheet.create({
   weakFitButtonSecondary: {
     backgroundColor: "#f0f0f0",
     borderWidth: 1,
-    borderColor: "#667eea",
-  },
-  weakFitButtonOutline: {
-    backgroundColor: "#fff",
-    borderWidth: 1.5,
     borderColor: "#667eea",
   },
   weakFitButtonPrimary: {
