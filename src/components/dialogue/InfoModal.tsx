@@ -2,27 +2,26 @@ import React from "react";
 import { Modal, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { colors } from "../../styles/global";
 
-interface CrisisSupportModalProps {
+interface InfoModalProps {
   visible: boolean;
+  title?: string;
+  body: string | string[];
   onContinue: () => void;
 }
 
-export function CrisisSupportModal({ visible, onContinue }: CrisisSupportModalProps) {
+export function InfoModal({ visible, title, body, onContinue }: Readonly<InfoModalProps>) {
+  const paragraphs = Array.isArray(body) ? body : [body];
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onContinue}>
       <View style={styles.overlay}>
         <View style={styles.card}>
-          <Text style={styles.title}>Need Support?</Text>
-          <Text style={styles.body}>
-            We noticed that your message may relate to self-harm, suicide, or a personal crisis.
-          </Text>
-          <Text style={styles.body}>
-            If you're in immediate danger or considering harming yourself, please contact emergency
-            services or call/text 988 for immediate support.
-          </Text>
-          <Text style={styles.body}>
-            If this was not your intent, you can continue using the app normally.
-          </Text>
+          {title && <Text style={styles.title}>{title}</Text>}
+          {paragraphs.map((p, i) => (
+            <Text key={i} style={styles.body}>
+              {p}
+            </Text>
+          ))}
           <TouchableOpacity style={styles.button} onPress={onContinue}>
             <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>
@@ -58,6 +57,7 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginBottom: 10,
     lineHeight: 20,
+    textAlign: "center",
   },
   button: {
     marginTop: 10,

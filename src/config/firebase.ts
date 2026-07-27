@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, initializeFirestore, setLogLevel } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  setLogLevel,
+  persistentLocalCache,
+  type Firestore,
+} from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { getAuth, initializeAuth } from "firebase/auth";
@@ -23,7 +29,9 @@ function createFirestoreInstance() {
   }
 
   try {
-    return initializeFirestore(app);
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache(),
+    });
   } catch {
     // Firestore can already be initialized during hot reload; reuse existing instance.
     return getFirestore(app);

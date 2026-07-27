@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Dimensions } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { Snackbar } from "react-native-paper";
-import ConfettiCannon from "react-native-confetti-cannon";
 
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -12,15 +11,11 @@ import { CompletionModal } from "./CompletionModal";
 import { WeakFitModal } from "./WeakFitModal";
 import { AnswerModal } from "./AnswerModal";
 import { VoiceRecordingModal } from "./VoiceRecordingModal";
-import { StampUnlockModal } from "./StampUnlockModal";
-import { StampUpgradeModal } from "./StampUpgradeModal";
-import { CrisisSupportModal } from "./CrisisSupportModal";
-import { SensitiveExperienceModal } from "./SensitiveExperienceModal";
+import { StampModal } from "./StampModal";
+import { InfoModal } from "./InfoModal";
 import { QuestionInputModal } from "./QuestionInputModal";
 import ImageEditor from "../ImageEditor";
 import ZoomableImageView from "../ZoomableImageView";
-
-const { width } = Dimensions.get("window");
 
 type PriorityModal = "crisis" | "sensitive" | "weakFit" | "stampUnlock" | "stampUpgrade" | null;
 
@@ -114,49 +109,71 @@ export function DialogueModals() {
         onCancel={d.handleVoiceCancel}
       />
 
-      <StampUnlockModal
-        visible={activeModal === "stampUnlock"}
-        stampName={d.newStampUnlock?.stamp ?? ""}
-        tier={d.newStampUnlock?.tier ?? 1}
-        region={d.newStampUnlock?.category ?? ""}
-        sensitive={d.newStampUnlock?.sensitive ?? false}
-        onContinue={d.handleContinueAfterStampUnlock}
-        onViewStamp={() => {
-          const unlock = d.newStampUnlock;
-          d.clearStampUnlock();
-          if (unlock) {
-            navigation.navigate("StampDetails", {
-              stamp: unlock.stamp,
-              region: unlock.category,
-              categoryId: unlock.categoryId,
-            });
-          }
-        }}
-      />
+      {activeModal === "stampUnlock" && d.newStampUnlock && (
+        <StampModal
+          visible
+          variant="unlock"
+          stampName={d.newStampUnlock.stamp}
+          tier={d.newStampUnlock.tier}
+          region={d.newStampUnlock.category}
+          sensitive={d.newStampUnlock.sensitive}
+          showConfetti={d.showConfetti}
+          onContinue={d.handleContinueAfterStampUnlock}
+          onViewStamp={() => {
+            const unlock = d.newStampUnlock;
+            d.clearStampUnlock();
+            if (unlock) {
+              navigation.navigate("StampDetails", {
+                stamp: unlock.stamp,
+                region: unlock.category,
+                categoryId: unlock.categoryId,
+              });
+            }
+          }}
+        />
+      )}
 
-      <StampUpgradeModal
-        visible={activeModal === "stampUpgrade"}
-        stampName={d.activeStampUpgrade?.stamp ?? ""}
-        previousTier={d.activeStampUpgrade?.previousTier ?? 1}
-        newTier={d.activeStampUpgrade?.newTier ?? 1}
-        region={d.activeStampUpgrade?.category ?? ""}
-        onContinue={d.handleContinueAfterStampUpgrade}
-        onViewStamp={() => {
-          const upgrade = d.activeStampUpgrade;
-          d.clearActiveStampUpgrade();
-          if (upgrade) {
-            navigation.navigate("StampDetails", {
-              stamp: upgrade.stamp,
-              region: upgrade.category,
-              categoryId: upgrade.categoryId,
-            });
-          }
-        }}
-      />
+      {activeModal === "stampUpgrade" && d.activeStampUpgrade && (
+        <StampModal
+          visible
+          variant="upgrade"
+          stampName={d.activeStampUpgrade.stamp}
+          previousTier={d.activeStampUpgrade.previousTier}
+          newTier={d.activeStampUpgrade.newTier}
+          region={d.activeStampUpgrade.category}
+          showConfetti={d.showConfetti}
+          onContinue={d.handleContinueAfterStampUpgrade}
+          onViewStamp={() => {
+            const upgrade = d.activeStampUpgrade;
+            d.clearActiveStampUpgrade();
+            if (upgrade) {
+              navigation.navigate("StampDetails", {
+                stamp: upgrade.stamp,
+                region: upgrade.category,
+                categoryId: upgrade.categoryId,
+              });
+            }
+          }}
+        />
+      )}
 
-      <CrisisSupportModal visible={activeModal === "crisis"} onContinue={d.dismissCrisisSupport} />
-      <SensitiveExperienceModal
+      <InfoModal
+        visible={activeModal === "crisis"}
+        title="Need Support?"
+        body={[
+          "We noticed that your message may relate to self-harm, suicide, or a personal crisis.",
+          "If you're in immediate danger or considering harming yourself, please contact emergency services or call/text 988 for immediate support.",
+          "If this was not your intent, you can continue using the app normally.",
+        ]}
+        onContinue={d.dismissCrisisSupport}
+      />
+      <InfoModal
         visible={activeModal === "sensitive"}
+        body={[
+          "We recognize that this experience may have been difficult.",
+          "Thank you for sharing something personal.",
+          "Significant life experiences can shape resilience, empathy, perspective, and personal growth. Based on what you've shared, we've identified a new experience in your profile.",
+        ]}
         onContinue={d.dismissSensitiveIntro}
       />
 
@@ -225,16 +242,6 @@ export function DialogueModals() {
       )}
 
       {d.isUploadingProof && <View style={styles.proofUploadOverlay} pointerEvents="none"></View>}
-
-      {d.showConfetti && (
-        <ConfettiCannon
-          count={200}
-          origin={{ x: width / 2, y: 0 }}
-          autoStart={true}
-          fadeOut={true}
-          fallSpeed={3000}
-        />
-      )}
     </>
   );
 }

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Button, Card, ActivityIndicator, Chip } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -15,11 +16,14 @@ import { getTaxonomySkillsWithStatus, getSkillsStats } from "../services/userSki
 import { getJSONFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 import { Stamp, UserProgress, TranscriptSummary, CourseAnalysis } from "../types/dashboard";
 import { AVAILABLE_STAMPS, SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { fetchMyStamps, getCachedStamps } from "../services/stampSyncService";
+import { subscribeToDashboardRefresh } from "../services/dashboardRefreshService";
 const { width } = Dimensions.get("window");
 
 interface UnknownType {
   [key: string]: string;
 }
+
 // Helper functions for transcript analysis
 const analyzeCourses = (courses: { [key: string]: string }[]): CourseAnalysis => {
   const subjects: { [key: string]: number } = {};
@@ -187,7 +191,7 @@ const createTranscriptSummary = (transcriptData: any): TranscriptSummary => {
   }
 
   // Determine achievements based on GPA
-  const gpa = parseFloat(transcriptData.gpa || "0");
+  const gpa = Number.parseFloat(transcriptData.gpa || "0");
   if (gpa >= 3.9) achievements.push("Summa Cum Laude");
   else if (gpa >= 3.7) achievements.push("Magna Cum Laude");
   else if (gpa >= 3.5) achievements.push("Dean's List");
@@ -219,24 +223,66 @@ export default function DashboardScreen({ route, navigation }: any) {
   const [skillsData, setSkillsData] = useState<any[]>([]);
   const [skillsStats, setSkillsStats] = useState<any>(null);
   const [selectedSkillCategory, setSelectedSkillCategory] = useState<string>("All");
+  const [refreshing, setRefreshing] = useState(false);
+  const [remoteStampCount, setRemoteStampCount] = useState(0);
+  const [lastSyncLabel, setLastSyncLabel] = useState("Tap sync to refresh your dashboard");
 
   const analysisResult = route?.params?.analysisResult;
 
+  const syncDashboardData = async (showAlert = false) => {
+    try {
+      setRefreshing(true);
+      const [remoteStamps, cachedStamps] = await Promise.all([fetchMyStamps(), getCachedStamps()]);
+
+      const syncedStampCount = remoteStamps.length || cachedStamps.length || 0;
+      setRemoteStampCount(syncedStampCount);
+      setLastSyncLabel(
+        syncedStampCount > 0
+          ? `Synced ${syncedStampCount} stamp${syncedStampCount === 1 ? "" : "s"} from your account`
+          : "No stamps available yet"
+      );
+
+      await Promise.all([loadUserProgress(), loadSkillsData()]);
+
+      if (showAlert) {
+        Alert.alert(
+          "Sync complete",
+          syncedStampCount > 0
+            ? `Loaded ${syncedStampCount} stamps from your account.`
+            : "Your dashboard is up to date."
+        );
+      }
+    } catch (error) {
+      console.error("Error syncing dashboard:", error);
+      setLastSyncLabel("Sync failed. Please try again.");
+      if (showAlert) {
+        Alert.alert("Sync failed", "We couldn't refresh your dashboard right now.");
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    loadUserProgress();
-    loadSkillsData();
+    void syncDashboardData(false);
     if (analysisResult) {
-      processTranscriptAnalysis(analysisResult);
+      void processTranscriptAnalysis(analysisResult);
     }
   }, []);
 
   useEffect(() => {
-    // Reload skills when screen comes into focus
     const unsubscribe = navigation.addListener("focus", () => {
-      loadSkillsData();
+      void syncDashboardData(false);
     });
     return unsubscribe;
   }, [navigation]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToDashboardRefresh(() => {
+      void syncDashboardData(false);
+    });
+    return unsubscribe;
+  }, []);
 
   const loadUserProgress = async () => {
     try {
@@ -416,11 +462,45 @@ export default function DashboardScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void syncDashboardData(true);
+            }}
+            colors={["#2196F3"]}
+            tintColor="#2196F3"
+          />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>🎯 Your Achievement Dashboard</Text>
-          <Text style={styles.subtitle}>Track your identified skills and achievements!</Text>
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.title}>🎯 Your Achievement Dashboard</Text>
+              <Text style={styles.subtitle}>Track your identified skills and achievements!</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.syncButton}
+              onPress={() => {
+                void syncDashboardData(true);
+              }}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <MaterialIcons name="sync" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+          <View style={styles.headerMetaRow}>
+            <Text style={styles.headerMetaText}>{lastSyncLabel}</Text>
+            <Text style={styles.headerMetaCount}>{remoteStampCount} stamps</Text>
+          </View>
         </View>
 
         <TopTabBar
@@ -702,6 +782,40 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     backgroundColor: "#2196F3",
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  headerTextWrap: {
+    flex: 1,
+  },
+  syncButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+  headerMetaText: {
+    flex: 1,
+    color: "#E3F2FD",
+    fontSize: 12,
+  },
+  headerMetaCount: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   title: {
     fontSize: 24,

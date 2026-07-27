@@ -8,11 +8,11 @@ import {
   Pressable,
   TouchableOpacity,
   KeyboardAvoidingView,
-  ScrollView,
   Platform,
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { SplitQuestionRenderer } from "./SplitQuestionRenderer";
 
 interface AnswerModalProps {
   readonly visible: boolean;
@@ -65,13 +65,12 @@ export function AnswerModal({
 
           <View style={styles.modalContent}>
             <Text style={styles.questionTitle}>Question for You</Text>
-            <ScrollView
-              style={{ maxHeight: 200 }}
-              contentContainerStyle={{ paddingVertical: 4 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Text style={styles.questionText}>{currentPrompt || "(No question loaded)"}</Text>
-            </ScrollView>
+            <SplitQuestionRenderer
+              text={currentPrompt}
+              textStyle={styles.questionText}
+              fallbackText="(No question loaded)"
+              scrollable
+            />
 
             {selectedImage ? (
               <>
@@ -154,13 +153,13 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     marginBottom: 12,
-    textAlign: "center",
+    textAlign: "left",
   },
   questionText: {
     fontSize: 16,
     color: "#666",
     lineHeight: 24,
-    textAlign: "center",
+    textAlign: "left",
   },
   previewImage: {
     width: "100%",

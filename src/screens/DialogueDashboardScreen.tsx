@@ -2,7 +2,7 @@ import React from "react";
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Text, Card } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
@@ -20,6 +20,12 @@ export default function DialogueDashboardScreen() {
   const { session } = useAuth();
   const d = useDialogue();
   const insets = useSafeAreaInsets();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      d.refreshData();
+    }, [d.refreshData])
+  );
 
   React.useLayoutEffect(() => {
     navigation.getParent()?.setOptions({

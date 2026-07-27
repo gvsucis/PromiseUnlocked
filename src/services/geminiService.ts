@@ -423,6 +423,10 @@ export class GeminiService {
     rawResponse?: string;
     error?: string;
     inappropriate?: boolean;
+    // True when the image is genuine visual evidence of the activity in the question.
+    supportsClaim?: boolean;
+    // Tier the image evidence warrants (3 = ordinary evidence, 4 = exceptional).
+    evidenceTier?: number;
   }> {
     try {
       const optimizedImageUri = skipCompression
@@ -446,8 +450,10 @@ Instructions:
 4. Keep it specific, natural, and grounded in what is visible.
 5. Mention concrete skills/strengths implied by the activity.
 6. Do not include disclaimers, markdown, bullet points, or references to "the image".
+7. Judge whether the image is GENUINE VISUAL EVIDENCE that the user actually did/engaged in the activity relevant to the question. Set "supportsClaim" to true ONLY if the image clearly depicts that specific activity or its concrete output/context and would stand as real evidence of it. Set it to false for generic, staged, unrelated, or low-content images (e.g. a blank wall, an unrelated selfie, a stock-looking photo, text screenshots).
+8. If "supportsClaim" is true, set "evidenceTier": 3 for ordinary genuine supporting evidence, or 4 ONLY for exceptional, verifiable-caliber evidence visible in the image (an award/certificate, competition, professional or high-level setting). If "supportsClaim" is false, set "evidenceTier" to 3 (it is ignored).
 
-Return JSON only, matching this shape: { "inappropriate": boolean, "answer": string }`,
+Return JSON only, matching this shape: { "inappropriate": boolean, "answer": string, "supportsClaim": boolean, "evidenceTier": number }`,
               },
               { inline_data: { mime_type: "image/jpeg", data: base64Image } },
             ],
@@ -463,8 +469,10 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
             properties: {
               inappropriate: { type: "boolean" },
               answer: { type: "string" },
+              supportsClaim: { type: "boolean" },
+              evidenceTier: { type: "number" },
             },
-            required: ["inappropriate", "answer"],
+            required: ["inappropriate", "answer", "supportsClaim", "evidenceTier"],
           },
         },
       };
@@ -491,7 +499,12 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
 
       const jsonString = extractJson(text);
       const parsed = jsonString
-        ? (JSON.parse(jsonString) as { inappropriate?: boolean; answer?: string })
+        ? (JSON.parse(jsonString) as {
+            inappropriate?: boolean;
+            answer?: string;
+            supportsClaim?: boolean;
+            evidenceTier?: number;
+          })
         : null;
 
       if (!parsed) {
@@ -499,13 +512,19 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
       }
 
       if (parsed.inappropriate) {
-        return { success: true, inappropriate: true, rawResponse: "" };
+        return { success: true, inappropriate: true, rawResponse: "", supportsClaim: false };
       }
+
+      const supportsClaim = parsed.supportsClaim === true;
+      // Floor at 3 (evidence tier), cap at 4; only meaningful when supportsClaim.
+      const evidenceTier = Math.min(Math.max(Math.round(parsed.evidenceTier ?? 3), 3), 4);
 
       return {
         success: true,
         inappropriate: false,
         rawResponse: (parsed.answer ?? "").trim(),
+        supportsClaim,
+        evidenceTier,
       };
     } catch (error) {
       const errorMessage = this.getActionImageErrorMessage(error);
@@ -587,7 +606,6 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
     mappedCategories: MappedCategory[],
     taxonomyString: string,
     options?: {
-      pdfContextText?: string;
       signal?: AbortSignal;
       targetRegion?: string;
       currentTier?: number;
@@ -595,8 +613,8 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
       hasArtifact?: boolean;
     }
   ): Promise<MapAnswerResponse> {
-    // Cap history at 5 turns to keep the prompt under the token limit.
-    const recentInteractions = interactions.slice(-5);
+    // Cap history at 6 turns to keep the prompt under the token limit.
+    const recentInteractions = interactions.slice(-6);
 
     const history = recentInteractions
       .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
@@ -604,10 +622,6 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
     const mappedCategoriesList = mappedCategories
       .map((c) => c.category + (c.timesMapped ? " (count: " + c.timesMapped + ")" : ""))
       .join(", ");
-
-    const contextBlock = options?.pdfContextText
-      ? `\n\n=== USER PERSONALITY PROFILE ===\n${options.pdfContextText}\n\nUse this only to make questions and follow-ups more engaging — match their communication style, lead with topics tied to their interests and motivators, and steer toward areas where they can show evidence. It must NOT change how strictly you map answers to categories. Never mention it or imply you have access to a profile.`
-      : "";
 
     const regionHint = options?.targetRegion
       ? `\n13. The user is exploring the "${options.targetRegion}" region. If the answer fits this category, prefer mapping to "${options.targetRegion}" over other categories.`
@@ -640,7 +654,7 @@ Rules:
 5. If the answer contains abusive, offensive, or inappropriate language, or is gibberish/spam/unrelated to any category, you MUST use 'NO_MAP_WEAK_FIT' with justification EXACTLY starting with 'INAPPROPRIATE_CONTENT:'. Set nextQuestion to null. Do NOT use the answer text in follow-up questions. See rule 17 if distressSignal also applies — only one of these should govern the turn.
 6. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
 7. Keep the justification short and factual, with at most 40 words.
-8. Generate a thoughful follow-up question. If the last 2-3 interaction have centered on the same category or skill area, deliberately broaden the scope - ask about a related but different dimension of the user's experience. Otherwise, you may continue naturally from their answer. The goal is holistic exploraltion across categories, not exhaustive depth on one. , or set nextQuestion to null if no useful follow-up exists. Keep the question in the register of activities, projects, responsibilities, and choices. Never ask the user to locate feelings or sensations in their body, rate distress/pain, describe physical or emotional symptoms, or do body-scanning/mindfulness-style reflection. Do not introduce mental health, trauma, family conflict, finances, romantic relationships, religion, or immigration status as topics — only engage with those if the user's own answer already raised them, and even then stay on the skill/experience angle rather than the personal one.
+8. Generate a thoughful follow-up question. If the last 2-3 interaction have centered on the same category or skill area, deliberately broaden the scope - ask about a related but different dimension of the user's experience. Otherwise, you may continue naturally from their answer. The goal is holistic exploraltion across categories, not exhaustive depth on one. , or set nextQuestion to null if no useful follow-up exists. Keep the question in the register of activities, projects, responsibilities, and choices. Never ask the user to locate feelings or sensations in their body, rate distress/pain, describe physical or emotional symptoms, or do body-scanning/mindfulness-style reflection. Do not introduce mental health, trauma, family conflict, finances, romantic relationships, religion, or immigration status as topics — only engage with those if the user's own answer already raised them, and even then stay on the skill/experience angle rather than the personal one. Keep the tone warm and conversational — ask with genuine curiosity about what the experience meant or what they learned, not about granular mechanics. Favor open-ended reflection over narrow factual questions.
 9. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.
 10. Pick the single most specific stamp name from the category's "Available Stamps" list. Set specificStamp only if the answer clearly and directly indicates that exact stamp. If no specific stamp is evident, set specificStamp to null — do not guess or default.
 10b. If the answer maps to an ALREADY-MAPPED category (see rule 3), you must still identify which specific stamp within that category this answer best supports, using the same "Available Stamps" list — even though the category itself was mapped before. Do not leave specificStamp null just because the category is already mapped; only leave it null if the answer genuinely doesn't point to any specific stamp. Never show the user this thinking in the question.
@@ -660,7 +674,8 @@ Tier rubric:
 15. Independently of category mapping, set distressSignal to true if the answer expresses or strongly implies self-harm, suicidal ideation, or an acute personal crisis warranting support resources. Evaluate this even if the answer would otherwise map to a category, be weak fit, or be flagged inappropriate — but see rule 17: distressSignal takes precedence and suppresses those other flags for this turn. Default to false — do not flag general sadness, stress, or difficult-but-non-crisis topics.
 16. Independently of category mapping, set sensitiveExperience to true if the answer describes the death or serious illness of a loved one, or another significant grief/loss experience. Default to false. If distressSignal is also true, set sensitiveExperience to false — an acute crisis takes precedence over the grief-support flow for this turn.
 17. PRIORITY WHEN MULTIPLE SIGNALS COULD APPLY: Only one support-flow signal should govern a single turn, in this order: (a) distressSignal — if true, do NOT also use the INAPPROPRIATE_CONTENT justification (rule 5) or set sensitiveExperience to true; still attempt a genuine category mapping if the answer clearly supports one, otherwise use NO_MAP_WEAK_FIT with a neutral (non-INAPPROPRIATE_CONTENT) justification. (b) INAPPROPRIATE_CONTENT — if distressSignal is false but the content is genuinely abusive or policy-violating, flag it per rule 5. (c) NO_MAP_WEAK_FIT for vague, generic, or insufficiently detailed answers — only applies if neither (a) nor (b) does.
-${contextBlock}${regionHint}${progressionContext}`;
+18. CONSISTENCY CHECK: Compare the answer to the last 6 interactions in RECENT_HISTORY. If it describes the same specific experience, project, event, or story (same people, same outcome, same activity) as any of those turns, set initialTier to 1 regardless of substance — the user must provide new evidence, not recycle old stories. If the same experience is recycled 3 or more times in the session, map to NO_MAP_WEAK_FIT with justification starting with "SAME_EXPERIENCE_REPEATED:".
+      ${regionHint}${progressionContext}`;
 
     const userPrompt = `QUESTION: ${question}\nANSWER: ${answer}\nLATEST_CONTEXT: Use the answer above as the primary anchor for the next question.\nRECENT_HISTORY: ${history}\nMAPPED_CATEGORIES_WITH_COUNTS: ${mappedCategoriesList}\nTAXONOMY:\n${taxonomyString}`;
 
@@ -736,7 +751,6 @@ ${contextBlock}${regionHint}${progressionContext}`;
         {
           latestQuestion: question,
           latestAnswer: answer,
-          embeddingHistorySummary: options?.pdfContextText,
         },
         options?.signal
       );
@@ -822,7 +836,6 @@ ${contextBlock}${regionHint}${progressionContext}`;
       category,
       justification,
       nextQuestion: null,
-      specificStamp: category,
     };
   }
 
@@ -915,11 +928,20 @@ ${contextBlock}${regionHint}${progressionContext}`;
 
   private static normalizeQuestion(question: string): string {
     let normalized = String(question).trim();
-    normalized = normalized.replaceAll(/(?:^"+|"+$)/g, "").trim();
+    while (normalized.startsWith('"')) {
+      normalized = normalized.slice(1);
+    }
+    while (normalized.endsWith('"')) {
+      normalized = normalized.slice(0, -1);
+    }
+    normalized = normalized.trim();
     normalized = normalized.replaceAll(/\s+/g, " ");
 
     if (!normalized.endsWith("?")) {
-      normalized = `${normalized.replaceAll(/[.!]+$/g, "")}?`;
+      while (normalized.endsWith(".") || normalized.endsWith("!")) {
+        normalized = normalized.slice(0, -1);
+      }
+      normalized = `${normalized}?`;
     }
 
     return normalized;
@@ -953,7 +975,7 @@ ${contextBlock}${regionHint}${progressionContext}`;
         ? `\nLATEST_TURN:\nQ: ${context.latestQuestion ?? ""}\nA: ${context.latestAnswer ?? ""}\n`
         : "\n";
     const embeddingHistoryBlock = context?.embeddingHistorySummary
-      ? `\nUSER_PERSONALITY_PROFILE (for engagement only — tailor tone/topics, never reveal, never affects scoring):\n${context.embeddingHistorySummary}\n`
+      ? `\nPERSONALITY (engagement only — tone, topics, communication style):\n${context.embeddingHistorySummary}\n`
       : "";
     const regionBlock = targetRegion
       ? `\nTARGET REGION: ${targetRegion} — focus the question on this specific area.\n`
@@ -973,13 +995,14 @@ ${contextBlock}${regionHint}${progressionContext}`;
       ? " The question must be at least 8 words and 24 characters, and ask for concrete details (what, where, how, or why)."
       : "";
     const userCenterClause = ` CRITICAL: Always center the question on the user — ask about their actions, choices, feelings, or role. You may reference other people (teammates, coaches, teachers), but the question's subject must remain the user's own experience. Never ask about someone else's isolated actions or strategies. Never repeat or quote offensive, profane, or inappropriate language from the user's answer — paraphrase in general terms if needed. Keep questions grounded in activities, projects, and choices — never ask the user to locate a feeling or sensation in their body, rate distress or pain, or do body-scanning/mindfulness-style reflection. Do not introduce mental health, trauma, family conflict, finances, romance, religion, or immigration status unprompted; only touch a topic like that if the user's answer already raised it, and keep the follow-up on the skill/experience angle.`;
+    const engagementClause = ` Keep a warm, conversational tone — ask like a curious mentor or friend catching up, not a clinical interviewer. Questions should feel natural spoken aloud. Avoid drilling into granular details (specific items, dates, step-by-step mechanics). Instead ask about the experience, the challenge, the outcome, or what the user figured out about themselves. Favor open-ended questions that invite reflection and storytelling ("What was that like?" "How did you work through it?" "What did that teach you?") over narrow yes/no or fill-in-the-blank questions. The goal is to surface meaningful experiences that reveal real skills — leadership, growth, impact, persistence, creativity — not trivial facts.`;
     let leadInstruction: string;
     if (context?.newTopic) {
-      leadInstruction = `Based on the taxonomy (including the NO_OP category as a mapping option) and the categories already mapped to me, synthesize a clear, specific new question that DELIBERATELY CHANGES THE TOPIC to a fresh dimension. Do NOT build on, reference, or continue the most recent answer or the current thread — start a genuinely new line of conversation. Choose a dimension likely to surface one of the categories NOT yet mapped to me. The question must end with a "?".${strictClause} Use any embedding/background context about me to pick a new dimension that fits my experience.${userCenterClause}`;
+      leadInstruction = `Based on the taxonomy (including the NO_OP category as a mapping option) and the categories already mapped to me, synthesize a clear, specific new question that DELIBERATELY CHANGES THE TOPIC to a fresh dimension. Do NOT build on, reference, or continue the most recent answer or the current thread — start a genuinely new line of conversation. Choose a dimension likely to surface one of the categories NOT yet mapped to me. The question must end with a "?".${strictClause} Use any embedding/background context about me to pick a new dimension that fits my experience.${userCenterClause}${engagementClause}`;
     } else if (isRegionExplore) {
-      leadInstruction = `You are exploring the "${targetRegion}" region to uncover NEW evidence for stamps within it, not to continue a prior conversation thread. Review the "Available Stamps" listed for this region in the taxonomy and select ONE stamp that is not already mapped and is not in STAMPS ALREADY EXPLORED below. Prefer moving to a different stamp rather than continuing whatever topic came up most recently, even if it seemed related — only continue a prior topic if the user's own last answer explicitly asked to keep going with it. If my known interests or personality profile suggest a natural bridge into the new stamp (e.g. "you mentioned coding — have you ever done a hackathon?"), use that bridge, but never name the stamp itself or say you're trying to unlock it. The question must end with a "?".${strictClause}${userCenterClause}`;
+      leadInstruction = `You are exploring the "${targetRegion}" region to uncover NEW evidence for stamps within it, not to continue a prior conversation thread. Review the "Available Stamps" listed for this region in the taxonomy and select ONE stamp that is not already mapped and is not in STAMPS ALREADY EXPLORED below. Prefer moving to a different stamp rather than continuing whatever topic came up most recently, even if it seemed related — only continue a prior topic if the user's own last answer explicitly asked to keep going with it. If my known interests or personality profile suggest a natural bridge into the new stamp (e.g. "you mentioned coding — have you ever done a hackathon?"), use that bridge, but never name the stamp itself or say you're trying to unlock it. The question must end with a "?".${strictClause}${userCenterClause}${engagementClause}`;
     } else {
-      leadInstruction = `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question. If the last 2-3 turns explored the same category, shift to a related but different dimension rather than drilling deeper. You may use what the user just shared as a natural bridge, but pivot to a fresh angle and might help tease out which additional categories might map to me. The question must end with a "?".${strictClause} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.${userCenterClause}`;
+      leadInstruction = `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question. If the last 2-3 turns explored the same category, shift to a related but different dimension rather than drilling deeper. You may use what the user just shared as a natural bridge, but pivot to a fresh angle and might help tease out which additional categories might map to me. The question must end with a "?".${strictClause} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.${userCenterClause}${engagementClause}`;
     }
 
     // "New Topic" mode deliberately pivots away from the existing thread, so we
@@ -1083,7 +1106,7 @@ RESPOND ONLY with the text of the new question. Do not include any other text, e
   ): Promise<string> {
     try {
       const history = interactions
-        .slice(-5)
+        .slice(-6)
         .map((i) => `Q: ${i.question} | A: ${i.answer} | Mapped: ${i.mappedCategory}`)
         .join("\n");
 

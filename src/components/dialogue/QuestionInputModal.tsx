@@ -13,6 +13,7 @@ import {
 import { Text } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "@/src/styles/global";
+import { SplitQuestionRenderer } from "./SplitQuestionRenderer";
 
 export type InputMethod = "text" | "voice" | "image";
 
@@ -134,7 +135,7 @@ export function QuestionInputModal({
                   <Ionicons name="close-circle" size={28} color="#FF6B6B" />
                 </TouchableOpacity>
                 <Text style={styles.heading}>Question</Text>
-                <Text style={styles.question}>{question}</Text>
+                <SplitQuestionRenderer text={question} textStyle={styles.question} />
 
                 <TextInput
                   style={styles.textInput}
@@ -244,7 +245,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 22,
     marginBottom: 14,
-    textAlign: "center",
+    textAlign: "left",
     color: "#1a1a2e",
     fontFamily: "Avenir Next",
   },

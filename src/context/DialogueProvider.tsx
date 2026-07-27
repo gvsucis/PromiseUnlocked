@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef, useState, useCallback } from "react";
+import React, { createContext, useContext, useMemo, useRef, useState, useCallback } from "react";
 import { Alert } from "react-native";
 import {
   useAudioRecorder,
@@ -12,10 +12,15 @@ import { useImagePicker } from "../hooks/useImagePicker";
 import { useAuth } from "../context/AuthContext";
 import { GeminiService } from "../services/geminiService";
 import { fetchProofStatus, uploadProofImage } from "../services/proofService";
-import { upgradeStampTier } from "../services/categoryStorageService";
+import { upgradeStampTier, syncFromFirestore } from "../services/categoryStorageService";
+import { notifyDashboardRefresh } from "../services/dashboardRefreshService";
 import { getOrStartSession } from "../services/sessionManager";
-import { ConversationInteraction, MappedCategory } from "../services/categoryTaxonomyService";
-import { getFilteredTaxonomyString } from "../services/categoryTaxonomyService";
+import {
+  ConversationInteraction,
+  MappedCategory,
+  getFilteredTaxonomyString,
+} from "../services/categoryTaxonomyService";
+import { containsInappropriateLanguage } from "../utils/contentModeration";
 
 export const dialogueResetTarget = { current: null as null | (() => void) };
 
@@ -140,6 +145,48 @@ interface DialogueContextValue {
   ) => Promise<DialogueMapResult>;
 }
 
+// Volatile render state on the context — everything that legitimately changes
+// between renders. The complement (below) is the set of stable action handlers.
+type DialogueStateKey =
+  | "mappedCategories"
+  | "interactions"
+  | "pdfContextText"
+  | "uiState"
+  | "currentPrompt"
+  | "userAnswer"
+  | "loadingMessage"
+  | "error"
+  | "weakFitJustification"
+  | "contentWarning"
+  | "showConfetti"
+  | "newStampUnlock"
+  | "showCrisisSupport"
+  | "showSensitiveIntro"
+  | "loading"
+  | "prefetchedQuestion"
+  | "showQuestionInputModal"
+  | "pendingQuestion"
+  | "combinedImageUri"
+  | "isRecording"
+  | "recordingDuration"
+  | "recordingUri"
+  | "isProcessingAudio"
+  | "selectedImage"
+  | "showImageEditor"
+  | "tempImageUri"
+  | "isAnalyzingImage"
+  | "isAnswerFromVoice"
+  | "showProofImageEditor"
+  | "tempProofImageUri"
+  | "isUploadingProof"
+  | "pendingProofRequest"
+  | "pendingProofNotification"
+  | "activeStampUpgrade"
+  | "questionInputMode";
+
+// The function half of the context: stabilized once and never re-created.
+type DialogueActions = Omit<DialogueContextValue, DialogueStateKey>;
+
 const DialogueContext = createContext<DialogueContextValue | null>(null);
 
 export function useDialogue() {
@@ -150,7 +197,7 @@ export function useDialogue() {
   return ctx;
 }
 
-export function DialogueProvider({ children }: { children: React.ReactNode }) {
+export function DialogueProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const { session } = useAuth();
   const dialogueState = useDialogueState();
   const {
@@ -207,7 +254,9 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
   const modalIntentionallyOpenedRef = useRef(false);
   const isCombinedImageRef = useRef(false);
   const autoProofImageRef = useRef<string | null>(null);
-  const suppressProofAlertRef = useRef(false);
+  // Always points at the latest action closures so the stable wrappers in
+  // `actions` (below) can delegate without a dependency array.
+  const actionsRef = useRef<DialogueActions>(null as unknown as DialogueActions);
 
   const askedQuestionsByRegionRef = useRef<Record<string, string[]>>({});
 
@@ -244,9 +293,21 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
     await loadData();
   }, [loadData]);
 
+  const prevStampUnlockRef = useRef(newStampUnlock);
+  React.useEffect(() => {
+    const wasUnlocked = prevStampUnlockRef.current !== null;
+    prevStampUnlockRef.current = newStampUnlock;
+    if (wasUnlocked && !newStampUnlock) {
+      const timer = setTimeout(() => {
+        void syncFromFirestore();
+        notifyDashboardRefresh();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [newStampUnlock]);
+
   const clearAutoProof = () => {
     autoProofImageRef.current = null;
-    suppressProofAlertRef.current = false;
   };
 
   // --- Entry point A (home Start button) ---
@@ -352,8 +413,20 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
     ]
   );
 
+  // Same message the typed-answer path uses; keeps the modal open so the user can edit.
+  const warnInappropriateLanguage = () => {
+    Alert.alert(
+      "Inappropriate Content",
+      "Please keep your response respectful and appropriate so I can help you identify your skills."
+    );
+  };
+
   const handleSubmitTextFromModal = (text: string) => {
     if (!text.trim()) return;
+    if (containsInappropriateLanguage(text)) {
+      warnInappropriateLanguage();
+      return;
+    }
     clearAutoProof();
     suppressModalReopenRef.current = true;
     setShowQuestionInputModal(false);
@@ -400,17 +473,33 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
     setCombinedImageUri(imageUri);
   };
 
-  const handleSubmitTextAndImage = async (text: string, imageUri: string) => {
-    if (!text.trim() && !imageUri) return;
-    suppressModalReopenRef.current = true;
-    setShowQuestionInputModal(false);
-    const q = pendingQuestion || currentPrompt;
-    setPendingQuestion(null);
-    setCurrentPrompt("");
-    setCombinedImageUri(null);
-    suppressModalReopenRef.current = false;
-    const region = flowRegion;
+  // Submit the typed text without the image (used when analysis failed). No proof
+  // is armed — there is no analyzed image to attach.
+  const submitCombinedTextOnly = async (q: string, text: string, region?: string) => {
+    clearAutoProof();
+    await mapAnswerToCategory(q, text, region);
+  };
 
+  // Return to the editor with the text and image intact so the user can retry or change.
+  const reopenCombinedForEdit = (q: string, text: string, imageUri: string) => {
+    autoProofImageRef.current = null;
+    setUserAnswer(text);
+    setCurrentPrompt(q);
+    setPendingQuestion(q);
+    setCombinedImageUri(imageUri);
+    modalIntentionallyOpenedRef.current = true;
+    setUiState("idle");
+    setShowQuestionInputModal(true);
+  };
+
+  // Analyze the attached image and submit the merged answer. Split out so a failed
+  // analysis can offer "Try Again" without re-running the modal teardown.
+  const runCombinedAnalysis = async (
+    q: string,
+    text: string,
+    imageUri: string,
+    region?: string
+  ) => {
     setIsAnalyzingImage(true);
     setUiState("loading");
     setLoadingMessage("Analyzing your response...");
@@ -426,22 +515,67 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const imageContext =
-        analysisResult.success && analysisResult.rawResponse ? analysisResult.rawResponse : "";
+      if (!analysisResult.success) {
+        setIsAnalyzingImage(false);
+        Alert.alert(
+          "Couldn't analyze your image",
+          analysisResult.error ||
+            "The image could not be analyzed. Submit your text without it, or try again.",
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+              onPress: () => reopenCombinedForEdit(q, text, imageUri),
+            },
+            {
+              text: "Submit text only",
+              onPress: () => void submitCombinedTextOnly(q, text, region),
+            },
+            {
+              text: "Try Again",
+              onPress: () => void runCombinedAnalysis(q, text, imageUri, region),
+            },
+          ]
+        );
+        return;
+      }
 
+      const imageContext = analysisResult.rawResponse ?? "";
       const mergedAnswer = text + (imageContext ? `\n\n[Image context: ${imageContext}]` : "");
       setIsAnalyzingImage(false);
-      suppressProofAlertRef.current = true;
-      autoProofImageRef.current = imageUri;
-      await mapAnswerToCategory(q, mergedAnswer, region);
+      // A verified supporting image IS the evidence: it grants the stamp its tier
+      // directly, so we neither arm it for a proof prompt nor ask for a separate one.
+      const evidenceTier = analysisResult.supportsClaim ? analysisResult.evidenceTier : undefined;
+      if (!evidenceTier) {
+        // Not evidence-grade — arm it so a later proof prompt can offer it (user consents first).
+        autoProofImageRef.current = imageUri;
+      }
+      await mapAnswerToCategory(q, mergedAnswer, region, false, evidenceTier);
     } catch (err) {
       console.error("Error processing combined submission:", err);
       setIsAnalyzingImage(false);
       setUiState("idle");
       autoProofImageRef.current = null;
-      suppressProofAlertRef.current = false;
       Alert.alert("Error", "Failed to process your answer. Please try again.");
     }
+  };
+
+  const handleSubmitTextAndImage = async (text: string, imageUri: string) => {
+    if (!text.trim() && !imageUri) return;
+    if (text.trim() && containsInappropriateLanguage(text)) {
+      warnInappropriateLanguage();
+      return;
+    }
+    suppressModalReopenRef.current = true;
+    setShowQuestionInputModal(false);
+    const q = pendingQuestion || currentPrompt;
+    setPendingQuestion(null);
+    setCurrentPrompt("");
+    setCombinedImageUri(null);
+    suppressModalReopenRef.current = false;
+    const region = flowRegion;
+
+    await runCombinedAnalysis(q, text, imageUri, region);
   };
 
   const closeQuestionInputModal = () => {
@@ -662,7 +796,9 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
       const answer = analysisResult.rawResponse;
       setSelectedImage(null);
       clearAutoProof();
-      await mapAnswerToCategory(currentPrompt, answer, flowRegion);
+      // A verified image is the evidence itself — grant the stamp its tier directly.
+      const evidenceTier = analysisResult.supportsClaim ? analysisResult.evidenceTier : undefined;
+      await mapAnswerToCategory(currentPrompt, answer, flowRegion, false, evidenceTier);
     } catch (err) {
       console.error("Error processing image:", err);
       Alert.alert(
@@ -762,7 +898,6 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
       setIsUploadingProof(false);
       setShowProofImageEditor(false);
       setTempProofImageUri(null);
-      suppressProofAlertRef.current = false;
       clearPendingProofRequest();
     }
   };
@@ -780,15 +915,36 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
   };
 
   React.useEffect(() => {
-    if (pendingProofRequest && autoProofImageRef.current) {
-      const uri = autoProofImageRef.current;
-      autoProofImageRef.current = null;
-      void submitProofImage(uri);
+    if (!pendingProofRequest) return;
+    // If the user already attached an image to their answer, offer to reuse it as
+    // proof — but ask first rather than uploading silently.
+    const attached = autoProofImageRef.current;
+    if (attached) {
+      Alert.alert(
+        "Add a photo to this stamp?",
+        pendingProofRequest.artifactUploadReason ??
+          "Use the photo you just shared as proof, or choose another.",
+        [
+          {
+            text: "Use this photo",
+            onPress: () => {
+              autoProofImageRef.current = null;
+              void submitProofImage(attached);
+            },
+          },
+          { text: "Choose another", onPress: () => showProofImageSourceDialog() },
+          {
+            text: "Not now",
+            style: "cancel",
+            onPress: () => {
+              autoProofImageRef.current = null;
+              clearPendingProofRequest();
+            },
+          },
+        ]
+      );
+      return;
     }
-  }, [pendingProofRequest]);
-
-  React.useEffect(() => {
-    if (!pendingProofRequest || suppressProofAlertRef.current) return;
     showProofImageSourceDialog();
   }, [pendingProofRequest]);
 
@@ -811,11 +967,10 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
     async (question: string, answer: string, region?: string) => {
       clearAutoProof();
       const result = await mapAnswerToCategory(question, answer, region, true);
-      clearStampUnlock();
       clearDeferredState();
       return result;
     },
-    [mapAnswerToCategory, clearStampUnlock, clearDeferredState]
+    [mapAnswerToCategory, clearDeferredState]
   );
 
   const resetDashboard = useCallback(() => {
@@ -875,59 +1030,19 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
     }
   }, [prefetchedQuestion, uiState, pendingProofRequest, activeStampUpgrade]);
 
-  const value: DialogueContextValue = {
+  // Refresh the latest closures every render; the wrappers in `actions` read
+  // through this ref, so they never go stale despite having empty deps.
+  actionsRef.current = {
     dismissAnswerModal,
     setIsAnswerFromVoice,
     generateQuestionForRegion,
-    mappedCategories: dialogueState.mappedCategories,
-    interactions: dialogueState.interactions,
-    pdfContextText: dialogueState.pdfContextText,
-    uiState,
-    currentPrompt,
-    userAnswer,
-    loadingMessage: dialogueState.loadingMessage,
-    error,
-    weakFitJustification: dialogueState.weakFitJustification,
-    contentWarning: dialogueState.contentWarning,
-    showConfetti: dialogueState.showConfetti,
-    newStampUnlock,
-    showCrisisSupport: dialogueState.showCrisisSupport,
-    showSensitiveIntro: dialogueState.showSensitiveIntro,
-    loading: dialogueState.loading,
-    prefetchedQuestion,
-
-    showQuestionInputModal,
-    pendingQuestion,
-    combinedImageUri,
-
-    isRecording,
-    recordingDuration,
-    recordingUri,
-    isProcessingAudio,
-
-    selectedImage,
-    showImageEditor,
-    tempImageUri,
-    isAnalyzingImage,
-    isAnswerFromVoice,
-
-    showProofImageEditor,
-    tempProofImageUri,
-    isUploadingProof,
-    pendingProofRequest,
-    pendingProofNotification,
-
-    activeStampUpgrade,
-
     setUserAnswer,
     setUiState,
     setCurrentPrompt,
     setError,
-
     startNewQuestion,
     forceNewQuestion,
     reopenPendingQuestion,
-
     handleSubmitTextFromModal,
     handleSubmitTextAndImage,
     handleInputTypeSelect,
@@ -939,40 +1054,123 @@ export function DialogueProvider({ children }: { children: React.ReactNode }) {
     handleNewTopic,
     handleWeakFitTryAgain,
     handleWeakFitNewQuestion,
-    questionInputMode: flowContext.mode,
     startAddDetailQuestion,
-
     startRecording,
-
     stopRecording,
     handleVoiceSubmit,
     handleVoiceCancel,
-
     showImageSourceDialog,
     handleImageEditorSave,
     handleImageEditorCancel,
     handleSubmitImage,
-
     showProofImageSourceDialog,
     handleProofImageEditorSave,
     handleProofImageEditorCancel,
-
     handleContinueAfterStampUnlock,
     clearStampUnlock,
     handleContinueAfterStampUpgrade,
     clearActiveStampUpgrade,
-
     dismissCrisisSupport,
     dismissSensitiveIntro,
-
     activateProofFromNotification,
     clearProofNotification,
-
     resetDashboard,
     refreshData,
-
     submitRegionAnswer,
   };
+
+  // Built once. Each action is a stable wrapper that forwards to the latest
+  // closure via actionsRef, so `value` below never changes just because a
+  // handler was re-created.
+  const actions = useMemo<DialogueActions>(() => {
+    const bag = {} as Record<string, (...args: unknown[]) => unknown>;
+    for (const key of Object.keys(actionsRef.current) as (keyof DialogueActions)[]) {
+      bag[key as string] = (...args: unknown[]) =>
+        (actionsRef.current[key] as (...a: unknown[]) => unknown)(...args);
+    }
+    return bag as unknown as DialogueActions;
+  }, []);
+
+  // Now that actions are stable, `value` changes only when actual render state
+  // does — no longer on every provider render.
+  const value = useMemo<DialogueContextValue>(
+    () => ({
+      mappedCategories: dialogueState.mappedCategories,
+      interactions: dialogueState.interactions,
+      pdfContextText: dialogueState.pdfContextText,
+      uiState,
+      currentPrompt,
+      userAnswer,
+      loadingMessage: dialogueState.loadingMessage,
+      error,
+      weakFitJustification: dialogueState.weakFitJustification,
+      contentWarning: dialogueState.contentWarning,
+      showConfetti: dialogueState.showConfetti,
+      newStampUnlock,
+      showCrisisSupport: dialogueState.showCrisisSupport,
+      showSensitiveIntro: dialogueState.showSensitiveIntro,
+      loading: dialogueState.loading,
+      prefetchedQuestion,
+      showQuestionInputModal,
+      pendingQuestion,
+      combinedImageUri,
+      isRecording,
+      recordingDuration,
+      recordingUri,
+      isProcessingAudio,
+      selectedImage,
+      showImageEditor,
+      tempImageUri,
+      isAnalyzingImage,
+      isAnswerFromVoice,
+      showProofImageEditor,
+      tempProofImageUri,
+      isUploadingProof,
+      pendingProofRequest,
+      pendingProofNotification,
+      activeStampUpgrade,
+      questionInputMode: flowContext.mode,
+      ...actions,
+    }),
+    [
+      dialogueState.mappedCategories,
+      dialogueState.interactions,
+      dialogueState.pdfContextText,
+      uiState,
+      currentPrompt,
+      userAnswer,
+      dialogueState.loadingMessage,
+      error,
+      dialogueState.weakFitJustification,
+      dialogueState.contentWarning,
+      dialogueState.showConfetti,
+      newStampUnlock,
+      dialogueState.showCrisisSupport,
+      dialogueState.showSensitiveIntro,
+      dialogueState.loading,
+      prefetchedQuestion,
+      showQuestionInputModal,
+      pendingQuestion,
+      combinedImageUri,
+      isRecording,
+      recordingDuration,
+      recordingUri,
+      isProcessingAudio,
+      selectedImage,
+      showImageEditor,
+      tempImageUri,
+      isAnalyzingImage,
+      isAnswerFromVoice,
+      showProofImageEditor,
+      tempProofImageUri,
+      isUploadingProof,
+      pendingProofRequest,
+      pendingProofNotification,
+      activeStampUpgrade,
+      flowContext.mode,
+      actions,
+    ]
+  );
 
   return <DialogueContext.Provider value={value}>{children}</DialogueContext.Provider>;
 }

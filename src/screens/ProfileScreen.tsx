@@ -139,7 +139,6 @@ export default function ProfileScreen() {
     setSavingBio(true);
     try {
       const result = await updateProfile({ metadata: { ...profile.metadata, bio } });
-      console.log("[ProfileScreen] Bio save result:", JSON.stringify(result, null, 2));
       console.log("[ProfileScreen] Bio save result.metadata.bio:", result.metadata.bio);
 
       setProfile((prev) => (prev ? { ...prev, metadata: { ...prev.metadata, bio } } : prev));
@@ -227,7 +226,7 @@ export default function ProfileScreen() {
   const checklist = [
     { label: "Basic Information", complete: true },
     { label: "About Me", complete: bio.trim().length > 0 },
-    { label: "Upload Photos", complete: false },
+    { label: "Upload Photos", complete: !!profile?.photoURL },
     { label: "Complete Background Info", complete: false },
     { label: "Full Name", complete: displayName !== "Your Name" },
   ];
