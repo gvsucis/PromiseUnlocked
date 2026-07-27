@@ -13,6 +13,7 @@ import {
 import { STAMP_TAXONOMY } from "../config/stampTaxonomy";
 import { DEFAULT_TIER } from "../config/stampConstants";
 import { getJSONFromStorage, removeManyFromStorage, setJSONInStorage } from "../utils/asyncStorage";
+import type { StampEntry } from "./stampSyncService";
 
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../config/firebase";
@@ -32,6 +33,7 @@ import {
   canWriteToFirestore,
 } from "./firebase/firestoreService";
 
+import { randomUUID } from "expo-crypto";
 // Log errors to a file instead of console.error
 import { logErrorToFile } from "../utils/logToFile";
 
@@ -41,18 +43,26 @@ const INTERACTIONS_KEY = "@userInteractions";
 async function mirrorStampUnlockToFirestore(
   categoryId: string,
   stampName: string,
-  tier: number
+  tier: number,
+  categoryName: string
 ): Promise<void> {
   try {
     const writeContext = await getFirestoreWriteContext();
-    await saveStampUnlock(writeContext.userId, writeContext.sessionId, categoryId, stampName, tier);
+    await saveStampUnlock(
+      writeContext.userId,
+      writeContext.sessionId,
+      categoryId,
+      stampName,
+      tier,
+      categoryName
+    );
   } catch {
     // AsyncStorage is the source of truth; Firestore mirror is best-effort
   }
 }
 
 function generateInteractionId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return randomUUID();
 }
 
 async function getFirestoreWriteContext(): Promise<{ sessionId: string; userId: string }> {
@@ -74,20 +84,23 @@ async function getInteractionsStorageKey(): Promise<string> {
 export async function getMappedCategories(): Promise<MappedCategory[]> {
   const storageKey = await getMappedCategoriesStorageKey();
   const raw = await getJSONFromStorage<Record<string, unknown>[]>(storageKey, []);
-  return raw.map((entry) => ({
-    category: typeof entry.category === "string" ? entry.category : "",
-    categoryId:
-      typeof entry.categoryId === "string"
-        ? entry.categoryId
-        : getCategoryIdFromName(typeof entry.category === "string" ? entry.category : ""),
-    justification: typeof entry.justification === "string" ? entry.justification : "",
-    dateIdentified:
-      typeof entry.dateIdentified === "string" ? entry.dateIdentified : new Date().toISOString(),
-    timesMapped: typeof entry.timesMapped === "number" ? entry.timesMapped : 1,
-    unlockedStamps: Array.isArray(entry.unlockedStamps)
-      ? (entry.unlockedStamps as MappedCategory["unlockedStamps"])
-      : undefined,
-  }));
+  return raw.map((entry) => {
+    const categoryName = typeof entry.category === "string" ? entry.category : "";
+    return {
+      category: categoryName,
+      categoryId:
+        typeof entry.categoryId === "string"
+          ? entry.categoryId
+          : getCategoryIdFromName(categoryName),
+      justification: typeof entry.justification === "string" ? entry.justification : "",
+      dateIdentified:
+        typeof entry.dateIdentified === "string" ? entry.dateIdentified : new Date().toISOString(),
+      timesMapped: typeof entry.timesMapped === "number" ? entry.timesMapped : 1,
+      unlockedStamps: Array.isArray(entry.unlockedStamps)
+        ? (entry.unlockedStamps as MappedCategory["unlockedStamps"])
+        : undefined,
+    };
+  });
 }
 
 /**
@@ -154,7 +167,7 @@ export async function upgradeStampTier(
     const storageKey = await getMappedCategoriesStorageKey();
     await setJSONInStorage(storageKey, current);
 
-    await mirrorStampUnlockToFirestore(categoryId, stampName, newTier);
+    await mirrorStampUnlockToFirestore(categoryId, stampName, newTier, entry.category);
 
     if (newTier <= previousTier) return null;
     return { previousTier, newTier };
@@ -214,7 +227,40 @@ export async function addStampUnlock(
     const storageKey = await getMappedCategoriesStorageKey();
     await setJSONInStorage(storageKey, current);
 
-    await mirrorStampUnlockToFirestore(categoryId, stampName, resolvedTier);
+    await mirrorStampUnlockToFirestore(categoryId, stampName, resolvedTier, entry.category);
+
+    try {
+      const stampsCacheKey = await getScopedStorageKey("@myStamps");
+      const cachedStamps = await getJSONFromStorage<StampEntry[]>(stampsCacheKey, []);
+      const now = new Date().toISOString();
+      const sessionId = await getActiveSessionId();
+      const existingIdx = cachedStamps.findIndex(
+        (s) => s.stampName === stampName && s.categoryId === categoryId
+      );
+      if (existingIdx >= 0) {
+        cachedStamps[existingIdx] = {
+          ...cachedStamps[existingIdx],
+          tier: resolvedTier,
+          timesUnlocked: cachedStamps[existingIdx].timesUnlocked + 1,
+          lastUnlockedAt: now,
+        };
+      } else {
+        cachedStamps.push({
+          stampName,
+          category: entry.category,
+          categoryId,
+          tier: resolvedTier,
+          timesUnlocked: 1,
+          firstUnlockedAt: now,
+          lastUnlockedAt: now,
+          sessionId: sessionId ?? "",
+        });
+      }
+      await setJSONInStorage(stampsCacheKey, cachedStamps);
+    } catch {
+      // @myStamps cache sync is best-effort
+    }
+
     return tierChange;
   } catch (error) {
     logErrorToFile("Error adding stamp unlock:", error);

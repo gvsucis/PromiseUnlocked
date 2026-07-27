@@ -6,15 +6,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { REGIONS } from "../config/stampTaxonomy";
 import { RadarChart } from "react-native-gifted-charts";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "../config/firebase";
-import {
-  getMappedCategories,
-  ensureAllMappedCategoriesHaveStamps,
-} from "../services/categoryStorageService";
-import { getCurrentAuthSession } from "../services/auth/authSessionService";
-import { getActiveSessionId } from "../services/sessionManager";
-import type { MappedCategory } from "../services/categoryTaxonomyService";
+import { fetchMyStamps, getCachedStamps, type StampEntry } from "../services/stampSyncService";
 import { getCategoryIdFromName } from "../services/categoryTaxonomyService";
 import { colors } from "../styles/global";
 import { signOut } from "firebase/auth";
@@ -66,79 +58,27 @@ export default function PassportScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      await ensureAllMappedCategoriesHaveStamps();
-      let mappedCategories: MappedCategory[] = await getMappedCategories();
+      const stamps = await fetchMyStamps();
+      const cached = stamps.length > 0 ? stamps : await getCachedStamps();
 
-      // Fallback: if AsyncStorage is empty, try direct Firestore read
-      if (mappedCategories.length === 0) {
-        const session = getCurrentAuthSession();
-        if (session.mode === "authenticated" && session.uid) {
-          try {
-            const activeSessionId = await getActiveSessionId();
-            if (!activeSessionId) return;
-            const snapshot = await getDocs(
-              collection(
-                db,
-                "participants",
-                session.uid,
-                "sessions",
-                activeSessionId,
-                "skillPassport"
-              )
-            );
-            if (!snapshot.empty) {
-              mappedCategories = snapshot.docs.map((doc) => {
-                const data = doc.data();
-                const categoryId = (data.categoryId as string) ?? doc.id;
-                const stamps = data.unlockedStamps as
-                  | Record<
-                      string,
-                      {
-                        timesUnlocked?: number;
-                        category?: string;
-                        tier?: number;
-                      }
-                    >
-                  | undefined;
-                return {
-                  category: (data.category as string) ?? doc.id,
-                  categoryId,
-                  justification:
-                    (data.mappings as Array<{ justification?: string }> | undefined)?.at(-1)
-                      ?.justification ?? "",
-                  dateIdentified:
-                    data.firstMappedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
-                  timesMapped: (data.totalMappings as number) ?? 1,
-                  unlockedStamps: stamps
-                    ? Object.entries(stamps).map(([name, s]) => ({
-                        name,
-                        category: s.category ?? (data.category as string) ?? doc.id,
-                        categoryId,
-                        timesUnlocked: s.timesUnlocked ?? 1,
-                        tier: s.tier ?? DEFAULT_TIER,
-                      }))
-                    : [],
-                };
-              });
-            }
-          } catch (fsError) {
-            console.warn("[PassportScreen] Firestore fallback read failed:", fsError);
-          }
+      const byCategory = new Map<string, StampEntry[]>();
+      for (const s of cached) {
+        const existing = byCategory.get(s.category);
+        if (existing) {
+          existing.push(s);
+        } else {
+          byCategory.set(s.category, [s]);
         }
       }
 
       const unlocks: Record<string, string[]> = {};
       const tierPoints: Record<string, number> = {};
 
-      for (const mc of mappedCategories) {
-        if (mc.unlockedStamps?.length) {
-          unlocks[mc.category] = mc.unlockedStamps.map((s) => s.name);
-
-          tierPoints[mc.category] = mc.unlockedStamps.reduce(
-            (sum, stamp) => sum + ((stamp as any).tier ?? DEFAULT_TIER),
-            0
-          );
-        }
+      for (const [category, stampsInCat] of byCategory) {
+        const uniqueNames = [...new Set(stampsInCat.map((s) => s.stampName))];
+        const maxTier = stampsInCat.reduce((max, s) => Math.max(max, s.tier ?? DEFAULT_TIER), 0);
+        unlocks[category] = uniqueNames;
+        tierPoints[category] = maxTier;
       }
 
       setRegionUnlocks(unlocks);
@@ -146,9 +86,7 @@ export default function PassportScreen() {
       setRadarData(
         REGIONS.map((region) => {
           const points = tierPoints[region] ?? 0;
-
           const pct = Math.min(100, (points / TIER_TARGET_PER_REGION) * 100);
-
           return Math.max(pct, RADAR_FLOOR);
         })
       );

@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import {
-  waitForAuthReady,
-  hydratePassportMappings,
-  getCurrentAuthSession,
-} from "../services/auth/authSessionService";
+import { waitForAuthReady } from "../services/auth/authSessionService";
 import { Alert } from "react-native";
 import {
   MappedCategory,
@@ -29,21 +25,18 @@ import {
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
 import { STAMPS_LIST } from "../config/stampConstants";
-//import { getStampUnlockSummary } from "./categoryStorageService";
 import { TOTAL_STAMPS } from "../config/skillsTaxonomy";
 import { getPvaContext } from "../services/profileEmbeddingService";
 import { endSession, getUserId, getActiveSessionId } from "../services/sessionManager";
 import { savePassportMapping } from "../services/firebase/firestoreService";
-import { RegExpMatcher, englishDataset } from "obscenity";
+import { containsInappropriateLanguage } from "../utils/contentModeration";
+import { getCachedJustifications, cacheJustifications } from "../services/passportSyncService";
 import {
   saveDialogueState,
   loadDialogueState,
   clearDialogueState,
 } from "../services/dialogueStateStorage";
 import { useProofWorkflow } from "./useProofWorkflow";
-
-// Built once for the app's lifetime — englishDataset.build() is expensive.
-const profanityMatcher = new RegExpMatcher(englishDataset.build());
 
 export type UIState =
   | "idle"
@@ -122,7 +115,8 @@ export interface DialogueState {
     question: string,
     answer: string,
     targetRegion?: string,
-    checkSensitive?: boolean
+    checkSensitive?: boolean,
+    evidenceTier?: number
   ) => Promise<DialogueMapResult>;
   handleStartButtonPress: () => Promise<void>;
   handleForceNewQuestion: () => Promise<void>;
@@ -131,8 +125,8 @@ export interface DialogueState {
   prepareImageQuestion: () => boolean;
   handleSubmitAnswer: () => void;
   handleWeakFitTryAgain: () => void;
-  handleWeakFitNewQuestion: () => Promise<void>;
-  handleSkipQuestion: () => Promise<void>;
+  handleWeakFitNewQuestion: (region?: string) => Promise<void>;
+  handleSkipQuestion: (region?: string) => Promise<void>;
   handleNewTopic: (region?: string) => Promise<void>;
   dismissAnswerModal: () => void;
   clearPendingProofRequest: () => void;
@@ -363,12 +357,6 @@ export function useDialogueState(): DialogueState {
 
       await syncFromFirestore();
 
-      // Sync passport data from Firestore for authenticated users
-      const currentSession = getCurrentAuthSession();
-      if (currentSession.mode === "authenticated" && currentSession.uid) {
-        await hydratePassportMappings(currentSession.uid);
-      }
-
       const mapped = await getMappedCategories();
       const history = await getConversationHistory();
       const persisted = await loadDialogueState();
@@ -376,7 +364,6 @@ export function useDialogueState(): DialogueState {
       setInteractions(history);
 
       if (persisted && mapped.length < TOTAL_CATEGORIES) {
-        setCurrentPrompt(persisted.currentPrompt);
         setSavedQuestion(persisted.savedQuestion);
         setUserAnswer(persisted.userAnswer);
         setSavedAnswer(persisted.savedAnswer);
@@ -484,7 +471,11 @@ export function useDialogueState(): DialogueState {
     question: string,
     answer: string,
     targetRegion?: string,
-    checkSensitive: boolean = false
+    checkSensitive: boolean = false,
+    // Set (3-4) when the answer is backed by a Gemini-verified supporting image;
+    // lifts the unlocked stamp straight to that evidence tier and skips the
+    // (now-redundant) proof-upload prompt.
+    evidenceTier?: number
   ): Promise<DialogueMapResult> => {
     setUiState("loading");
     setLoadingMessage("Analyzing your response...");
@@ -520,26 +511,13 @@ export function useDialogueState(): DialogueState {
     };
 
     try {
-      let pdfContextText = "";
-      if (pdfContextRef.current !== undefined) {
-        pdfContextText = pdfContextRef.current;
-      } else if (pdfContextFetchRef.current) {
-        // Wait up to 15s for the PVA personality context, then proceed without it.
-        // The prefetch resolves to "" on any failure, so generation never blocks
-        // or breaks when no PVA is set / the request errors.
-        pdfContextText = await Promise.race([
-          pdfContextFetchRef.current,
-          new Promise<string>((resolve) => setTimeout(() => resolve(""), 15000)),
-        ]);
-      }
-
       const result = await GeminiService.mapAnswerAndGenerateNextQuestion(
         question,
         answer,
         interactions,
         mappedCategories,
         taxonomyString,
-        { pdfContextText, signal: controller.signal, targetRegion }
+        { signal: controller.signal, targetRegion }
       );
 
       const {
@@ -550,9 +528,22 @@ export function useDialogueState(): DialogueState {
         initialTier,
       } = result;
 
+      // A verified supporting image lifts the stamp straight to its evidence tier
+      // (never below what the answer itself earned, capped at 4).
+      const effectiveInitialTier =
+        evidenceTier != null
+          ? Math.min(Math.max(initialTier ?? 1, evidenceTier), 4)
+          : (initialTier ?? 1);
+
       const distressSignal = checkSensitive && !!result.distressSignal;
       if (distressSignal) {
         setShowCrisisSupport(true);
+        setSavedQuestion("");
+        setSavedAnswer("");
+        setCurrentPrompt("");
+        setUserAnswer("");
+        setUiState("idle");
+        return { mapped: false as const, category: null, interactionId: "", distressSignal };
       }
 
       const validCategory = findValidCategory(rawCategory);
@@ -598,6 +589,8 @@ export function useDialogueState(): DialogueState {
         return { mapped: false as const, category: null, interactionId, distressSignal };
       }
 
+      const isSensitive = !distressSignal && checkSensitive && !!result.sensitiveExperience;
+
       if (validCategory && !(await isCategoryMapped(categoryIdToCheck))) {
         // An unlocking stamp must carry a justification; fall back to the answer
         // when the model returns none so the stamp detail screen isn't left blank.
@@ -612,7 +605,7 @@ export function useDialogueState(): DialogueState {
           timesMapped: 1,
         };
         await saveMappedCategory(newMappedCategory);
-        await maybeUnlockStamp(categoryIdToCheck, specificStamp, initialTier ?? 1);
+        await maybeUnlockStamp(categoryIdToCheck, specificStamp, effectiveInitialTier);
         // Re-read after the unlock so state reflects the persisted unlockedStamps.
         const freshCategories = await getMappedCategories();
         setMappedCategories(freshCategories);
@@ -640,16 +633,22 @@ export function useDialogueState(): DialogueState {
             effectiveJustification,
             specificStamp ?? undefined
           );
+          if (specificStamp) {
+            const existing = await getCachedJustifications(categoryIdToCheck, specificStamp);
+            cacheJustifications(categoryIdToCheck, specificStamp, [
+              ...existing,
+              effectiveJustification,
+            ]);
+          }
         }
         setInteractions((prev) => [...prev, interaction]);
-        const isSensitive = !distressSignal && checkSensitive && !!result.sensitiveExperience;
         if (distressSignal) {
           // No-op: crisis support modal is already triggered above via setShowCrisisSupport.
         } else if (isSensitive) {
           setShowSensitiveIntro(true);
         } else {
           setShowConfetti(true);
-          setTimeout(() => setShowConfetti(false), 3000);
+          setTimeout(() => setShowConfetti(false), 5000);
         }
 
         if (specificStamp) {
@@ -657,14 +656,15 @@ export function useDialogueState(): DialogueState {
             stamp: specificStamp,
             category: categoryNameToCheck,
             categoryId: categoryIdToCheck,
-            tier: initialTier ?? 1,
+            tier: effectiveInitialTier,
             sensitive: isSensitive,
           });
 
+          setCurrentPrompt("");
           setDeferredNextQuestion(nextQuestion ?? null);
           setDeferredCheckCompletion(countUnlockedStamps(freshCategories) >= TOTAL_STAMPS);
           setUiState("idle");
-          if (result.suggestArtifactUpload) {
+          if (result.suggestArtifactUpload && evidenceTier == null) {
             proof.deferAfterUnlock({
               question,
               answer,
@@ -684,19 +684,20 @@ export function useDialogueState(): DialogueState {
               stamp: specificStamp,
               category: categoryNameToCheck,
               categoryId: categoryIdToCheck,
-              tier: initialTier ?? 1,
+              tier: effectiveInitialTier,
             },
             distressSignal,
             sensitiveExperience: isSensitive,
           };
         } else {
-          if (freshCategories.length === TOTAL_CATEGORIES) {
-            await endSession("completed");
+          if (countUnlockedStamps(freshCategories) >= TOTAL_STAMPS) {
+            completionHandledRef.current = true;
+            void endSession("completed");
             setUserAnswer("");
             setUiState("complete");
             return { mapped: true as const, category: categoryNameToCheck, interactionId };
           }
-          if (result.suggestArtifactUpload) {
+          if (result.suggestArtifactUpload && evidenceTier == null) {
             proof.requestNow({
               question,
               answer,
@@ -718,14 +719,6 @@ export function useDialogueState(): DialogueState {
             distressSignal,
           };
         }
-
-        return {
-          mapped: true as const,
-          category: categoryNameToCheck,
-          interactionId,
-          distressSignal,
-          sensitiveExperience: isSensitive,
-        };
       }
 
       if (await isCategoryMapped(categoryIdToCheck)) {
@@ -737,13 +730,10 @@ export function useDialogueState(): DialogueState {
         const tierChange = await maybeUnlockStamp(
           categoryIdToCheck,
           specificStamp,
-          initialTier ?? 1
+          effectiveInitialTier
         );
-        setMappedCategories(
-          mappedCategories.map((c) =>
-            c.categoryId === updatedMappedCategory.categoryId ? updatedMappedCategory : c
-          )
-        );
+        const freshCategories = await getMappedCategories();
+        setMappedCategories(freshCategories);
         const interaction: ConversationInteraction = {
           question,
           answer,
@@ -763,12 +753,16 @@ export function useDialogueState(): DialogueState {
           justification || mappedCategory.justification,
           specificStamp ?? undefined
         );
+        if (specificStamp && (justification || mappedCategory.justification)) {
+          const j = justification || mappedCategory.justification;
+          const existing = await getCachedJustifications(categoryIdToCheck, specificStamp);
+          cacheJustifications(categoryIdToCheck, specificStamp, [...existing, j]);
+        }
         setInteractions((prev) => [...prev, interaction]);
 
         if (tierChange && specificStamp) {
-          // Mirror the new-stamp flow: hold the next question (and any proof
-          // prompt) until the user dismisses the tier-upgrade modal, instead
-          // of letting advanceToNextQuestion churn uiState underneath it.
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 5000);
           setStampTierUpgrade({
             stamp: specificStamp,
             category: categoryNameToCheck,
@@ -780,7 +774,7 @@ export function useDialogueState(): DialogueState {
           setDeferredCheckCompletion(false);
           setUiState("idle");
 
-          if (result.suggestArtifactUpload) {
+          if (result.suggestArtifactUpload && evidenceTier == null) {
             proof.deferAfterUnlock({
               question,
               answer,
@@ -808,7 +802,45 @@ export function useDialogueState(): DialogueState {
           };
         }
 
-        if (result.suggestArtifactUpload) {
+        if (specificStamp) {
+          if (!isSensitive) {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+          }
+          setNewStampUnlock({
+            stamp: specificStamp,
+            category: categoryNameToCheck,
+            categoryId: categoryIdToCheck,
+            tier: effectiveInitialTier,
+            sensitive: isSensitive,
+          });
+          setCurrentPrompt("");
+          setDeferredNextQuestion(nextQuestion ?? null);
+          setDeferredCheckCompletion(countUnlockedStamps(freshCategories) >= TOTAL_STAMPS);
+          setUiState("idle");
+
+          if (result.suggestArtifactUpload && evidenceTier == null) {
+            proof.deferAfterUnlock({
+              question,
+              answer,
+              interactionId,
+              category: categoryNameToCheck,
+              categoryId: categoryIdToCheck,
+              stampName: specificStamp ?? undefined,
+              artifactUploadReason: result.artifactUploadReason,
+              proofTier: result.proofTier ?? 3,
+            });
+          }
+
+          return {
+            mapped: false as const,
+            category: categoryNameToCheck,
+            interactionId,
+            distressSignal,
+          };
+        }
+
+        if (result.suggestArtifactUpload && evidenceTier == null) {
           proof.requestNow({
             question,
             answer,
@@ -906,41 +938,26 @@ export function useDialogueState(): DialogueState {
     await handleStartButtonPress();
   }, [handleStartButtonPress]);
 
-  const handleTextInputPress = () => {
+  const handleInputPress = (targetUI: UIState) => {
     setError("");
     if (currentPrompt) {
-      setTimeout(() => setUiState("answering"), 100);
+      setTimeout(() => setUiState(targetUI), 100);
       return;
     }
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
-      setTimeout(() => setUiState("answering"), 100);
+      setTimeout(() => setUiState(targetUI), 100);
     } else if (prefetchedQuestion) {
       setCurrentPrompt(prefetchedQuestion);
       setPrefetchedQuestion(null);
-      setTimeout(() => setUiState("answering"), 100);
+      setTimeout(() => setUiState(targetUI), 100);
     } else {
       setError("No question available. Please try again.");
     }
   };
 
-  const handleVoiceInputPress = () => {
-    setError("");
-    if (currentPrompt) {
-      setTimeout(() => setUiState("voice-recording"), 100);
-      return;
-    }
-    if (mappedCategories.length === 0) {
-      setCurrentPrompt(INITIAL_PROMPT);
-      setTimeout(() => setUiState("voice-recording"), 100);
-    } else if (prefetchedQuestion) {
-      setCurrentPrompt(prefetchedQuestion);
-      setPrefetchedQuestion(null);
-      setTimeout(() => setUiState("voice-recording"), 100);
-    } else {
-      setError("No question available. Please try again.");
-    }
-  };
+  const handleTextInputPress = () => handleInputPress("answering");
+  const handleVoiceInputPress = () => handleInputPress("voice-recording");
 
   const prepareImageQuestion = (): boolean => {
     setError("");
@@ -963,12 +980,6 @@ export function useDialogueState(): DialogueState {
     }
   };
 
-  const REGEX_BYPASS_PATTERNS = [
-    /\bf\s*[\W_]*u\s*[\W_]*c\s*[\W_]*k\b/i,
-    /\bs\s*[\W_]*h\s*[\W_]*i\s*[\W_]*t\b/i,
-    /\bb\s*[\W_]*i\s*[\W_]*t\s*[\W_]*c\s*[\W_]*h\b/i,
-  ];
-
   const handleSubmitAnswer = () => {
     if (!userAnswer.trim()) {
       Alert.alert(
@@ -979,8 +990,7 @@ export function useDialogueState(): DialogueState {
       return;
     }
 
-    const trimmed = userAnswer.trim();
-    if (profanityMatcher.hasMatch(trimmed) || REGEX_BYPASS_PATTERNS.some((r) => r.test(trimmed))) {
+    if (containsInappropriateLanguage(userAnswer)) {
       Alert.alert(
         "Inappropriate Content",
         "Please keep your response respectful and appropriate so I can help you identify your skills."
@@ -1005,11 +1015,7 @@ export function useDialogueState(): DialogueState {
     setError("");
     setWeakFitJustification("");
     setContentWarning(false);
-    if (contentWarning) {
-      setUiState("idle");
-    } else {
-      setUiState("answering");
-    }
+    setUiState("idle");
   };
 
   const triggerContentWarning = (message?: string) => {
@@ -1022,8 +1028,12 @@ export function useDialogueState(): DialogueState {
 
   // Regenerate the next question: brief idle beat, then an abortable Gemini
   // call whose result is prefetched. Callers reset their own state and pass context.
+  // `region`, when provided, keeps the regeneration scoped to that region's
+  // taxonomy instead of falling back to the full taxonomy — this is what keeps
+  // "skip" inside a region/addDetail flow from silently going generic.
   const synthesizeAndPrefetch = async (
-    context?: Parameters<typeof GeminiService.synthesizeNextQuestion>[3]
+    context?: Parameters<typeof GeminiService.synthesizeNextQuestion>[3],
+    region?: string
   ) => {
     setError("");
     setUiState("idle");
@@ -1040,9 +1050,10 @@ export function useDialogueState(): DialogueState {
       const newQuestion = await GeminiService.synthesizeNextQuestion(
         interactions,
         mappedCategories,
-        getTaxonomyString(),
+        region ? getFilteredTaxonomyString(region) : getTaxonomyString(),
         context,
-        controller.signal
+        controller.signal,
+        region
       );
 
       setPrefetchedQuestion(newQuestion);
@@ -1058,23 +1069,26 @@ export function useDialogueState(): DialogueState {
     }
   };
 
-  const handleWeakFitNewQuestion = async () => {
+  const handleWeakFitNewQuestion = async (region?: string) => {
     setWeakFitJustification("");
     setContentWarning(false);
     setSavedAnswer("");
     setSavedQuestion("");
-    await synthesizeAndPrefetch({
-      embeddingHistorySummary: pdfContextRef.current,
-    });
+    await synthesizeAndPrefetch({ embeddingHistorySummary: pdfContextRef.current }, region);
   };
 
   // Skip: regenerate with an "avoid this" signal so the model returns something
-  // genuinely different rather than a rephrasing.
-  const handleSkipQuestion = async () => {
-    await synthesizeAndPrefetch({
-      avoidQuestion: currentPrompt || undefined,
-      embeddingHistorySummary: pdfContextRef.current,
-    });
+  // genuinely different rather than a rephrasing. `region` keeps skip scoped to
+  // whichever of the 4 entry flows (home / navbar+ / region / addDetail) is
+  // currently active — the caller (DialogueProvider) supplies this from flowContext.
+  const handleSkipQuestion = async (region?: string) => {
+    await synthesizeAndPrefetch(
+      {
+        avoidQuestion: currentPrompt || undefined,
+        embeddingHistorySummary: pdfContextRef.current,
+      },
+      region
+    );
   };
 
   const handleNewTopic = async (region?: string) => {
@@ -1128,7 +1142,7 @@ export function useDialogueState(): DialogueState {
     setShowSensitiveIntro(false);
   };
 
-  const continueAfterStampUnlock = () => {
+  const continueAfterDeferredModal = () => {
     const nextQuestion = deferredNextQuestion;
     const isComplete = deferredCheckCompletion;
 
@@ -1161,39 +1175,10 @@ export function useDialogueState(): DialogueState {
     }
   };
 
+  const continueAfterStampUnlock = () => continueAfterDeferredModal();
   const continueAfterStampTierUpgrade = () => {
-    const nextQuestion = deferredNextQuestion;
-    const isComplete = deferredCheckCompletion;
-
     clearStampTierUpgrade();
-
-    setDeferredNextQuestion(null);
-    setDeferredCheckCompletion(false);
-
-    if (isComplete) {
-      proof.clearDeferred();
-      void endSession("completed");
-      setUserAnswer("");
-      setUiState("complete");
-      return;
-    }
-
-    proof.surfaceDeferred();
-
-    if (nextQuestion) {
-      setUiState("loading");
-      setLoadingMessage("Preparing your next question...");
-
-      setTimeout(() => {
-        setPrefetchedQuestion(nextQuestion);
-        setUiState("idle");
-      }, 600);
-    } else {
-      void advanceToNextQuestion(null, {
-        ...deferredAdvanceOptsRef.current!,
-        signal: abortControllerRef.current?.signal ?? new AbortController().signal,
-      });
-    }
+    continueAfterDeferredModal();
   };
 
   const clearDeferredState = () => {

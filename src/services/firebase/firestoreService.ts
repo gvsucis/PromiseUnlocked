@@ -11,6 +11,7 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  writeBatch,
   arrayUnion,
   increment,
   serverTimestamp,
@@ -362,7 +363,8 @@ export async function saveStampUnlock(
   sessionId: string,
   categoryId: string,
   stampName: string,
-  tier: number = 1
+  tier: number = 1,
+  categoryName?: string
 ): Promise<void> {
   try {
     const passportRef = doc(
@@ -383,7 +385,13 @@ export async function saveStampUnlock(
       typeof data.unlockedStamps === "object" &&
       stampName in data.unlockedStamps;
 
-    await setDoc(
+    const summaryRef = doc(db, "participants", userId, "passportSummary");
+    const summaryDoc = await getDoc(summaryRef);
+    const summaryData = summaryDoc.data();
+    const hasCategorySummary = summaryData?.categorySummaries?.[categoryId] != null;
+
+    const batch = writeBatch(db);
+    batch.set(
       passportRef,
       {
         categoryId,
@@ -399,6 +407,43 @@ export async function saveStampUnlock(
       },
       { merge: true }
     );
+    batch.set(
+      summaryRef,
+      {
+        [`stamps.${stampName.replaceAll(/[.[\]/]/g, "_")}`]: hasStamp
+          ? {
+              timesUnlocked: increment(1),
+              lastUnlockedAt: serverTimestamp(),
+              tier,
+              categoryId,
+              stampName,
+              sessionId,
+            }
+          : {
+              timesUnlocked: 1,
+              firstUnlockedAt: serverTimestamp(),
+              lastUnlockedAt: serverTimestamp(),
+              tier,
+              categoryId,
+              stampName,
+              sessionId,
+            },
+      },
+      { merge: true }
+    );
+    if (categoryName) {
+      const categorySummaryFields: Record<string, unknown> = {
+        [`categorySummaries.${categoryId}.category`]: categoryName,
+        [`categorySummaries.${categoryId}.categoryId`]: categoryId,
+        [`categorySummaries.${categoryId}.totalMappings`]: increment(1),
+        [`categorySummaries.${categoryId}.lastMappedAt`]: serverTimestamp(),
+      };
+      if (!hasCategorySummary) {
+        categorySummaryFields[`categorySummaries.${categoryId}.firstMappedAt`] = serverTimestamp();
+      }
+      batch.set(summaryRef, categorySummaryFields, { merge: true });
+    }
+    await batch.commit();
   } catch (err) {
     console.error("[Firestore] Failed to save stamp unlock:", err);
     throw err;

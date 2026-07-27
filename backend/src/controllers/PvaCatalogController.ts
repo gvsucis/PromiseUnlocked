@@ -14,6 +14,7 @@ import {
   embedAndBrief,
 } from "@/services/pvaCatalogService";
 import { isAdminUser } from "@/utils/authz";
+import { getPvaProfile } from "@/data/pvaStyleProfiles";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILE_SIZE_LABEL = `${MAX_FILE_SIZE / (1024 * 1024)}MB`;
@@ -207,7 +208,7 @@ export class PvaCatalogController {
         return res.json({ context: "", embeddingStatus: status });
       }
       return res.json({
-        context: entry.personaBrief?.trim() || entry.extractedText || "",
+        context: getPvaProfile(entry.name ?? ""),
         embeddingStatus: status,
       });
     } catch (err) {

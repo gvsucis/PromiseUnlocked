@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MaterialIcons } from "@expo/vector-icons";
 
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -14,14 +14,16 @@ import { computeDerivedSkills } from "../config/stampTaxonomy";
 import { DEFAULT_TIER, TIER_CONFIG } from "../config/stampConstants";
 import StampBadge from "../components/stamps/StampBadge";
 import { getActiveSessionId } from "../services/sessionManager";
+import { getUnlockedStampsForCategory } from "../services/categoryStorageService";
 import {
-  getUnlockedStampsForCategory,
-  getConversationHistory,
-  syncFromFirestore,
-  fetchPassportJustifications,
-} from "../services/categoryStorageService";
+  cacheJustifications,
+  getCachedJustifications,
+  listenToPassportJustifications,
+} from "../services/passportSyncService";
+import { useAuth } from "../context/AuthContext";
 
 import { colors } from "../styles/global";
+import { DialogueButton } from "../components/dialogue/DialogueButton";
 
 const DERIVED_SKILLS = computeDerivedSkills();
 
@@ -33,6 +35,7 @@ export default function StampDetailScreen() {
   const navigation = useNavigation<StampDetailNavigationProp>();
   const route = useRoute<StampDetailRouteProp>();
   const { stamp, region, categoryId } = route.params;
+  const { session } = useAuth();
   const allStamps = DERIVED_SKILLS[region] ?? [];
 
   const [unlockInfo, setUnlockInfo] = useState<{
@@ -42,6 +45,8 @@ export default function StampDetailScreen() {
   } | null>(null);
   const [justifications, setJustifications] = useState<Array<{ justification: string }>>([]);
   const [unlockedNames, setUnlockedNames] = useState<Set<string>>(new Set());
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+
   const unlockedStamps = allStamps.filter((s) => {
     if (unlockedNames.has(s)) return true;
     const bare = s.split(": ").pop();
@@ -55,46 +60,48 @@ export default function StampDetailScreen() {
   const tier = unlockInfo?.tier ?? DEFAULT_TIER;
   const tierCfg = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG[DEFAULT_TIER];
 
-  const loadUnlockInfo = useCallback(async () => {
-    const unlocks = await getUnlockedStampsForCategory(categoryId);
-    const found = unlocks.find((u) => u.name === stamp);
-    setUnlockInfo(found ?? null);
-    setUnlockedNames(new Set(unlocks.map((u) => u.name)));
+  useEffect(() => {
+    let cancelled = false;
+    const handlePassportItems = (items: string[]) => {
+      if (cancelled) return;
+      setJustifications(items.map((j) => ({ justification: j })));
+      cacheJustifications(categoryId, stamp, items);
+    };
 
-    const activeSessionId = await getActiveSessionId();
+    const setup = async () => {
+      const unlocks = await getUnlockedStampsForCategory(categoryId);
+      if (cancelled) return;
+      const found = unlocks.find((u) => u.name === stamp);
+      setUnlockInfo(found ?? null);
+      setUnlockedNames(new Set(unlocks.map((u) => u.name)));
 
-    try {
-      // Source 1: passport justifications filtered by this specific stamp
-      const stampPassportItems = (
-        await fetchPassportJustifications(categoryId, activeSessionId ?? undefined, stamp)
-      ).map((j) => ({ justification: j }));
-      if (stampPassportItems.length > 0) {
-        setJustifications(stampPassportItems);
-        return;
+      const cached = await getCachedJustifications(categoryId, stamp);
+      if (!cancelled && cached.length > 0) {
+        setJustifications(cached.map((j) => ({ justification: j })));
       }
 
-      // Source 2: conversation history filtered by specificStamp field
-      await syncFromFirestore();
-      const history = await getConversationHistory();
-      const stampHistoryItems = history
-        .filter((i) => i.specificStamp === stamp && i.justification)
-        .map((i) => ({ justification: i.justification! }));
-      if (stampHistoryItems.length > 0) {
-        setJustifications(stampHistoryItems);
-        return;
+      const activeSessionId = await getActiveSessionId();
+      if (cancelled || !activeSessionId || !session.uid) return;
+
+      unsubscribeRef.current = listenToPassportJustifications(
+        session.uid,
+        activeSessionId,
+        categoryId,
+        stamp,
+        handlePassportItems
+      );
+    };
+
+    setup();
+
+    return () => {
+      cancelled = true;
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
-
-      setJustifications([]);
-    } catch {
-      setJustifications([]);
-    }
-  }, [categoryId, stamp]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadUnlockInfo();
-    }, [loadUnlockInfo])
-  );
+    };
+  }, [categoryId, stamp, session.uid]);
 
   function goToPreviousStamp() {
     if (!previousStamp) return;
@@ -185,6 +192,8 @@ export default function StampDetailScreen() {
         ) : (
           <Text style={styles.justificationEmpty}>No justification recorded for this stamp.</Text>
         )}
+
+        <DialogueButton variant="addDetail" stamp={stamp} region={region} />
       </ScrollView>
     </SafeAreaView>
   );

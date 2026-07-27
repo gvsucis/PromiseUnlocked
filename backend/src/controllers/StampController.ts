@@ -8,6 +8,7 @@ import {
   isValidCategory,
   isValidStamp,
 } from "@/services/stampTaxonomy";
+import { stampQueries } from "@/services/stampQueries";
 
 export class StampController {
   static async unlock(req: Request, res: Response) {
@@ -109,6 +110,55 @@ export class StampController {
     } catch (error) {
       console.error("[StampController] Failed to unlock stamp:", error);
       return res.status(500).json({ error: "Failed to unlock stamp" });
+    }
+  }
+
+  static async getMyStamps(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    if (!requester?.uid) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const stamps = await stampQueries.listStampsForParticipant(requester.uid);
+      return res.json({ stamps, total: stamps.length });
+    } catch (error) {
+      console.error("[StampController] Failed to list stamps:", error);
+      return res.status(500).json({ error: "Failed to list stamps" });
+    }
+  }
+
+  static async getMyStampDetail(req: Request, res: Response) {
+    const requester = (req as AuthenticatedRequest).user;
+    if (!requester?.uid) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { stampName } = req.params as { stampName: string };
+    if (!stampName) {
+      return res.status(400).json({ error: "Missing stampName" });
+    }
+
+    try {
+      const stamps = await stampQueries.listStampsForParticipant(requester.uid);
+      const match = stamps.find((s: { stampName: string }) => s.stampName === stampName);
+      if (!match) {
+        return res.status(404).json({ error: `Stamp "${stampName}" not found` });
+      }
+
+      const evidence = await stampQueries.getStampEvidence(
+        requester.uid,
+        match.sessionId,
+        stampName
+      );
+
+      return res.json({
+        stamp: match,
+        evidence: evidence.interactions,
+      });
+    } catch (error) {
+      console.error("[StampController] Failed to get stamp detail:", error);
+      return res.status(500).json({ error: "Failed to get stamp detail" });
     }
   }
 }

@@ -352,76 +352,105 @@ export class ParticipantsController {
       return res.status(403).json({ error: "Forbidden — admin access required" });
     }
     try {
-      const { page, pageSize, offset } = parsePagination(req.query, 50, 100);
-      const totalSnapshot = await participantsCollection.count().get();
-      const total = totalSnapshot.data().count;
+      const participantsSnapshot = await participantsCollection.get();
+      const errors: Array<{ uid: string; error: string }> = [];
 
-      const participantsSnapshot = await participantsCollection
-        .orderBy("createdAt", "desc")
-        .offset(offset)
-        .limit(pageSize)
-        .get();
-
-      const result = await Promise.all(
+      const settled = await Promise.allSettled(
         participantsSnapshot.docs.map(async (doc) => {
-          const profile = normalizeParticipant(doc) as Record<string, unknown>;
-          const sessionsSnapshot = await participantSessionsCollection(doc.id)
-            .select("status")
-            .get();
-          const allPassportDocs: Array<Record<string, unknown>> = [];
-          for (const sessionDoc of sessionsSnapshot.docs) {
-            const passportSnapshot = await participantPassportCollection(
-              doc.id,
-              sessionDoc.id
-            ).get();
-            for (const p of passportSnapshot.docs) {
-              allPassportDocs.push(normalizePassport(p) ?? {});
-            }
+          try {
+            const profile = normalizeParticipant(doc) as Record<string, unknown>;
+            const displayName = (profile.displayName as string | null) ?? null;
+            const email = (profile.email as string | null) ?? null;
+            const schoolName = (profile.schoolName as string | null) ?? null;
+            const sessionsSnapshot = await participantSessionsCollection(doc.id)
+              .select("status")
+              .get();
+            const sessionStatusCounts = { completed: 0, in_progress: 0, abandoned: 0 };
+
+            const passportNested = await Promise.all(
+              sessionsSnapshot.docs.map(async (sessionDoc) => {
+                const status = sessionDoc.get("status") as string;
+                if (status === "completed") sessionStatusCounts.completed++;
+                else if (status === "in_progress") sessionStatusCounts.in_progress++;
+                else if (status === "abandoned") sessionStatusCounts.abandoned++;
+                const passportSnapshot = await participantPassportCollection(
+                  doc.id,
+                  sessionDoc.id
+                ).get();
+                return passportSnapshot.docs.map((p) => normalizePassport(p) ?? {});
+              })
+            );
+            const allPassportDocs = passportNested.flat();
+
+            const aggregated = allPassportDocs.reduce<Record<string, unknown>>(
+              (acc, p) => {
+                const category = p.category as string;
+                if (!category) return acc;
+                if (!acc[category]) {
+                  acc[category] = { category, totalMappings: 0, unlockedStampCount: 0 };
+                }
+                const stamps = p.unlockedStamps as
+                  | Record<string, { timesUnlocked?: number }>
+                  | undefined;
+                const stampCount = stamps ? Object.keys(stamps).length : 0;
+                (acc[category] as Record<string, unknown>).totalMappings =
+                  ((acc[category] as Record<string, unknown>).totalMappings as number) +
+                  ((p.totalMappings as number) ?? 0);
+                (acc[category] as Record<string, unknown>).unlockedStampCount =
+                  ((acc[category] as Record<string, unknown>).unlockedStampCount as number) +
+                  stampCount;
+                return acc;
+              },
+              {} as Record<string, unknown>
+            );
+            const passport = Object.values(aggregated) as Array<{
+              category: string;
+              totalMappings: number;
+              unlockedStampCount: number;
+            }>;
+            const totalStampsUnlocked = passport.reduce(
+              (sum, c) => sum + (c.unlockedStampCount as number),
+              0
+            );
+            const totalMappings = passport.reduce(
+              (sum, c) => sum + (c.totalMappings as number),
+              0
+            );
+            return {
+              uid: doc.id,
+              displayName,
+              email,
+              schoolName,
+              passport,
+              totalStampsUnlocked,
+              totalMappings,
+              sessionStatusCounts,
+            };
+          } catch (err) {
+            errors.push({ uid: doc.id, error: (err as Error).message });
+            return null;
           }
-          const aggregated = allPassportDocs.reduce<Record<string, unknown>>(
-            (acc, p) => {
-              const category = p.category as string;
-              if (!category) return acc;
-              if (!acc[category]) {
-                acc[category] = { category, totalMappings: 0, unlockedStampCount: 0 };
-              }
-              const stamps = p.unlockedStamps as
-                | Record<string, { timesUnlocked?: number }>
-                | undefined;
-              const stampCount = stamps ? Object.keys(stamps).length : 0;
-              (acc[category] as Record<string, unknown>).totalMappings =
-                ((acc[category] as Record<string, unknown>).totalMappings as number) +
-                ((p.totalMappings as number) ?? 0);
-              (acc[category] as Record<string, unknown>).unlockedStampCount =
-                ((acc[category] as Record<string, unknown>).unlockedStampCount as number) +
-                stampCount;
-              return acc;
-            },
-            {} as Record<string, unknown>
-          );
-          const passport = Object.values(aggregated) as Array<{
-            category: string;
-            totalMappings: number;
-            unlockedStampCount: number;
-          }>;
-          const totalStampsUnlocked = passport.reduce(
-            (sum, c) => sum + (c.unlockedStampCount as number),
-            0
-          );
-          const totalMappings = passport.reduce((sum, c) => sum + (c.totalMappings as number), 0);
-          return {
-            uid: doc.id,
-            displayName: profile.displayName ?? null,
-            email: profile.email ?? null,
-            schoolName: profile.schoolName ?? null,
-            passport,
-            totalStampsUnlocked,
-            totalMappings,
-          };
         })
       );
+      const results: Array<{
+        uid: string;
+        displayName: string | null;
+        email: string | null;
+        schoolName: string | null;
+        passport: Array<{ category: string; totalMappings: number; unlockedStampCount: number }>;
+        totalStampsUnlocked: number;
+        totalMappings: number;
+        sessionStatusCounts: { completed: number; in_progress: number; abandoned: number };
+      }> = [];
+      for (const r of settled) {
+        if (r.status === "fulfilled" && r.value !== null) {
+          results.push(r.value);
+        }
+      }
 
-      return res.json({ participants: result, page, pageSize, total });
+      results.sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""));
+
+      return res.json({ participants: results, total: results.length, errors: errors.length > 0 ? errors : undefined });
     } catch (error) {
       console.error("Error fetching all passports:", error);
       return res.status(500).json({ error: "Failed to fetch all passports" });

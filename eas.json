@@ -21,7 +21,10 @@
       "channel": "production",
       "distribution": "store",
       "developmentClient": false,
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_TEXT_MODEL": "gemini-3.5-flash"
+      }
     }
   },
   "submit": {
