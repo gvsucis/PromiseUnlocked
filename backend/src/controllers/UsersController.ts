@@ -226,6 +226,10 @@ export class UsersController {
     if (typeof uid !== "string") {
       return res.status(400).json({ error: "Invalid user id" });
     }
+    const requester = (req as AuthenticatedRequest).user;
+    if (requester.uid !== uid && !isAdminUser(requester)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     try {
       const userSnapshot = await usersCollection.doc(uid).get();
       if (!userSnapshot.exists) {
@@ -240,6 +244,10 @@ export class UsersController {
 
   static async getUserSessions(req: Request, res: Response) {
     const { uid } = req.params as { uid: string };
+    const requester = (req as AuthenticatedRequest).user;
+    if (requester.uid !== uid && !isAdminUser(requester)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     try {
       const sessionsSnapshot = await participantSessionsCollection(uid).get();
       const sessions = sessionsSnapshot.docs.map((doc) => normalizeSession(doc));

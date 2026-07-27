@@ -10,5 +10,7 @@ const rateLimit = createRateLimitMiddleware({
 });
 
 router.post("/unlock", authenticateToken, rateLimit, StampController.unlock);
+router.get("/", authenticateToken, rateLimit, StampController.getMyStamps);
+router.get("/:stampName", authenticateToken, rateLimit, StampController.getMyStampDetail);
 
 export default router;

@@ -52,3 +52,6 @@ docs/agents/
 # promptfoo config
 promptfooconfig*.yaml
 redteam.yaml
+
+promptfoo-results.json
+provider.sh
