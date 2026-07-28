@@ -62,7 +62,7 @@ app.use("/users", publicRateLimit, usersRouter);
 
 // Protected routes
 app.use("/chat", authenticateToken, protectedRateLimit, chatRoutes, proofRoutes);
-app.use("/participants", authenticateToken, protectedRateLimit, participantsRouter);
+app.use("/participants", protectedRateLimit, participantsRouter);
 app.use("/participants/me/stamps", authenticateToken, protectedRateLimit, stampsRouter);
 app.post(
   "/participants/me/interactions",
