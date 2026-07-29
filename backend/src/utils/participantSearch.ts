@@ -1,4 +1,5 @@
 import { normalizeParticipant } from "@/services/firestore";
+import { toMillis } from "@/utils/timestamp";
 
 const SEARCH_FIELDS = ["displayName", "fullName", "email", "schoolName"] as const;
 
@@ -40,8 +41,14 @@ export function searchParticipantDocs(
     .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
 }
 
-function toMillis(value: unknown): number {
-  if (typeof value !== "string") return 0;
-  const ms = new Date(value).getTime();
-  return Number.isNaN(ms) ? 0 : ms;
+/**
+ * Sorts an array of normalized participant records by createdAt descending
+ * (newest first). Handles both numeric (ms) and ISO string timestamps.
+ */
+export function sortParticipantsByCreatedAt(
+  participants: Record<string, unknown>[]
+): Record<string, unknown>[] {
+  return [...participants].sort(
+    (a, b) => toMillis(b.createdAt) - toMillis(a.createdAt)
+  );
 }
