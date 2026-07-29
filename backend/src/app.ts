@@ -14,6 +14,7 @@ import pvaCatalogRouter from "@/api/pvaCatalog";
 import skillsRouter from "@/api/skills";
 import usersRouter from "@/api/users";
 import helpRouter from "@/api/helpRoutes";
+import artifactsRouter from "@/api/artifacts";
 import { authenticateToken } from "@/middleware/auth";
 import { createRateLimitMiddleware } from "@/middleware/rateLimit";
 import { InteractionsController } from "@/controllers/InteractionsController";
@@ -86,6 +87,7 @@ app.use("/help", authenticateToken, protectedRateLimit, helpRouter);
 
 app.use("/sessions", authenticateToken, protectedRateLimit, sessionsAdminRouter);
 app.use("/admin/stamps", authenticateToken, protectedRateLimit, adminStampsRouter);
+app.use("/artifacts", authenticateToken, protectedRateLimit, artifactsRouter);
 
 app.use((req, res) => {
   console.warn("[App] 404 — route not found", {

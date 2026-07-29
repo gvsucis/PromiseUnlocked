@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ScrollView,
   View,
@@ -12,18 +12,17 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  Animated,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+// Snackbar replaced by custom toast
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 type ProfileNav = StackNavigationProp<RootStackParamList, "Profile">;
-import { useDialogue } from "../context/DialogueContext";
 import {
   fetchProfile,
   updateProfile,
@@ -33,10 +32,18 @@ import {
   type UserProfile,
 } from "../services/profileService";
 import { listPvaCatalog, type PvaCatalogItem } from "../services/profileEmbeddingService";
-
 import { ImagePickerService } from "../services/imagePickerService";
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebase";
+import {
+  listArtifacts,
+  uploadArtifact,
+  deleteArtifact,
+  type ArtifactItem,
+  type ArtifactKind,
+} from "../services/artifactService";
+import * as DocumentPicker from "expo-document-picker";
+import ArtifactPreviewModal from "../components/ArtifactPreviewModal";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -51,30 +58,78 @@ function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: 
   );
 }
 
-function GalleryPlaceholder() {
-  return (
-    <View style={styles.galleryPlaceholder}>
-      <MaterialIcons name="image" size={28} color={colors.accent.sky} />
-    </View>
-  );
+function FileTypeIcon({
+  contentType,
+  size = 28,
+}: Readonly<{ contentType: string; size?: number }>) {
+  let icon: keyof typeof MaterialIcons.glyphMap = "description";
+  if (contentType.includes("pdf")) icon = "picture-as-pdf";
+  else if (contentType.includes("wordprocessingml") || contentType.includes("msword"))
+    icon = "article";
+  else if (contentType.includes("text")) icon = "text-snippet";
+  return <MaterialIcons name={icon} size={size} color={colors.accent.sky} />;
 }
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [savingBio, setSavingBio] = useState(false);
 
-  const { reset } = useDialogue();
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
   const [pvaCatalog, setPvaCatalog] = useState<PvaCatalogItem[]>([]);
   const [pvaModalVisible, setPvaModalVisible] = useState(false);
   const [selectingPva, setSelectingPva] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [artifacts, setArtifacts] = useState<ArtifactItem[]>([]);
+  const [uploadingArtifact, setUploadingArtifact] = useState(false);
+  const [previewArtifact, setPreviewArtifact] = useState<ArtifactItem | null>(null);
+  const [processingCount, setProcessingCount] = useState(0);
+  const [toast, setToast] = useState<{ message: string } | null>(null);
+  const toastAnim = useRef(new Animated.Value(-100)).current;
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const insets = useSafeAreaInsets();
+
+  React.useEffect(() => {
+    return () => {
+      if (pollTimer.current) {
+        clearInterval(pollTimer.current);
+        pollTimer.current = null;
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (toast) {
+      Animated.spring(toastAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 80,
+        friction: 12,
+      }).start();
+      const timer = setTimeout(() => {
+        Animated.timing(toastAnim, {
+          toValue: -100,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => setToast(null));
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast, toastAnim]);
+
+  const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
   useFocusEffect(
     useCallback(() => {
       listPvaCatalog()
         .then(setPvaCatalog)
+        .catch(() => undefined);
+    }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      listArtifacts()
+        .then(setArtifacts)
         .catch(() => undefined);
     }, [])
   );
@@ -235,6 +290,122 @@ export default function ProfileScreen() {
     (checklist.filter((i) => i.complete).length / checklist.length) * 100
   );
 
+  const handleSelectFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "application/pdf",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "text/plain",
+        ],
+      });
+
+      if (result.canceled) return;
+
+      const asset = result.assets?.[0];
+      if (!asset) return;
+
+      if (asset.size && asset.size > MAX_FILE_SIZE) {
+        Alert.alert(
+          "File Too Large",
+          `Selected file is ${(asset.size / (1024 * 1024)).toFixed(2)} MB. Maximum allowed is 5 MB.`
+        );
+        return;
+      }
+
+      startUpload(asset, "other");
+    } catch (err) {
+      Alert.alert("Error", "Failed to select document.");
+      console.error(err);
+    }
+  };
+
+  const startUpload = async (
+    file: { uri: string; name: string; size?: number | null },
+    kind: ArtifactKind
+  ) => {
+    setUploadingArtifact(true);
+    try {
+      const result = await uploadArtifact(file.uri, file.name ?? "document", kind);
+      if (!result.success) {
+        Alert.alert("Upload Failed", result.error ?? "Could not upload document.");
+        return;
+      }
+      const updated = await listArtifacts();
+      setArtifacts(updated);
+      const processing = updated.filter((a) => a.embeddingsStatus === "processing").length;
+      setProcessingCount(processing);
+      if (processing === 0) return;
+
+      if (pollTimer.current) clearInterval(pollTimer.current);
+      let attempts = 0;
+      const maxAttempts = 30;
+      let prevProcessingIds = new Set(
+        updated.filter((a) => a.embeddingsStatus === "processing").map((a) => a.id)
+      );
+
+      pollTimer.current = setInterval(async () => {
+        attempts++;
+        try {
+          const fresh = await listArtifacts();
+          setArtifacts(fresh);
+          const nowProcessingIds = new Set(
+            fresh.filter((a) => a.embeddingsStatus === "processing").map((a) => a.id)
+          );
+          setProcessingCount(nowProcessingIds.size);
+
+          const justReady = fresh.filter(
+            (a) => a.embeddingsStatus === "ready" && prevProcessingIds.has(a.id)
+          );
+          if (justReady.length > 0) {
+            clearInterval(pollTimer.current!);
+            pollTimer.current = null;
+            setToast({ message: "Document is ready to review." });
+            return;
+          }
+          prevProcessingIds = nowProcessingIds;
+          if (nowProcessingIds.size === 0 || attempts >= maxAttempts) {
+            clearInterval(pollTimer.current!);
+            pollTimer.current = null;
+          }
+        } catch {
+          if (attempts >= maxAttempts) {
+            clearInterval(pollTimer.current!);
+            pollTimer.current = null;
+          }
+        }
+      }, 5000);
+    } catch (err) {
+      Alert.alert("Upload Failed", "An unexpected error occurred.");
+      console.error(err);
+    } finally {
+      setUploadingArtifact(false);
+    }
+  };
+
+  const handleDeleteArtifact = (id: string, name: string) => {
+    Alert.alert("Delete Document", `Remove "${name}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => runDelete(id, name),
+      },
+    ]);
+  };
+
+  const runDelete = async (id: string, name: string) => {
+    const ok = await deleteArtifact(id);
+    if (ok) {
+      setArtifacts((prev) => prev.filter((a) => a.id !== id));
+    } else {
+      Alert.alert("Delete Failed", "Could not delete document.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Retry", onPress: () => runDelete(id, name) },
+      ]);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -326,12 +497,65 @@ export default function ProfileScreen() {
           <View style={globalStyles.card}>
             <View style={styles.sectionHeader}>
               <Text style={styles.cardTitle}>Moments & Artifacts</Text>
+              {uploadingArtifact && <ActivityIndicator size="small" color={colors.accent.sky} />}
             </View>
-            <View style={styles.galleryRow}>
-              <GalleryPlaceholder />
-              <GalleryPlaceholder />
-              <TouchableOpacity style={styles.galleryAddCard}>
-                <MaterialIcons name="add" size={28} color={colors.accent.sky} />
+            {processingCount > 0 && (
+              <Text style={styles.processingHint}>
+                We're reviewing your document{processingCount > 1 ? "s" : ""}. This may take a
+                minute.
+              </Text>
+            )}
+            {artifacts.length === 0 && (
+              <Text style={styles.artifactEmpty}>
+                Upload essays, citations, or transcripts to build your experience profile.
+              </Text>
+            )}
+            <View style={styles.artifactGrid}>
+              {artifacts.map((item) => (
+                <View key={item.id} style={styles.artifactCard}>
+                  <TouchableOpacity
+                    style={styles.artifactCardPreview}
+                    onPress={() => setPreviewArtifact(item)}
+                  >
+                    <FileTypeIcon contentType={item.contentType} />
+                    {item.embeddingsStatus === "ready" && (
+                      <MaterialIcons
+                        name="check-circle"
+                        size={14}
+                        color={colors.status.success}
+                        style={styles.artifactCardBadge}
+                      />
+                    )}
+                    {item.embeddingsStatus === "processing" && (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.accent.sky}
+                        style={styles.artifactCardBadge}
+                      />
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.artifactCardRemove}
+                    onPress={() => handleDeleteArtifact(item.id, item.fileName)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={18} color="#FF6B6B" />
+                  </TouchableOpacity>
+                  <Text style={styles.artifactCardName} numberOfLines={2}>
+                    {item.fileName}
+                  </Text>
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.artifactCard}
+                onPress={handleSelectFile}
+                disabled={uploadingArtifact}
+                activeOpacity={0.6}
+              >
+                <View style={styles.artifactCardAdd}>
+                  <MaterialIcons name="add" size={28} color={colors.accent.sky} />
+                </View>
+                <Text style={styles.artifactCardName}>Add</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -490,6 +714,31 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       </View>
+      {toast && (
+        <Animated.View
+          style={[
+            styles.toast,
+            { transform: [{ translateY: toastAnim }], paddingTop: insets.top + 8 },
+          ]}
+        >
+          <Text style={styles.toastText}>{toast.message}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setToast(null);
+              const ready = artifacts.filter((a) => a.embeddingsStatus === "ready");
+              if (ready.length > 0) setPreviewArtifact(ready[0]);
+            }}
+          >
+            <Text style={styles.toastAction}>View</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+      <ArtifactPreviewModal
+        fileName={previewArtifact?.fileName ?? ""}
+        previewUrl={previewArtifact?.previewUrl ?? ""}
+        visible={!!previewArtifact}
+        onClose={() => setPreviewArtifact(null)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -609,27 +858,69 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
 
-  galleryRow: { flexDirection: "row", gap: 12 },
-  galleryPlaceholder: {
-    width: 88,
-    height: 88,
-    borderRadius: radius.md,
-    backgroundColor: colors.background.tinted,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border.accent,
+  processingHint: {
+    fontSize: 12,
+    color: colors.accent.sky,
+    fontStyle: "italic",
+    marginBottom: 8,
   },
-  galleryAddCard: {
-    width: 88,
-    height: 88,
-    borderRadius: radius.md,
-    backgroundColor: colors.background.subtle,
-    justifyContent: "center",
+  artifactEmpty: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  artifactGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 12,
+  },
+  artifactCard: {
+    width: 80,
     alignItems: "center",
+    position: "relative",
+  },
+  artifactCardPreview: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: colors.background.tinted,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
+    borderColor: colors.border.subtle,
+  },
+  artifactCardBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: colors.background.card,
+    borderRadius: 7,
+  },
+  artifactCardRemove: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    zIndex: 1,
+  },
+  artifactCardName: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 14,
+  },
+  artifactCardAdd: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    borderWidth: 1.5,
     borderStyle: "dashed",
     borderColor: colors.accent.sky,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background.subtle,
   },
   pvaHelp: {
     fontSize: 13,
@@ -802,5 +1093,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+
+  toast: {
+    position: "absolute",
+    top: 0,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.accent.teal,
+    borderRadius: 999,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 100,
+  },
+  toastText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text.inverse,
+    fontWeight: "500",
+  },
+  toastAction: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text.inverse,
+    marginLeft: 12,
   },
 });

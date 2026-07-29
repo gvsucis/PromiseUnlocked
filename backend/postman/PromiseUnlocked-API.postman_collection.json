@@ -313,9 +313,19 @@
 			"name": "Users (Legacy)",
 			"item": [
 				{
-					"name": "Create User",
+					"name": "Create User (Super Admin)",
 					"request": {
-						"description": "Creates a Firebase Auth user AND a Firestore document in the `users` collection. Public endpoint.",
+						"description": "Super admin only. Creates a Firebase Auth user AND a Firestore document in the `users` collection. Optionally sets an initial `role` (default: `\"user\"`). Also sets Firebase custom claims.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
 						"header": [
 							{
@@ -325,7 +335,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"displayName\": \"New User\",\n  \"metadata\": {}\n}"
+							"raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"displayName\": \"New User\",\n  \"role\": \"user\",\n  \"metadata\": {}\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/users",
@@ -349,7 +359,20 @@
 									"value": "application/json"
 								}
 							],
-							"body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"newuser@example.com\",\n    \"displayName\": \"New User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+							"body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"newuser@example.com\",\n    \"displayName\": \"New User\",\n    \"photoURL\": null,\n    \"role\": \"user\",\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+						},
+						{
+							"name": "403 Forbidden",
+							"status": "Forbidden",
+							"code": 403,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"error\": \"Forbidden — super admin access required\"\n}"
 						}
 					],
 					"event": [
@@ -600,7 +623,7 @@
 				{
 					"name": "Update User Role (Super Admin)",
 					"request": {
-						"description": "Super admin only. Updates a user's role and Firebase custom claims (the `admin` claim is set for `admin`/`superadmin`). If `role` is omitted it defaults to `admin`. The target user must refresh their ID token before the new role takes effect. You cannot change your own role.",
+						"description": "Super admin only. Updates a user's role and Firebase custom claims (the `admin` claim is set for `admin`/`superadmin`). If `role` is omitted it defaults to `user`. The target user must refresh their ID token before the new role takes effect. You cannot change your own role.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [

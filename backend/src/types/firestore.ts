@@ -26,6 +26,8 @@ export interface UserProfile {
   /** Id of the shared PVA catalog entry the user selected to personalize dialogue. */
   selectedPvaId?: string | null;
   metadata: Record<string, unknown>;
+  selectedPvaName?: string | null;
+  artifactBrief?: string | null;
 }
 
 export interface ParticipantProfile extends UserProfile {
@@ -41,6 +43,7 @@ export type ProofStatus =
   | "error";
 
 export type ProofTier = "t1" | "t2" | "t3" | "t4";
+export type EmbeddingStatus = "processing" | "ready" | "failed";
 
 export interface UserFileEmbedding {
   id?: string;
@@ -56,7 +59,7 @@ export interface UserFileEmbedding {
   checksum: string;
   kind?: string;
   createdAt: FirebaseFirestore.FieldValue;
-  embeddingStatus?: "processing" | "ready" | "failed";
+  embeddingStatus?: EmbeddingStatus;
   embeddingAttempts?: number;
   embeddingError?: string | null;
   embeddingStartedAt?: FirebaseFirestore.FieldValue;
@@ -76,7 +79,7 @@ export interface PvaCatalogEntry {
   extractedText: string;
   embedding: number[] | null;
   embeddingModel: string;
-  embeddingStatus?: "processing" | "ready" | "failed";
+  embeddingStatus?: EmbeddingStatus;
   embeddingAttempts?: number;
   embeddingError?: string | null;
   personaBrief?: string | null;
@@ -158,3 +161,24 @@ export interface InteractionRecord {
 export type AuthenticatedRequest = Request & {
   user: admin.auth.DecodedIdToken;
 };
+
+export interface UserArtifact {
+  id?: string;
+  userId: string;
+  fileName: string;
+  storagePath: string;
+  bucket: string;
+  fileSizeBytes: number;
+  contentType: string;
+  checksum: string;
+  kind?: "essay" | "citation" | "transcript" | "other";
+  extractedText: string;
+  embedding: number[] | null;
+  embeddingModel: string;
+  embeddingsStatus?: "processing" | "ready" | "failed";
+  embeddingAttempts?: number;
+  embeddingError?: string | null;
+  embeddingStartedAt?: FirebaseFirestore.FieldValue;
+  embeddingFinishedAt?: FirebaseFirestore.FieldValue;
+  createdAt: FirebaseFirestore.FieldValue;
+}

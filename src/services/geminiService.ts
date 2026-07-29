@@ -976,7 +976,7 @@ Tier rubric:
         ? `\nLATEST_TURN:\nQ: ${context.latestQuestion ?? ""}\nA: ${context.latestAnswer ?? ""}\n`
         : "\n";
     const embeddingHistoryBlock = context?.embeddingHistorySummary
-      ? `\nPERSONALITY (engagement only — tone, topics, communication style):\n${context.embeddingHistorySummary}\n`
+      ? `\nUSER BACKGROUND (personality, experience, achievements):\n${context.embeddingHistorySummary}\n`
       : "";
     const regionBlock = targetRegion
       ? `\nTARGET REGION: ${targetRegion} — focus the question on this specific area.\n`
