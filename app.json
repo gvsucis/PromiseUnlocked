@@ -14,7 +14,6 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "buildNumber": "2",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
