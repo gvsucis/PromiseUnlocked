@@ -72,10 +72,21 @@ const fetchOrCreateProfile = async (uid: string): Promise<UserProfile> => {
 
 export class UsersController {
   static async createUser(req: Request, res: Response) {
-    const { email, password, displayName, photoURL, metadata = {} } = req.body ?? {};
+    const requester = (req as AuthenticatedRequest).user;
+    if (!isSuperAdmin(requester)) {
+      return res.status(403).json({ error: "Forbidden — super admin access required" });
+    }
+
+    const { email, password, displayName, photoURL, role, metadata = {} } = req.body ?? {};
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password are required" });
     }
+
+    const targetRole = role ?? DEFAULT_ROLE;
+    if (!isValidRole(targetRole)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
     try {
       const userRecord = await admin.auth().createUser({
         email,
@@ -83,11 +94,18 @@ export class UsersController {
         displayName,
         photoURL,
       });
+
+      await admin.auth().setCustomUserClaims(userRecord.uid, {
+        role: targetRole,
+        admin: targetRole === "admin" || targetRole === "superadmin",
+      });
+
       const baseProfile = buildProfileFromRecord(userRecord, metadata);
       const profile: UserProfile = {
         ...baseProfile,
         displayName: displayName === "undefined" ? baseProfile.displayName : displayName,
         photoURL: photoURL === "undefined" ? baseProfile.photoURL : photoURL,
+        role: targetRole,
       };
       await usersCollection.doc(userRecord.uid).set(profile);
       return res.status(201).json({ user: normalizeUser(profile) });

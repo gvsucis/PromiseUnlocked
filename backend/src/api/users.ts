@@ -5,7 +5,7 @@ import { ProfilePictureController } from "@/controllers/ProfilePictureController
 
 const router = express.Router();
 
-router.post("/", UsersController.createUser);
+router.post("/", authenticateToken, UsersController.createUser);
 
 router.get("/me", authenticateToken, UsersController.getMe);
 

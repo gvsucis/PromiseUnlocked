@@ -10,7 +10,7 @@ export const VALID_ROLES = ["user", "admin", "superadmin"] as const;
 export type UserRole = (typeof VALID_ROLES)[number];
 
 /** Role assigned by the role-update endpoint when the request omits one. */
-export const DEFAULT_ROLE: UserRole = "admin";
+export const DEFAULT_ROLE: UserRole = "user";
 
 const ADMIN_ROLES = new Set<string>(["admin", "superadmin"]);
 
