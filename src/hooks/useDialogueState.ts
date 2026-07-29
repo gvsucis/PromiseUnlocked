@@ -27,6 +27,7 @@ import { GeminiService } from "../services/geminiService";
 import { STAMPS_LIST } from "../config/stampConstants";
 import { TOTAL_STAMPS } from "../config/skillsTaxonomy";
 import { getPvaContext } from "../services/profileEmbeddingService";
+import { getArtifactBrief } from "../services/artifactService";
 import { endSession, getUserId, getActiveSessionId } from "../services/sessionManager";
 import { savePassportMapping } from "../services/firebase/firestoreService";
 import { containsInappropriateLanguage } from "../utils/contentModeration";
@@ -342,12 +343,15 @@ export function useDialogueState(): DialogueState {
       // Resolve auth once so the storage reads below don't each re-check it.
       await waitForAuthReady();
 
-      // Fetch the personality profile in the background, ready for the first answer.
+      // Fetch the personality profile + artifact brief in the background, ready for the first answer.
       if (pdfContextRef.current === undefined && !pdfContextFetchRef.current) {
-        pdfContextFetchRef.current = getPvaContext()
-          .then((ctx) => {
-            pdfContextRef.current = ctx;
-            return ctx;
+        pdfContextFetchRef.current = Promise.all([getPvaContext(), getArtifactBrief()])
+          .then(([pvaCtx, artifactBrief]) => {
+            const parts: string[] = [];
+            if (pvaCtx) parts.push(pvaCtx);
+            if (artifactBrief) parts.push("EXPERIENCE BRIEF:\n" + artifactBrief);
+            pdfContextRef.current = parts.join("\n\n");
+            return pdfContextRef.current;
           })
           .catch(() => {
             pdfContextRef.current = "";

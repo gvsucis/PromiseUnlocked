@@ -1,19 +1,25 @@
 import type { Request, Response } from "express";
 import {
   admin,
+  normalizePassport,
   normalizeSession,
   normalizeParticipant,
-  normalizePassport,
   participantSessionDoc,
   participantSessionsCollection,
   participantPassportCollection,
   participantsCollection,
 } from "@/services/firestore";
+import { aggregatePassport } from "@/utils/passport";
+import { fetchParticipantPassportSummary } from "@/services/participantService";
 import type { Address, AuthenticatedRequest, ParticipantProfile } from "@/types/firestore";
 import { canAccessParticipant, isAdminUser } from "@/utils/authz";
 import { profileUpdateSchema } from "@/validation/profileUpdateSchema";
 import { parsePagination } from "@/utils/pagination";
-import { normalizeSearchTerm, searchParticipantDocs } from "@/utils/participantSearch";
+import {
+  matchesSearchTerm,
+  normalizeSearchTerm,
+  sortParticipantsByCreatedAt,
+} from "@/utils/participantSearch";
 
 const buildProfileFromRecord = (
   userRecord: admin.auth.UserRecord,
@@ -36,6 +42,11 @@ const fetchOrCreateProfile = async (uid: string): Promise<ParticipantProfile> =>
   if (snapshot.exists) {
     const data = snapshot.data();
     if (data) {
+      if (!data.createdAt) {
+        const now = Date.now();
+        await snapshot.ref.update({ createdAt: now });
+        return { ...data, createdAt: now };
+      }
       return data;
     }
   }
@@ -76,30 +87,38 @@ export class ParticipantsController {
     const requester = (req as AuthenticatedRequest).user;
     try {
       if (isAdminUser(requester)) {
-        const { page, pageSize, offset } = parsePagination(req.query, 20, 100);
+        const requestAll = req.query.all === "true";
+        const { page, pageSize, offset } = parsePagination(req.query, 20, 1000);
         const term = normalizeSearchTerm(req.query.search);
 
-        if (term) {
-          const snapshot = await participantsCollection.get();
-          const matched = searchParticipantDocs(snapshot.docs, term);
-          const paginated = matched.slice(offset, offset + pageSize);
-          return res.json({ participants: paginated, page, pageSize, total: matched.length });
+        const snapshot = await participantsCollection.get();
+        const allParticipants = sortParticipantsByCreatedAt(
+          snapshot.docs.map((doc) => normalizeParticipant(doc) as Record<string, unknown>)
+        );
+
+        if (requestAll) {
+          return res.json({ participants: allParticipants, total: allParticipants.length });
         }
 
-        const totalSnapshot = await participantsCollection.count().get();
-        const total = totalSnapshot.data().count;
+        if (term) {
+          const matched = allParticipants.filter((p) => matchesSearchTerm(p, term));
+          return res.json({
+            participants: matched.slice(offset, offset + pageSize),
+            page,
+            pageSize,
+            total: matched.length,
+          });
+        }
 
-        const snapshot = await participantsCollection
-          .orderBy("createdAt", "desc")
-          .offset((page - 1) * pageSize)
-          .limit(pageSize)
-          .get();
-        const participants = snapshot.docs.map((doc) => normalizeParticipant(doc));
-        return res.json({ participants, page, pageSize, total });
+        return res.json({
+          participants: allParticipants.slice(offset, offset + pageSize),
+          page,
+          pageSize,
+          total: allParticipants.length,
+        });
       }
       const profile = await fetchOrCreateProfile(requester.uid);
-      const participants = [normalizeParticipant(profile)];
-      return res.json({ participants });
+      return res.json({ participants: [normalizeParticipant(profile)] });
     } catch (error) {
       console.error("Error fetching participants:", error);
       return res.status(500).json({ error: "Failed to fetch participants" });
@@ -205,15 +224,18 @@ export class ParticipantsController {
   static async getMeSessions(req: Request, res: Response) {
     const requester = (req as AuthenticatedRequest).user;
     const { status } = req.query;
-    const { page, pageSize, offset } = parsePagination(req.query, 20, 100);
+    const { page, pageSize, offset } = parsePagination(req.query, 20, 1000);
     let query = participantSessionsCollection(requester.uid).orderBy("startedAt", "desc");
     if (typeof status === "string" && ["in_progress", "completed", "abandoned"].includes(status)) {
       query = query.where("status", "==", status);
     }
     try {
-      const snapshot = await query.offset(offset).limit(pageSize).get();
+      const [totalSnapshot, snapshot] = await Promise.all([
+        query.count().get(),
+        query.offset(offset).limit(pageSize).get(),
+      ]);
       const sessions = snapshot.docs.map((doc) => normalizeSession(doc));
-      return res.json({ sessions, page, pageSize });
+      return res.json({ sessions, page, pageSize, total: totalSnapshot.data().count });
     } catch (error) {
       console.error("Error fetching authenticated participant sessions:", error);
       return res.status(500).json({ error: "Failed to fetch participant sessions" });
@@ -299,47 +321,16 @@ export class ParticipantsController {
     try {
       const sessionsSnapshot = await participantSessionsCollection(requester.uid).get();
       const allPassportDocs: Array<Record<string, unknown>> = [];
+
       for (const sessionDoc of sessionsSnapshot.docs) {
-        const passportSnapshot = await participantPassportCollection(
-          requester.uid,
-          sessionDoc.id
-        ).get();
-        for (const p of passportSnapshot.docs) {
+        const snapshot = await participantPassportCollection(requester.uid, sessionDoc.id).get();
+        for (const p of snapshot.docs) {
           allPassportDocs.push(normalizePassport(p) ?? {});
         }
       }
 
-      const aggregated = allPassportDocs.reduce<Record<string, unknown>>(
-        (acc, p) => {
-          const category = p.category as string;
-          if (!category) return acc;
-          if (!acc[category]) {
-            acc[category] = { category, totalMappings: 0, unlockedStampCount: 0 };
-          }
-          const stamps = p.unlockedStamps as Record<string, { timesUnlocked?: number }> | undefined;
-          const stampCount = stamps ? Object.keys(stamps).length : 0;
-          (acc[category] as Record<string, unknown>).totalMappings =
-            ((acc[category] as Record<string, unknown>).totalMappings as number) +
-            ((p.totalMappings as number) ?? 0);
-          (acc[category] as Record<string, unknown>).unlockedStampCount =
-            ((acc[category] as Record<string, unknown>).unlockedStampCount as number) + stampCount;
-          return acc;
-        },
-        {} as Record<string, unknown>
-      );
-
-      const passport = Object.values(aggregated) as Array<{
-        category: string;
-        totalMappings: number;
-        unlockedStampCount: number;
-      }>;
-      const totalStampsUnlocked = passport.reduce(
-        (sum, c) => sum + (c.unlockedStampCount as number),
-        0
-      );
-      const totalMappings = passport.reduce((sum, c) => sum + (c.totalMappings as number), 0);
-
-      return res.json({ passport, totalStampsUnlocked, totalMappings });
+      const result = aggregatePassport(allPassportDocs);
+      return res.json(result);
     } catch (error) {
       console.error("Error fetching authenticated participant passport:", error);
       return res.status(500).json({ error: "Failed to fetch participant passport" });
@@ -359,89 +350,15 @@ export class ParticipantsController {
         participantsSnapshot.docs.map(async (doc) => {
           try {
             const profile = normalizeParticipant(doc) as Record<string, unknown>;
-            const displayName = (profile.displayName as string | null) ?? null;
-            const email = (profile.email as string | null) ?? null;
-            const schoolName = (profile.schoolName as string | null) ?? null;
-            const sessionsSnapshot = await participantSessionsCollection(doc.id)
-              .select("status")
-              .get();
-            const sessionStatusCounts = { completed: 0, in_progress: 0, abandoned: 0 };
-
-            const passportNested = await Promise.all(
-              sessionsSnapshot.docs.map(async (sessionDoc) => {
-                const status = sessionDoc.get("status") as string;
-                if (status === "completed") sessionStatusCounts.completed++;
-                else if (status === "in_progress") sessionStatusCounts.in_progress++;
-                else if (status === "abandoned") sessionStatusCounts.abandoned++;
-                const passportSnapshot = await participantPassportCollection(
-                  doc.id,
-                  sessionDoc.id
-                ).get();
-                return passportSnapshot.docs.map((p) => normalizePassport(p) ?? {});
-              })
-            );
-            const allPassportDocs = passportNested.flat();
-
-            const aggregated = allPassportDocs.reduce<Record<string, unknown>>(
-              (acc, p) => {
-                const category = p.category as string;
-                if (!category) return acc;
-                if (!acc[category]) {
-                  acc[category] = { category, totalMappings: 0, unlockedStampCount: 0 };
-                }
-                const stamps = p.unlockedStamps as
-                  | Record<string, { timesUnlocked?: number }>
-                  | undefined;
-                const stampCount = stamps ? Object.keys(stamps).length : 0;
-                (acc[category] as Record<string, unknown>).totalMappings =
-                  ((acc[category] as Record<string, unknown>).totalMappings as number) +
-                  ((p.totalMappings as number) ?? 0);
-                (acc[category] as Record<string, unknown>).unlockedStampCount =
-                  ((acc[category] as Record<string, unknown>).unlockedStampCount as number) +
-                  stampCount;
-                return acc;
-              },
-              {} as Record<string, unknown>
-            );
-            const passport = Object.values(aggregated) as Array<{
-              category: string;
-              totalMappings: number;
-              unlockedStampCount: number;
-            }>;
-            const totalStampsUnlocked = passport.reduce(
-              (sum, c) => sum + (c.unlockedStampCount as number),
-              0
-            );
-            const totalMappings = passport.reduce(
-              (sum, c) => sum + (c.totalMappings as number),
-              0
-            );
-            return {
-              uid: doc.id,
-              displayName,
-              email,
-              schoolName,
-              passport,
-              totalStampsUnlocked,
-              totalMappings,
-              sessionStatusCounts,
-            };
+            return await fetchParticipantPassportSummary(doc.id, profile);
           } catch (err) {
             errors.push({ uid: doc.id, error: (err as Error).message });
             return null;
           }
         })
       );
-      const results: Array<{
-        uid: string;
-        displayName: string | null;
-        email: string | null;
-        schoolName: string | null;
-        passport: Array<{ category: string; totalMappings: number; unlockedStampCount: number }>;
-        totalStampsUnlocked: number;
-        totalMappings: number;
-        sessionStatusCounts: { completed: number; in_progress: number; abandoned: number };
-      }> = [];
+
+      const results = [];
       for (const r of settled) {
         if (r.status === "fulfilled" && r.value !== null) {
           results.push(r.value);
@@ -450,7 +367,11 @@ export class ParticipantsController {
 
       results.sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""));
 
-      return res.json({ participants: results, total: results.length, errors: errors.length > 0 ? errors : undefined });
+      return res.json({
+        participants: results,
+        total: results.length,
+        errors: errors.length > 0 ? errors : undefined,
+      });
     } catch (error) {
       console.error("Error fetching all passports:", error);
       return res.status(500).json({ error: "Failed to fetch all passports" });

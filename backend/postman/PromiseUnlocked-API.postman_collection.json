@@ -313,9 +313,19 @@
 			"name": "Users (Legacy)",
 			"item": [
 				{
-					"name": "Create User",
+					"name": "Create User (Super Admin)",
 					"request": {
-						"description": "Creates a Firebase Auth user AND a Firestore document in the `users` collection. Public endpoint.",
+						"description": "Super admin only. Creates a Firebase Auth user AND a Firestore document in the `users` collection. Optionally sets an initial `role` (default: `\"user\"`). Also sets Firebase custom claims.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bearerToken}}",
+									"type": "string"
+								}
+							]
+						},
 						"method": "POST",
 						"header": [
 							{
@@ -325,7 +335,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"displayName\": \"New User\",\n  \"metadata\": {}\n}"
+							"raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"displayName\": \"New User\",\n  \"role\": \"user\",\n  \"metadata\": {}\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/users",
@@ -349,7 +359,20 @@
 									"value": "application/json"
 								}
 							],
-							"body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"newuser@example.com\",\n    \"displayName\": \"New User\",\n    \"photoURL\": null,\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+							"body": "{\n  \"user\": {\n    \"uid\": \"abc123\",\n    \"email\": \"newuser@example.com\",\n    \"displayName\": \"New User\",\n    \"photoURL\": null,\n    \"role\": \"user\",\n    \"createdAt\": 1712345678901,\n    \"updatedAt\": 1712345678901,\n    \"metadata\": {}\n  }\n}"
+						},
+						{
+							"name": "403 Forbidden",
+							"status": "Forbidden",
+							"code": 403,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n  \"error\": \"Forbidden — super admin access required\"\n}"
 						}
 					],
 					"event": [
@@ -600,7 +623,7 @@
 				{
 					"name": "Update User Role (Super Admin)",
 					"request": {
-						"description": "Super admin only. Updates a user's role and Firebase custom claims (the `admin` claim is set for `admin`/`superadmin`). If `role` is omitted it defaults to `admin`. The target user must refresh their ID token before the new role takes effect. You cannot change your own role.",
+						"description": "Super admin only. Updates a user's role and Firebase custom claims (the `admin` claim is set for `admin`/`superadmin`). If `role` is omitted it defaults to `user`. The target user must refresh their ID token before the new role takes effect. You cannot change your own role.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -789,16 +812,9 @@
 				{
 					"name": "Create Participant",
 					"request": {
-						"description": "Creates a Firebase Auth user AND a Firestore document in the `participants` collection.",
+						"description": "Creates a Firebase Auth user AND a Firestore document in the `participants` collection. Public endpoint, no auth required.",
 						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{bearerToken}}",
-									"type": "string"
-								}
-							]
+							"type": "noauth"
 						},
 						"method": "POST",
 						"header": [
@@ -908,7 +924,7 @@
 									"value": "application/json"
 								}
 							],
-							"body": "{\n  \"participants\": [\n    {\n      \"uid\": \"abc123\",\n      \"email\": \"test@example.com\",\n      \"displayName\": \"Test User\",\n      \"photoURL\": null,\n      \"createdAt\": 1712345678901,\n      \"updatedAt\": 1712345678901,\n      \"metadata\": {}\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 20\n}"
+							"body": "{\n  \"participants\": [\n    {\n      \"uid\": \"abc123\",\n      \"email\": \"test@example.com\",\n      \"displayName\": \"Test User\",\n      \"photoURL\": null,\n      \"createdAt\": \"2026-05-20T10:00:00.000Z\",\n      \"updatedAt\": \"2026-05-20T10:00:00.000Z\",\n      \"schoolName\": null,\n      \"schoolAddress\": null,\n      \"phone\": null,\n      \"address\": null,\n      \"metadata\": {}\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"total\": 1\n}"
 						}
 					],
 					"event": [
@@ -1303,7 +1319,7 @@
 				{
 					"name": "List All Passports (Admin)",
 					"request": {
-						"description": "Admin only. Returns passport data for all participants with pagination. Requires `admin: true` custom claim or `role: admin/superadmin`.",
+						"description": "Admin only. Returns aggregated passport data across ALL participants. Note: this endpoint fetches all participants at once (no pagination). Requires `admin: true` custom claim or `role: admin/superadmin`.",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -1317,7 +1333,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/participants/passport/all?page=1&pageSize=50",
+							"raw": "{{baseUrl}}/participants/passport/all",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -1325,18 +1341,6 @@
 								"participants",
 								"passport",
 								"all"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "1",
-									"description": "Page number (default 1)"
-								},
-								{
-									"key": "pageSize",
-									"value": "50",
-									"description": "Items per page (default 50, max 100)"
-								}
 							]
 						}
 					},
@@ -1352,7 +1356,7 @@
 									"value": "application/json"
 								}
 							],
-							"body": "{\n  \"participants\": [\n    {\n      \"uid\": \"abc123\",\n      \"displayName\": \"Test User\",\n      \"email\": \"test@example.com\",\n      \"schoolName\": \"School Name\",\n      \"passport\": [\n        { \"category\": \"Problem-Solving\", \"totalMappings\": 3, \"unlockedStampCount\": 1 }\n      ],\n      \"totalStampsUnlocked\": 1,\n      \"totalMappings\": 3\n    }\n  ],\n  \"page\": 1,\n  \"pageSize\": 50,\n  \"total\": 100\n}"
+							"body": "{\n  \"participants\": [\n    {\n      \"uid\": \"abc123\",\n      \"displayName\": \"Test User\",\n      \"email\": \"test@example.com\",\n      \"schoolName\": \"School Name\",\n      \"passport\": [\n        { \"category\": \"Problem-Solving\", \"totalMappings\": 3, \"unlockedStampCount\": 1 }\n      ],\n      \"totalStampsUnlocked\": 1,\n      \"totalMappings\": 3,\n      \"sessionStatusCounts\": {\n        \"completed\": 1,\n        \"in_progress\": 0,\n        \"abandoned\": 0\n      }\n    }\n  ],\n  \"total\": 100\n}"
 						}
 					]
 				}

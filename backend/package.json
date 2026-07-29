@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "serve": "firebase emulators:start --only functions,firestore,auth",
     "deploy": "npm run build && firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "seed:superadmin": "tsx src/seed-superadmin.ts"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +31,7 @@
     "firebase-admin": "^13.7.0",
     "firebase-functions": "^7.2.3",
     "http-graceful-shutdown": "^3.1.16",
+    "mammoth": "^1.12.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "unpdf": "^1.6.2",

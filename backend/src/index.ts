@@ -15,6 +15,7 @@ const clientFirebaseApiKey = defineSecret("CLIENT_FIREBASE_API_KEY");
 // Re-export trigger-based functions
 export { verifyProof } from "./functions/verifyProof.js";
 export { embedPvaCatalog } from "./functions/embedPvaCatalog.js";
+export { embedArtifact } from "./functions/embedArtifact.js";
 
 // Export the Express app as the "api" Cloud Function.
 // 512MiB: the admin re-embed endpoint runs pdf.js extraction in-request.

@@ -21,15 +21,9 @@
           "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
         },
         "url": {
-          "raw": "{{baseUrl}}/api/auth/login",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "login"
-          ]
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
         }
       },
       "response": [],
@@ -68,14 +62,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants"
-          ]
+          "raw": "{{baseUrl}}/participants",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants"]
         }
       },
       "response": [],
@@ -118,15 +107,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/me",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "me"
-          ]
+          "raw": "{{baseUrl}}/participants/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me"]
         }
       },
       "response": [],
@@ -165,16 +148,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/me/sessions",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "me",
-            "sessions"
-          ],
+          "raw": "{{baseUrl}}/participants/me/sessions",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me", "sessions"],
           "query": [
             {
               "key": "status",
@@ -234,17 +210,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/me/sessions/{{sessionId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "me",
-            "sessions",
-            "{{sessionId}}"
-          ]
+          "raw": "{{baseUrl}}/participants/me/sessions/{{sessionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me", "sessions", "{{sessionId}}"]
         }
       },
       "response": []
@@ -266,16 +234,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/me/passport",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "me",
-            "passport"
-          ]
+          "raw": "{{baseUrl}}/participants/me/passport",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me", "passport"]
         }
       },
       "response": [
@@ -285,16 +246,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/me/passport",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "participants",
-                "me",
-                "passport"
-              ]
+              "raw": "{{baseUrl}}/participants/me/passport",
+              "host": ["{{baseUrl}}"],
+              "path": ["participants", "me", "passport"]
             }
           },
           "status": "OK",
@@ -327,15 +281,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/users/me",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "users",
-            "me"
-          ]
+          "raw": "{{baseUrl}}/users/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["users", "me"]
         }
       },
       "response": []
@@ -357,15 +305,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/users/all?page=1&pageSize=20",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "users",
-            "all"
-          ],
+          "raw": "{{baseUrl}}/users/all?page=1&pageSize=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["users", "all"],
           "query": [
             {
               "key": "page",
@@ -408,15 +350,9 @@
           "raw": "{\n  \"fullName\": \"John Doe\",\n  \"schoolName\": \"Springfield High\",\n  \"schoolAddress\": \"123 Main St\",\n  \"phone\": \"555-0123\",\n  \"gender\": \"male\",\n  \"ethnicity\": \"prefer-not-to-say\",\n  \"dateOfBirth\": \"2000-01-15\"\n}"
         },
         "url": {
-          "raw": "{{baseUrl}}/api/participants/me",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "me"
-          ]
+          "raw": "{{baseUrl}}/participants/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me"]
         }
       },
       "response": []
@@ -447,15 +383,9 @@
           "raw": "{\n  \"displayName\": \"John Doe\"\n}"
         },
         "url": {
-          "raw": "{{baseUrl}}/api/users/me",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "users",
-            "me"
-          ]
+          "raw": "{{baseUrl}}/users/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["users", "me"]
         }
       },
       "response": []
@@ -477,16 +407,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/passport/all?page=1&pageSize=50",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "passport",
-            "all"
-          ],
+          "raw": "{{baseUrl}}/participants/passport/all?page=1&pageSize=50",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "passport", "all"],
           "query": [
             {
               "key": "page",
@@ -520,16 +443,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/{{participantId}}/passport?sessionId={{sessionId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "{{participantId}}",
-            "passport"
-          ],
+          "raw": "{{baseUrl}}/participants/{{participantId}}/passport?sessionId={{sessionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "{{participantId}}", "passport"],
           "query": [
             {
               "key": "sessionId",
@@ -567,16 +483,9 @@
           "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"interaction\": {\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"The answer shows structured analysis.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null\n  }\n}"
         },
         "url": {
-          "raw": "{{baseUrl}}/api/participants/me/interactions",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "me",
-            "interactions"
-          ]
+          "raw": "{{baseUrl}}/participants/me/interactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me", "interactions"]
         }
       },
       "response": []
@@ -598,15 +507,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/{{participantId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "{{participantId}}"
-          ]
+          "raw": "{{baseUrl}}/participants/{{participantId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "{{participantId}}"]
         }
       },
       "response": []
@@ -628,16 +531,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "{{participantId}}",
-            "sessions"
-          ],
+          "raw": "{{baseUrl}}/participants/{{participantId}}/sessions",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "{{participantId}}", "sessions"],
           "query": [
             {
               "key": "status",
@@ -697,17 +593,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "participants",
-            "{{participantId}}",
-            "sessions",
-            "{{sessionId}}"
-          ]
+          "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "{{participantId}}", "sessions", "{{sessionId}}"]
         }
       },
       "response": []
@@ -729,12 +617,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
+          "host": ["{{baseUrl}}"],
           "path": [
-            "api",
             "participants",
             "{{participantId}}",
             "sessions",
@@ -757,12 +642,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
-              "host": [
-                "{{baseUrl}}"
-              ],
+              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
+              "host": ["{{baseUrl}}"],
               "path": [
-                "api",
                 "participants",
                 "{{participantId}}",
                 "sessions",
@@ -828,12 +710,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
+          "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
+          "host": ["{{baseUrl}}"],
           "path": [
-            "api",
             "participants",
             "{{participantId}}",
             "sessions",
@@ -850,12 +729,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
+              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
+              "host": ["{{baseUrl}}"],
               "path": [
-                "api",
                 "participants",
                 "{{participantId}}",
                 "sessions",
