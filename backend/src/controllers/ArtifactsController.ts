@@ -10,29 +10,9 @@ import {
   getArtifactSignedUrl,
 } from "@/services/artifactStorageService";
 import { randomUUID } from "node:crypto";
-import { toMillis } from "@/utils/timestamp";
+import { isFailedOrStale, discardArtifact } from "@/utils/artifactUtils";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
-const EMBEDDING_TIMEOUT_MS = 10 * 60 * 1000;
-
-function isStaleProcessing(data: Record<string, unknown>): boolean {
-  if (data.embeddingsStatus !== "processing") return false;
-  const startedAt = data.embeddingStartedAt ?? data.createdAt;
-  if (!startedAt) return false;
-  return Date.now() - toMillis(startedAt) > EMBEDDING_TIMEOUT_MS;
-}
-
-function isFailedOrStale(data: Record<string, unknown>): boolean {
-  return data.embeddingsStatus === "failed" || isStaleProcessing(data);
-}
-
-async function discardArtifact(
-  docRef: FirebaseFirestore.DocumentReference,
-  storagePath: string
-): Promise<void> {
-  await deleteArtifactFile(storagePath).catch(() => {});
-  await docRef.delete().catch(() => {});
-}
 
 function artifactsSubcollection(userId: string) {
   return db.collection("users").doc(userId).collection("artifacts");
@@ -173,13 +153,17 @@ export class ArtifactsController {
         });
       } catch (err) {
         console.error("[Artifacts] Firestore write failed:", err);
-        return res.status(500).json({ success: false, data: null, error: "Failed to save artifact" });
+        return res
+          .status(500)
+          .json({ success: false, data: null, error: "Failed to save artifact" });
       }
     });
 
     bb.on("error", (err: Error) => {
       if (!res.headersSent) {
-        res.status(400).json({ success: false, data: null, error: err.message || "Upload parsing failed" });
+        res
+          .status(400)
+          .json({ success: false, data: null, error: err.message || "Upload parsing failed" });
       }
     });
 
@@ -230,15 +214,15 @@ export class ArtifactsController {
       }
 
       if (cleanupTasks.length > 0) {
-        Promise.all(cleanupTasks).catch((err) =>
-          console.error("[Artifacts] Cleanup failed:", err)
-        );
+        Promise.all(cleanupTasks).catch((err) => console.error("[Artifacts] Cleanup failed:", err));
       }
 
       return res.json({ success: true, data: artifacts, error: null });
     } catch (err) {
       console.error("[Artifacts] List failed:", err);
-      return res.status(500).json({ success: false, data: null, error: "Failed to list artifacts" });
+      return res
+        .status(500)
+        .json({ success: false, data: null, error: "Failed to list artifacts" });
     }
   }
 
@@ -325,7 +309,9 @@ export class ArtifactsController {
       return res.json({ success: true, data: null, error: null });
     } catch (err) {
       console.error("[Artifacts] Delete failed:", err);
-      return res.status(500).json({ success: false, data: null, error: "Failed to delete artifact" });
+      return res
+        .status(500)
+        .json({ success: false, data: null, error: "Failed to delete artifact" });
     }
   }
 
@@ -336,9 +322,8 @@ export class ArtifactsController {
     }
 
     try {
-      const { getArtifactBrief, regenerateArtifactBrief } = await import(
-        "@/services/artifactBriefService"
-      );
+      const { getArtifactBrief, regenerateArtifactBrief } =
+        await import("@/services/artifactBriefService");
       let brief = await getArtifactBrief(authUser.uid);
       if (!brief) {
         brief = await regenerateArtifactBrief(authUser.uid);
