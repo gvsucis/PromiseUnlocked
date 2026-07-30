@@ -235,10 +235,11 @@ export default function DashboardScreen({ route, navigation }: any) {
       const [remoteStamps, cachedStamps] = await Promise.all([fetchMyStamps(), getCachedStamps()]);
 
       const syncedStampCount = remoteStamps.length || cachedStamps.length || 0;
+      const stampLabel = syncedStampCount === 1 ? "stamp" : "stamps";
       setRemoteStampCount(syncedStampCount);
       setLastSyncLabel(
         syncedStampCount > 0
-          ? `Synced ${syncedStampCount} stamp${syncedStampCount === 1 ? "" : "s"} from your account`
+          ? `Synced ${syncedStampCount} ${stampLabel} from your account`
           : "No stamps available yet"
       );
 

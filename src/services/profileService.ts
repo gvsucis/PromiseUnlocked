@@ -3,6 +3,9 @@ import { CONFIG } from "../config/env";
 import { apiFetch } from "./apiClient";
 import { uploadImage, type UploadResult } from "./uploadService";
 import { clearPvaContextCache, invalidatePvaCatalogCache } from "./profileEmbeddingService";
+import { ttlCache } from "../utils/ttlCache";
+
+const profileCache = ttlCache<UserProfile>(30_000);
 
 export interface UserProfile {
   uid: string;
@@ -82,13 +85,18 @@ function isApiAvailable(): boolean {
 }
 
 export async function fetchProfile(): Promise<UserProfile> {
+  const cached = profileCache.get();
+  if (cached) return cached;
+
   if (!isApiAvailable()) {
     return buildLocalProfile();
   }
 
   try {
     const data = await apiFetch<{ participant?: UserProfile }>("/participants/me");
-    return data.participant ?? buildLocalProfile();
+    const profile = data.participant ?? buildLocalProfile();
+    profileCache.set(profile);
+    return profile;
   } catch (error) {
     console.warn("[profileService] Falling back to local profile:", error);
     return buildLocalProfile();
@@ -106,12 +114,11 @@ export async function updateProfile(updates: Partial<UserProfile>): Promise<User
       body: JSON.stringify(updates),
     });
     const result = data.participant ?? buildLocalProfile(updates);
-
+    profileCache.set(result);
     return result;
   } catch (error) {
     console.warn("[updateProfile] API call failed, falling back to local profile:", error);
     const fallback = buildLocalProfile(updates);
-
     return fallback;
   }
 }
