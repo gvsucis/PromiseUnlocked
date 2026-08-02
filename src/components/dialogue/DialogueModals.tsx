@@ -104,7 +104,7 @@ export function DialogueModals() {
         isProcessingAudio={d.isProcessingAudio}
         onStartRecording={d.startRecording}
         onStopRecording={d.stopRecording}
-        onRecordAgain={() => {}}
+        onRecordAgain={d.handleVoiceRecordAgain}
         onSubmit={d.handleVoiceSubmit}
         onCancel={d.handleVoiceCancel}
       />
