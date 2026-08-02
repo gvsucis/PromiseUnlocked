@@ -59,7 +59,7 @@ export default function DialogueDashboardScreen() {
       const count = Array.isArray(list) ? list.length : 0;
       stamps += count;
       if (Array.isArray(list)) {
-        for (const st of list) {/
+        for (const st of list) {
           xp += (st.tier ?? 1) * 5;
         }
       }
