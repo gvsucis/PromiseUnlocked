@@ -539,20 +539,24 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
       const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      const mimeType = audioUri.includes(".m4a") ? "audio/mp4" : "audio/wav";
+      const mimeType = this.resolveAudioMimeType(audioUri);
 
       const requestBody = {
         contents: [
           {
             parts: [
               {
-                text: "Please transcribe the following audio file. Return only the transcribed text.",
+                text: "Transcribe the spoken answer, then clean it into polished written English: remove fillers (um, uh, like, you know, I mean), false starts, repeated words, and self-corrections; add sentence capitalization and punctuation; keep first-person phrasing; stay faithful to what was said without adding or removing substance. Output ONLY the cleaned text.",
               },
               { inline_data: { mime_type: mimeType, data: base64Audio } },
             ],
           },
         ],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 2048,
+          thinkingConfig: this.DISABLE_THINKING,
+        },
       };
 
       const result = await this.requestGemini(requestBody);
@@ -563,14 +567,31 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
         };
       }
 
-      const transcript = this.extractGeneratedText(result.data);
-
-      return { success: true, transcript: transcript?.trim() };
+      const transcript = this.extractGeneratedText(result.data)?.trim() ?? "";
+      return { success: true, transcript };
     } catch (error) {
       const errorMessage = this.isRateLimitError(error)
         ? "System busy at the moment. Please try again later."
         : "Transcription failed";
       return { success: false, error: errorMessage };
+    }
+  }
+
+  private static resolveAudioMimeType(audioUri: string): string {
+    const ext = audioUri.split(".").pop()?.toLowerCase();
+    switch (ext) {
+      case "mp3":
+        return "audio/mpeg";
+      case "wav":
+        return "audio/wav";
+      case "aac":
+        return "audio/aac";
+      case "caf":
+        return "audio/x-caf";
+      case "m4a":
+      case "mp4":
+      default:
+        return "audio/mp4";
     }
   }
 
