@@ -33,6 +33,7 @@ const buildProfileFromRecord = (
     photoURL: userRecord.photoURL ?? null,
     createdAt: now,
     updatedAt: now,
+    lastActiveAt: now,
     metadata,
   };
 };
@@ -193,6 +194,7 @@ export class ParticipantsController {
         selectedPvaId: selectedPvaId ?? currentProfile.selectedPvaId ?? null,
         metadata: { ...currentProfile.metadata, ...incomingMetadata },
         updatedAt: Date.now(),
+        lastActiveAt: Date.now(),
         createdAt: currentProfile.createdAt ?? Date.now(),
       };
 

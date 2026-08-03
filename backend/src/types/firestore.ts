@@ -25,6 +25,8 @@ export interface UserProfile {
   role?: string | null;
   /** Id of the shared PVA catalog entry the user selected to personalize dialogue. */
   selectedPvaId?: string | null;
+  /** Last time the user showed activity (auth sync / interaction / profile update). */
+  lastActiveAt?: FirestoreDateValue;
   metadata: Record<string, unknown>;
   selectedPvaName?: string | null;
   artifactBrief?: string | null;

@@ -162,7 +162,7 @@ const participantConverter: FirestoreDataConverter<ParticipantProfile> = {
       displayName: data.displayName,
       photoURL: data.photoURL,
       createdAt: data.createdAt,
-      updatedAt: data.updatedAt ?? data.lastActivityAt,
+      updatedAt: data.updatedAt ?? data.lastActiveAt,
       isAnonymous: data.isAnonymous,
       fullName: data.fullName ?? null,
       schoolName: data.schoolName ?? null,
@@ -176,6 +176,8 @@ const participantConverter: FirestoreDataConverter<ParticipantProfile> = {
       role: data.role ?? null,
       selectedPvaId: data.selectedPvaId ?? null,
       metadata: data.metadata ?? {},
+      lastActiveAt: data.lastActiveAt ?? null,
+      ...normalizeTimestamps(data!, ["timestamp"]),
     };
   },
 };
@@ -190,7 +192,7 @@ const userConverter: FirestoreDataConverter<UserProfile> = {
       displayName: data.displayName,
       photoURL: data.photoURL,
       createdAt: data.createdAt,
-      updatedAt: data.updatedAt ?? data.lastActivityAt,
+      updatedAt: data.updatedAt ?? data.lastActiveAt,
       isAnonymous: data.isAnonymous,
       fullName: data.fullName ?? null,
       phone: data.phone ?? null,
@@ -202,6 +204,7 @@ const userConverter: FirestoreDataConverter<UserProfile> = {
       role: data.role ?? null,
       selectedPvaId: data.selectedPvaId ?? null,
       metadata: data.metadata ?? {},
+      lastActiveAt: data.lastActiveAt ?? null,
     };
   },
 };
