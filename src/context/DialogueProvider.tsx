@@ -16,6 +16,7 @@ import { upgradeStampTier, syncFromFirestore } from "../services/categoryStorage
 import { notifyDashboardRefresh } from "../services/dashboardRefreshService";
 import { getOrStartSession } from "../services/sessionManager";
 import {
+  CATEGORY_TAXONOMY,
   ConversationInteraction,
   MappedCategory,
   getFilteredTaxonomyString,
@@ -263,6 +264,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
   const actionsRef = useRef<DialogueActions>(null as unknown as DialogueActions);
 
   const askedQuestionsByRegionRef = useRef<Record<string, string[]>>({});
+  const lastNewRegionRef = useRef<string | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -355,6 +357,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       modalDismissedByBackdropRef.current = false;
       setCurrentPrompt(question);
       setPendingQuestion(question);
+      setUserAnswer("");
       setUiState("idle");
       setShowQuestionInputModal(true);
     },
@@ -370,10 +373,14 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     [presentQuestion]
   );
 
-  // --- Entry point B (StampScreen "Explore region") ---
-  const generateQuestionForRegion = useCallback(
+  // Synthesizes a holistic question for a specific region without touching
+  // flowContext — shared by the StampScreen "Explore region" button and the
+  // modal's "New Region" flow. Tracks asked questions per region so repeats are
+  // avoided, and targets only stamps not already explored.
+  const exploreRegion = useCallback(
     async (region: string) => {
-      setFlowContext({ mode: "region", region });
+      if (uiState !== "idle") return;
+      setError("");
       setUiState("loading");
       setLoadingMessage("Exploring this region...");
       try {
@@ -414,8 +421,19 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       dialogueState.pdfContextText,
       presentQuestion,
       setUiState,
+      setError,
       setLoadingMessage,
+      uiState,
     ]
+  );
+
+  // --- Entry point B (StampScreen "Explore region") ---
+  const generateQuestionForRegion = useCallback(
+    async (region: string) => {
+      setFlowContext({ mode: "region", region });
+      await exploreRegion(region);
+    },
+    [exploreRegion]
   );
 
   // Same message the typed-answer path uses; keeps the modal open so the user can edit.
@@ -611,13 +629,22 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
   }, [handleWeakFitNewQuestionBase, flowRegion]);
 
   // New Topic is only ever shown when flowContext.mode === "default" (see
-  // DialogueModals), so it's semantically already a "back to default" action —
-  // make that explicit here too, rather than relying on it never being called
-  // from a non-default context.
+  // DialogueModals). When every region is mapped it stays a plain default-flow
+  // restart; otherwise it pivots into the next unmapped region, setting the
+  // region flow context so the answer is mapped against that region too.
   const handleNewTopic = useCallback(() => {
-    setFlowContext({ mode: "default" });
-    return handleNewTopicBase();
-  }, [handleNewTopicBase]);
+    const unmappedRegions = CATEGORY_TAXONOMY.filter(
+      (c) => !dialogueState.mappedCategories.some((mc) => mc.category === c.category)
+    ).map((c) => c.category);
+    if (unmappedRegions.length === 0) {
+      setFlowContext({ mode: "default" });
+      return handleNewTopicBase();
+    }
+    const next = unmappedRegions.find((r) => r !== lastNewRegionRef.current) ?? unmappedRegions[0];
+    lastNewRegionRef.current = next;
+    setFlowContext({ mode: "region", region: next });
+    return exploreRegion(next);
+  }, [dialogueState.mappedCategories, handleNewTopicBase, exploreRegion, setFlowContext]);
 
   const startRecording = async () => {
     try {
@@ -1066,6 +1093,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     ) {
       setCurrentPrompt(prefetchedQuestion);
       setPendingQuestion(prefetchedQuestion);
+      setUserAnswer("");
       setShowQuestionInputModal(true);
     }
   }, [prefetchedQuestion, uiState, pendingProofRequest, activeStampUpgrade]);

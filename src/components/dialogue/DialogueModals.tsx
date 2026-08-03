@@ -180,7 +180,8 @@ export function DialogueModals() {
       <QuestionInputModal
         visible={d.showQuestionInputModal && !!d.pendingQuestion}
         question={d.pendingQuestion || ""}
-        seedText={d.userAnswer}
+        textValue={d.userAnswer}
+        onTextChange={d.setUserAnswer}
         onSelectInputType={d.handleInputTypeSelect}
         onSubmitText={d.handleSubmitTextFromModal}
         onSubmitTextAndImage={d.handleSubmitTextAndImage}
