@@ -21,6 +21,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db, auth } from "../../config/firebase";
+import { randomUUID } from "expo-crypto";
 import { setJSONInStorage } from "../../utils/asyncStorage";
 import type {
   SessionDocument,
@@ -28,6 +29,7 @@ import type {
   IdentifiedSkillDocument,
   InteractionMappingOutcome,
 } from "../../types/firestore";
+import type { NoMapReason } from "../../types/gemini";
 
 const USER_ID_STORAGE_KEY = "@firestore_user_id";
 type InputMethod = "text" | "voice" | "image";
@@ -41,7 +43,7 @@ export function canWriteToFirestore(): boolean {
 }
 
 function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return randomUUID();
 }
 
 async function cacheUserId(userId: string): Promise<void> {
@@ -52,9 +54,6 @@ async function cacheUserId(userId: string): Promise<void> {
     console.warn("[Firestore] Failed to persist user id:", storageError);
   }
 }
-
-//
-//
 
 let _cachedUserId: string | null = null;
 const _verifiedSessionDocs = new Set<string>();
@@ -220,6 +219,7 @@ export async function saveInteraction(
     isWeakFit: boolean;
     isAlreadyMapped: boolean;
     justification: string;
+    noMapReason?: string;
     specificStamp?: string;
     matchedToCategory: string | null;
     matchedToSequenceIndex: number | null;
@@ -249,6 +249,7 @@ export async function saveInteraction(
       isWeakFit: interaction.isWeakFit,
       isAlreadyMapped: interaction.isAlreadyMapped,
       justification: interaction.justification,
+      noMapReason: (interaction.noMapReason ?? "") as NoMapReason,
       specificStamp: interaction.specificStamp ?? null,
       matchedToCategory: interaction.matchedToCategory,
       matchedToSequenceIndex: interaction.matchedToSequenceIndex,

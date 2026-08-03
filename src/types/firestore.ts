@@ -1,4 +1,5 @@
 import { FieldValue, Timestamp } from "firebase/firestore";
+import type { NoMapReason } from "./gemini";
 
 export type InteractionMappingOutcome = "mapped" | "already_mapped" | "weak_fit" | "invalid";
 
@@ -31,6 +32,7 @@ export interface InteractionDocument {
   isWeakFit: boolean;
   isAlreadyMapped: boolean;
   justification: string;
+  noMapReason?: NoMapReason;
   specificStamp?: string | null;
   matchedToCategory: string | null;
   matchedToSequenceIndex: number | null;

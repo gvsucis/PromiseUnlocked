@@ -247,8 +247,9 @@ export async function cacheJustifications(
 ): Promise<void> {
   const key = await getJustificationsCacheKey();
   const all = await getJSONFromStorage<Record<string, CacheEntry>>(key, {});
+  const uniqueJustifications = Array.from(new Set(justifications.filter(Boolean)));
   all[stampName ? categoryId + ":" + stampName : categoryId] = {
-    data: justifications,
+    data: uniqueJustifications,
     cachedAt: Date.now(),
   };
   await setJSONInStorage(key, all);

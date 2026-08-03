@@ -24,6 +24,7 @@ import {
   addStampUnlock,
 } from "../services/categoryStorageService";
 import { GeminiService } from "../services/geminiService";
+import { noMapReasonFromPrefix, normalizeJustification } from "../types/gemini";
 import { STAMPS_LIST } from "../config/stampConstants";
 import { TOTAL_STAMPS } from "../config/skillsTaxonomy";
 import { getPvaContext } from "../services/profileEmbeddingService";
@@ -531,6 +532,8 @@ export function useDialogueState(): DialogueState {
         specificStamp,
         initialTier,
       } = result;
+      const noMapReason = result.noMapReason || noMapReasonFromPrefix(justification) || "";
+      const strippedJustification = normalizeJustification(justification);
 
       // A verified supporting image lifts the stamp straight to its evidence tier
       // (never below what the answer itself earned, capped at 4).
@@ -555,40 +558,66 @@ export function useDialogueState(): DialogueState {
       const categoryIdToCheck = validCategory ? validCategory.id : rawCategory;
 
       if (categoryNameToCheck === NO_OP_CATEGORY) {
-        if (distressSignal) {
+        const reason = noMapReason || "weak_fit";
+
+        if (reason === "inappropriate_content") {
+          // Sanitized audit record: the user's offensive text is never persisted.
           const interaction: ConversationInteraction = {
             question,
-            answer,
-            mappedCategory: "NO-OP (WEAK FIT)",
+            answer: "[Content omitted]",
+            mappedCategory: "NO MAP (INAPPROPRIATE)",
             timestamp: new Date().toISOString(),
-            mappingOutcome: "weak_fit",
+            mappingOutcome: "invalid",
+            noMapReason: reason,
             matchedToCategory: null,
             matchedToSequenceIndex: null,
           };
-          const interactionId = await saveConversationInteraction(interaction, justification ?? "");
+          const interactionId = await saveConversationInteraction(
+            interaction,
+            "Answer flagged as inappropriate; original content not stored."
+          );
           setInteractions((prev) => [...prev, interaction]);
-          setUiState("idle");
+          setWeakFitJustification(
+            strippedJustification || "This response was flagged as inappropriate."
+          );
+          setContentWarning(true);
+          setUiState("weak-fit");
           return { mapped: false as const, category: null, interactionId, distressSignal };
         }
 
-        if (justification?.startsWith("INAPPROPRIATE_CONTENT:")) {
-          setWeakFitJustification(justification.replace("INAPPROPRIATE_CONTENT:", "").trim());
-          setContentWarning(true);
-          setUiState("weak-fit");
-          return { mapped: false as const, category: null, interactionId: "", distressSignal };
+        if (reason === "responsive_negative") {
+          const interaction: ConversationInteraction = {
+            question,
+            answer,
+            mappedCategory: "NO MAP (RESPONSIVE NEGATIVE)",
+            timestamp: new Date().toISOString(),
+            mappingOutcome: "invalid",
+            noMapReason: reason,
+            matchedToCategory: null,
+            matchedToSequenceIndex: null,
+          };
+          const interactionId = await saveConversationInteraction(
+            interaction,
+            strippedJustification
+          );
+          setInteractions((prev) => [...prev, interaction]);
+          await advanceToNextQuestion(nextQuestion, advanceOpts);
+          return { mapped: false as const, category: null, interactionId, distressSignal };
         }
+
         const interaction: ConversationInteraction = {
           question,
           answer,
           mappedCategory: "NO-OP (WEAK FIT)",
           timestamp: new Date().toISOString(),
           mappingOutcome: "weak_fit",
+          noMapReason: reason,
           matchedToCategory: null,
           matchedToSequenceIndex: null,
         };
-        const interactionId = await saveConversationInteraction(interaction, justification ?? "");
+        const interactionId = await saveConversationInteraction(interaction, strippedJustification);
         setInteractions((prev) => [...prev, interaction]);
-        setWeakFitJustification(justification ?? "");
+        setWeakFitJustification(strippedJustification);
         setUiState("weak-fit");
         return { mapped: false as const, category: null, interactionId, distressSignal };
       }
@@ -596,11 +625,14 @@ export function useDialogueState(): DialogueState {
       const isSensitive = !distressSignal && checkSensitive && !!result.sensitiveExperience;
 
       if (validCategory && !(await isCategoryMapped(categoryIdToCheck))) {
-        // An unlocking stamp must carry a justification; fall back to the answer
-        // when the model returns none so the stamp detail screen isn't left blank.
+        // An unlocking stamp must carry a justification; fall back to a bounded,
+        // stamp-linked note when the model returns none so the detail screen
+        // isn't left blank (never dump the full raw answer).
         const effectiveJustification =
-          justification?.trim() ||
-          (specificStamp ? `Demonstrated through your response: "${answer.trim()}"` : "");
+          strippedJustification ||
+          (specificStamp
+            ? `Detailed experience matching the "${specificStamp}" stamp.`
+            : "Detailed experience matching this skill category.");
         const newMappedCategory: MappedCategory = {
           category: categoryNameToCheck,
           categoryId: categoryIdToCheck,
@@ -621,6 +653,7 @@ export function useDialogueState(): DialogueState {
           categoryId: categoryIdToCheck,
           timestamp: new Date().toISOString(),
           mappingOutcome: "mapped",
+          noMapReason: "",
           matchedToCategory: null,
           matchedToSequenceIndex: null,
           specificStamp: specificStamp ?? undefined,
@@ -639,10 +672,10 @@ export function useDialogueState(): DialogueState {
           );
           if (specificStamp) {
             const existing = await getCachedJustifications(categoryIdToCheck, specificStamp);
-            cacheJustifications(categoryIdToCheck, specificStamp, [
-              ...existing,
-              effectiveJustification,
-            ]);
+            const justificationsToCache = existing.includes(effectiveJustification)
+              ? existing
+              : [...existing, effectiveJustification];
+            cacheJustifications(categoryIdToCheck, specificStamp, justificationsToCache);
           }
         }
         setInteractions((prev) => [...prev, interaction]);
@@ -693,43 +726,44 @@ export function useDialogueState(): DialogueState {
             distressSignal,
             sensitiveExperience: isSensitive,
           };
-        } else {
-          if (countUnlockedStamps(freshCategories) >= TOTAL_STAMPS) {
-            completionHandledRef.current = true;
-            void endSession("completed");
-            setUserAnswer("");
-            setUiState("complete");
-            return { mapped: true as const, category: categoryNameToCheck, interactionId };
-          }
-          if (result.suggestArtifactUpload && evidenceTier == null) {
-            proof.requestNow({
-              question,
-              answer,
-              interactionId,
-              category: categoryNameToCheck,
-              categoryId: categoryIdToCheck,
-              stampName: specificStamp ?? undefined,
-              artifactUploadReason: result.artifactUploadReason,
-              proofTier: result.proofTier ?? 3,
-            });
-          }
-
-          await advanceToNextQuestion(nextQuestion, advanceOpts);
-
-          return {
-            mapped: false as const,
-            category: categoryNameToCheck,
-            interactionId,
-            distressSignal,
-          };
         }
+
+        if (countUnlockedStamps(freshCategories) >= TOTAL_STAMPS) {
+          completionHandledRef.current = true;
+          void endSession("completed");
+          setUserAnswer("");
+          setUiState("complete");
+          return { mapped: true as const, category: categoryNameToCheck, interactionId };
+        }
+        if (result.suggestArtifactUpload && evidenceTier == null) {
+          proof.requestNow({
+            question,
+            answer,
+            interactionId,
+            category: categoryNameToCheck,
+            categoryId: categoryIdToCheck,
+            stampName: specificStamp ?? undefined,
+            artifactUploadReason: result.artifactUploadReason,
+            proofTier: result.proofTier ?? 3,
+          });
+        }
+
+        await advanceToNextQuestion(nextQuestion, advanceOpts);
+
+        return {
+          mapped: false as const,
+          category: categoryNameToCheck,
+          interactionId,
+          distressSignal,
+        };
       }
 
       if (await isCategoryMapped(categoryIdToCheck)) {
         const mappedCategory = await getMappedCategory(categoryIdToCheck);
-        const updatedMappedCategory = await updateMappedCategoryCounter({
+        const turnJustification = strippedJustification || mappedCategory.justification;
+        await updateMappedCategoryCounter({
           ...mappedCategory,
-          justification: justification || mappedCategory.justification,
+          justification: turnJustification,
         });
         const tierChange = await maybeUnlockStamp(
           categoryIdToCheck,
@@ -745,22 +779,25 @@ export function useDialogueState(): DialogueState {
           categoryId: categoryIdToCheck,
           timestamp: new Date().toISOString(),
           mappingOutcome: "already_mapped",
+          noMapReason: "",
           matchedToCategory: categoryNameToCheck,
           matchedToSequenceIndex: null,
           specificStamp: specificStamp ?? undefined,
         };
-        const interactionId = await saveConversationInteraction(interaction, justification ?? "");
+        const interactionId = await saveConversationInteraction(interaction, turnJustification);
         savePassportMappingToFirestore(
           interactionId,
           categoryNameToCheck,
           categoryIdToCheck,
-          justification || mappedCategory.justification,
+          turnJustification,
           specificStamp ?? undefined
         );
-        if (specificStamp && (justification || mappedCategory.justification)) {
-          const j = justification || mappedCategory.justification;
+        if (specificStamp && turnJustification) {
           const existing = await getCachedJustifications(categoryIdToCheck, specificStamp);
-          cacheJustifications(categoryIdToCheck, specificStamp, [...existing, j]);
+          const justificationsToCache = existing.includes(turnJustification)
+            ? existing
+            : [...existing, turnJustification];
+          cacheJustifications(categoryIdToCheck, specificStamp, justificationsToCache);
         }
         setInteractions((prev) => [...prev, interaction]);
 
@@ -870,10 +907,11 @@ export function useDialogueState(): DialogueState {
         mappedCategory: "INVALID CATEGORY (RETRY)",
         timestamp: new Date().toISOString(),
         mappingOutcome: "invalid",
+        noMapReason: "weak_fit",
         matchedToCategory: null,
         matchedToSequenceIndex: null,
       };
-      const interactionId = await saveConversationInteraction(interaction, justification ?? "");
+      const interactionId = await saveConversationInteraction(interaction, strippedJustification);
       setInteractions((prev) => [...prev, interaction]);
       await advanceToNextQuestion(nextQuestion, advanceOpts);
       return { mapped: false as const, category: null, interactionId, distressSignal };
@@ -897,12 +935,14 @@ export function useDialogueState(): DialogueState {
 
     if (mappedCategories.length === 0) {
       setCurrentPrompt(INITIAL_PROMPT);
+      setUserAnswer("");
       return;
     }
 
     if (prefetchedQuestion) {
       setCurrentPrompt(prefetchedQuestion);
       setPrefetchedQuestion(null);
+      setUserAnswer("");
       return;
     }
 
@@ -924,6 +964,7 @@ export function useDialogueState(): DialogueState {
         controller.signal
       );
       setCurrentPrompt(newQuestion);
+      setUserAnswer("");
       setUiState("idle");
       setLoadingMessage("");
     } catch (err) {
@@ -1019,7 +1060,7 @@ export function useDialogueState(): DialogueState {
     setError("");
     setWeakFitJustification("");
     setContentWarning(false);
-    setUiState("idle");
+    setUiState("answering");
   };
 
   const triggerContentWarning = (message?: string) => {
@@ -1078,7 +1119,13 @@ export function useDialogueState(): DialogueState {
     setContentWarning(false);
     setSavedAnswer("");
     setSavedQuestion("");
-    await synthesizeAndPrefetch({ embeddingHistorySummary: pdfContextRef.current }, region);
+    await synthesizeAndPrefetch(
+      {
+        embeddingHistorySummary: pdfContextRef.current,
+        avoidQuestion: currentPrompt || undefined,
+      },
+      region
+    );
   };
 
   // Skip: regenerate with an "avoid this" signal so the model returns something
