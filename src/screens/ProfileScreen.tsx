@@ -45,6 +45,7 @@ import {
 } from "../services/artifactService";
 import * as DocumentPicker from "expo-document-picker";
 import ArtifactPreviewModal from "../components/ArtifactPreviewModal";
+import { SegmentedArc } from "@shipt/segmented-arc-for-react-native";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -290,6 +291,16 @@ export default function ProfileScreen() {
   const progressPercent = Math.round(
     (checklist.filter((i) => i.complete).length / checklist.length) * 100
   );
+
+  const arcSegments = checklist.map((item) => ({
+    scale: 1 / checklist.length,
+    filledColor: colors.accent.sky,
+    emptyColor: colors.background.tinted,
+    data: {
+      label: item.label,
+      complete: item.complete,
+    },
+  }));
 
   const handleSelectFile = async () => {
     try {
@@ -711,8 +722,26 @@ export default function ProfileScreen() {
               <Text style={styles.progressPercent}>{progressPercent}%</Text>
             </View>
 
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+            <View style={styles.arcContainer}>
+              <SegmentedArc
+                segments={arcSegments}
+                fillValue={progressPercent}
+                radius={95}
+                filledArcWidth={12}
+                emptyArcWidth={12}
+                isAnimated
+                animationDuration={900}
+                spaceBetweenSegments={0}
+                capInnerColor={colors.accent.teal}
+              >
+                {() => (
+                  <View style={styles.arcCenter}>
+                    <Text style={styles.progressPercent}>{progressPercent}%</Text>
+
+                    <Text style={styles.arcSubtitle}>Complete</Text>
+                  </View>
+                )}
+              </SegmentedArc>
             </View>
 
             <View style={styles.progressChecklist}>
@@ -720,10 +749,6 @@ export default function ProfileScreen() {
                 <ChecklistItem key={item.label} {...item} />
               ))}
             </View>
-
-            <Text style={styles.footnote}>
-              Your journey continues beyond profile completion through stamps and experiences.
-            </Text>
           </View>
         </ScrollView>
       </View>
@@ -1138,5 +1163,21 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.text.inverse,
     marginLeft: 12,
+  },
+  arcContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+
+  arcCenter: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 24,
+  },
+
+  arcSubtitle: {
+    marginTop: -6,
+    fontSize: 13,
+    color: colors.text.secondary,
   },
 });

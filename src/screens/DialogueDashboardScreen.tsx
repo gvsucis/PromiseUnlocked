@@ -124,6 +124,7 @@ export default function DialogueDashboardScreen() {
         <View style={styles.header}>
           <MaterialIcons name="explore" size={40} color={colors.accent.sky} />
           <Text style={styles.title}>{selectedPvaName ?? "My PVA Style"}</Text>
+          <Text style={styles.title}>My Dashboard</Text>
           <Text style={styles.subtitle}>
             {d.mappedCategories.length}/{TOTAL_CATEGORIES} categories discovered
           </Text>

@@ -95,7 +95,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               <MaterialIcons
                 name={config.icon as any}
                 size={config.size ?? 32}
-                color={isFocused ? colors.accent.sky : colors.text.muted}
+                color={isFocused ? colors.accent.yellow : colors.accent.magenta}
               />
             </View>
           </TouchableOpacity>

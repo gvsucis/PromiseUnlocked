@@ -146,17 +146,17 @@ export default function PassportScreen() {
               shiftY: 50,
             }}
             polygonConfig={{
-              stroke: colors.accent.sky,
+              stroke: colors.accent.coral,
               strokeWidth: 2,
-              fill: "rgba(46, 110, 230, 0.18)",
+              fill: colors.accent.coralLight,
               showGradient: false,
               opacity: 1,
             }}
             gridConfig={{
-              stroke: colors.border.accent,
+              stroke: colors.accent.coral,
               strokeWidth: 1,
               showGradient: false,
-              fill: colors.background.tinted,
+              fill: colors.background.base,
             }}
             labelConfig={{
               fontSize: 10,
