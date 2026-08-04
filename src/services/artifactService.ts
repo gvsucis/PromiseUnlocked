@@ -1,7 +1,9 @@
 import { CONFIG } from "../config/env";
 import { apiFetch } from "./apiClient";
 import { getAuthHeaders } from "./uploadService";
+import { ttlCache } from "../utils/ttlCache";
 
+const artifactCache = ttlCache<ArtifactItem[]>(30_000);
 export type ArtifactKind = "essay" | "citation" | "transcript" | "other";
 
 export interface ArtifactItem {
@@ -54,6 +56,7 @@ export async function uploadArtifact(
       };
     }
 
+    artifactCache.invalidate();
     return { success: true, data: body.data ?? body };
   } catch (err) {
     const message =
@@ -69,8 +72,12 @@ export async function uploadArtifact(
 }
 
 export async function listArtifacts(): Promise<ArtifactItem[]> {
+  const cached = artifactCache.get();
+  if (cached) return cached;
   const data = await apiFetch<{ success: boolean; data: ArtifactItem[] }>("/artifacts");
-  return data.data ?? [];
+  const items = data.data ?? [];
+  artifactCache.set(items);
+  return items;
 }
 
 export async function getArtifact(id: string): Promise<ArtifactItem | null> {
@@ -85,6 +92,7 @@ export async function getArtifact(id: string): Promise<ArtifactItem | null> {
 export async function deleteArtifact(id: string): Promise<boolean> {
   try {
     await apiFetch(`/artifacts/${id}`, { method: "DELETE" });
+    artifactCache.invalidate();
     return true;
   } catch (err) {
     console.warn("[ArtifactService] Delete failed:", err);

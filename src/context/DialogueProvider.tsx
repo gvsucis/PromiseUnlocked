@@ -16,6 +16,7 @@ import { upgradeStampTier, syncFromFirestore } from "../services/categoryStorage
 import { notifyDashboardRefresh } from "../services/dashboardRefreshService";
 import { getOrStartSession } from "../services/sessionManager";
 import {
+  CATEGORY_TAXONOMY,
   ConversationInteraction,
   MappedCategory,
   getFilteredTaxonomyString,
@@ -23,6 +24,9 @@ import {
 import { containsInappropriateLanguage } from "../utils/contentModeration";
 
 export const dialogueResetTarget = { current: null as null | (() => void) };
+
+const VOICE_RECORDING_MAX_SECONDS = 120;
+const MIN_VOICE_RECORDING_SECONDS = 2;
 
 type StampUpgradeInfo = {
   stamp: string;
@@ -112,6 +116,7 @@ interface DialogueContextValue {
   stopRecording: () => Promise<void>;
   handleVoiceSubmit: () => Promise<void>;
   handleVoiceCancel: () => Promise<void>;
+  handleVoiceRecordAgain: () => void;
 
   showImageSourceDialog: () => void;
   handleImageEditorSave: (uri: string) => void;
@@ -259,11 +264,13 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
   const actionsRef = useRef<DialogueActions>(null as unknown as DialogueActions);
 
   const askedQuestionsByRegionRef = useRef<Record<string, string[]>>({});
+  const lastNewRegionRef = useRef<string | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const voiceSubmitCancelledRef = useRef(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -350,6 +357,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       modalDismissedByBackdropRef.current = false;
       setCurrentPrompt(question);
       setPendingQuestion(question);
+      setUserAnswer("");
       setUiState("idle");
       setShowQuestionInputModal(true);
     },
@@ -365,10 +373,14 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     [presentQuestion]
   );
 
-  // --- Entry point B (StampScreen "Explore region") ---
-  const generateQuestionForRegion = useCallback(
+  // Synthesizes a holistic question for a specific region without touching
+  // flowContext — shared by the StampScreen "Explore region" button and the
+  // modal's "New Region" flow. Tracks asked questions per region so repeats are
+  // avoided, and targets only stamps not already explored.
+  const exploreRegion = useCallback(
     async (region: string) => {
-      setFlowContext({ mode: "region", region });
+      if (uiState !== "idle") return;
+      setError("");
       setUiState("loading");
       setLoadingMessage("Exploring this region...");
       try {
@@ -409,8 +421,19 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       dialogueState.pdfContextText,
       presentQuestion,
       setUiState,
+      setError,
       setLoadingMessage,
+      uiState,
     ]
+  );
+
+  // --- Entry point B (StampScreen "Explore region") ---
+  const generateQuestionForRegion = useCallback(
+    async (region: string) => {
+      setFlowContext({ mode: "region", region });
+      await exploreRegion(region);
+    },
+    [exploreRegion]
   );
 
   // Same message the typed-answer path uses; keeps the modal open so the user can edit.
@@ -434,6 +457,8 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     const region = flowRegion;
     setPendingQuestion(null);
     setCurrentPrompt("");
+    setUserAnswer("");
+    setIsAnswerFromVoice(false);
     suppressModalReopenRef.current = false;
     void mapAnswerToCategory(q, text, region, true);
   };
@@ -604,13 +629,22 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
   }, [handleWeakFitNewQuestionBase, flowRegion]);
 
   // New Topic is only ever shown when flowContext.mode === "default" (see
-  // DialogueModals), so it's semantically already a "back to default" action —
-  // make that explicit here too, rather than relying on it never being called
-  // from a non-default context.
+  // DialogueModals). When every region is mapped it stays a plain default-flow
+  // restart; otherwise it pivots into the next unmapped region, setting the
+  // region flow context so the answer is mapped against that region too.
   const handleNewTopic = useCallback(() => {
-    setFlowContext({ mode: "default" });
-    return handleNewTopicBase();
-  }, [handleNewTopicBase]);
+    const unmappedRegions = CATEGORY_TAXONOMY.filter(
+      (c) => !dialogueState.mappedCategories.some((mc) => mc.category === c.category)
+    ).map((c) => c.category);
+    if (unmappedRegions.length === 0) {
+      setFlowContext({ mode: "default" });
+      return handleNewTopicBase();
+    }
+    const next = unmappedRegions.find((r) => r !== lastNewRegionRef.current) ?? unmappedRegions[0];
+    lastNewRegionRef.current = next;
+    setFlowContext({ mode: "region", region: next });
+    return exploreRegion(next);
+  }, [dialogueState.mappedCategories, handleNewTopicBase, exploreRegion, setFlowContext]);
 
   const startRecording = async () => {
     try {
@@ -642,7 +676,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
         timerRef.current = null;
       }
       await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false });
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       const uri = recorder.uri;
       if (uri) setRecordingUri(uri);
     } catch (err) {
@@ -651,14 +685,30 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     }
   };
 
+  // Auto-stop at the max recording duration so the timer can never overrun.
+  React.useEffect(() => {
+    if (isRecording && recordingDuration >= VOICE_RECORDING_MAX_SECONDS) {
+      void stopRecording();
+    }
+  }, [isRecording, recordingDuration]);
+
   const handleVoiceSubmit = async () => {
     if (!recordingUri || !currentPrompt) {
       Alert.alert("Error", "No recording available");
       return;
     }
+    if (recordingDuration < MIN_VOICE_RECORDING_SECONDS) {
+      Alert.alert(
+        "Recording too short",
+        "Please record at least a couple of seconds of your answer."
+      );
+      return;
+    }
+    voiceSubmitCancelledRef.current = false;
     setIsProcessingAudio(true);
     try {
       const transcriptionResult = await GeminiService.transcribeAudio(recordingUri);
+      if (voiceSubmitCancelledRef.current) return;
       if (
         !transcriptionResult.success ||
         !transcriptionResult.transcript ||
@@ -672,13 +722,19 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
         return;
       }
       const answer = transcriptionResult.transcript.trim();
+      if (voiceSubmitCancelledRef.current) return;
       setRecordingUri(null);
       setRecordingDuration(0);
-      setUserAnswer(answer);
-      setPendingQuestion(currentPrompt);
-      modalIntentionallyOpenedRef.current = true;
-      setUiState("idle");
-      setShowQuestionInputModal(true);
+      setIsAnswerFromVoice(true);
+      suppressModalReopenRef.current = true;
+      setShowQuestionInputModal(false);
+      const q = currentPrompt;
+      const region = flowRegion;
+      setPendingQuestion(null);
+      setCurrentPrompt("");
+      setUserAnswer("");
+      suppressModalReopenRef.current = false;
+      await mapAnswerToCategory(q, answer, region, true);
     } catch (err) {
       console.error("Error processing voice answer:", err);
       let errorMessage = "Failed to process your voice response. Please try again.";
@@ -691,15 +747,17 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       }
       Alert.alert("Processing Error", errorMessage);
     } finally {
+      setIsAnswerFromVoice(false);
       setIsProcessingAudio(false);
     }
   };
 
   const handleVoiceCancel = async () => {
+    voiceSubmitCancelledRef.current = true;
     if (isRecording && recorder.isRecording) {
       try {
         await recorder.stop();
-        await setAudioModeAsync({ allowsRecording: false });
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       } catch (err) {
         console.error("Error stopping recording on cancel:", err);
       }
@@ -716,6 +774,12 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       setPendingQuestion(currentPrompt);
       setShowQuestionInputModal(true);
     }
+  };
+
+  // Return to the mic screen from the playback view so the user can start fresh.
+  const handleVoiceRecordAgain = () => {
+    setRecordingUri(null);
+    setRecordingDuration(0);
   };
 
   const showImageSourceDialog = () => {
@@ -893,7 +957,11 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       }
     } catch (err) {
       console.error("Error uploading proof image:", err);
-      Alert.alert("Error", "Failed to upload proof image. Please try again.");
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to upload proof image. Please try again.";
+      Alert.alert("Proof upload failed", message);
     } finally {
       setIsUploadingProof(false);
       setShowProofImageEditor(false);
@@ -916,8 +984,6 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
 
   React.useEffect(() => {
     if (!pendingProofRequest) return;
-    // If the user already attached an image to their answer, offer to reuse it as
-    // proof — but ask first rather than uploading silently.
     const attached = autoProofImageRef.current;
     if (attached) {
       Alert.alert(
@@ -1025,7 +1091,9 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       !activeStampUpgrade &&
       modalIntentionallyOpenedRef.current
     ) {
+      setCurrentPrompt(prefetchedQuestion);
       setPendingQuestion(prefetchedQuestion);
+      setUserAnswer("");
       setShowQuestionInputModal(true);
     }
   }, [prefetchedQuestion, uiState, pendingProofRequest, activeStampUpgrade]);
@@ -1059,6 +1127,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     stopRecording,
     handleVoiceSubmit,
     handleVoiceCancel,
+    handleVoiceRecordAgain,
     showImageSourceDialog,
     handleImageEditorSave,
     handleImageEditorCancel,

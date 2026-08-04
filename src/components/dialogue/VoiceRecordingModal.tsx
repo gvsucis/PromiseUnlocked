@@ -8,6 +8,10 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+
+const MAX_RECORDING_SECONDS = 120;
+const WARNING_SECONDS = 15;
 
 interface VoiceRecordingModalProps {
   visible: boolean;
@@ -44,6 +48,7 @@ function RecordingInterface({
   onStartRecording,
   onStopRecording,
 }: Readonly<RecordingInterfaceProps>) {
+  const isNearLimit = recordingDuration >= MAX_RECORDING_SECONDS - WARNING_SECONDS;
   return (
     <>
       <View style={styles.recordingVisualization}>
@@ -57,8 +62,12 @@ function RecordingInterface({
       </View>
 
       {isRecording && (
-        <Text style={styles.recordingTimer}>{formatDuration(recordingDuration)}</Text>
+        <Text style={[styles.recordingTimer, isNearLimit && styles.recordingTimerWarning]}>
+          {formatDuration(recordingDuration)}
+        </Text>
       )}
+
+      <Text style={styles.recordingMaxHint}>Max {formatDuration(MAX_RECORDING_SECONDS)}</Text>
 
       <Text style={styles.recordingInstruction}>
         {isRecording ? "Recording... Tap to stop" : "Tap to start recording"}
@@ -73,11 +82,16 @@ function RecordingInterface({
           {isRecording ? "Stop Recording" : "Start Recording"}
         </Text>
       </TouchableOpacity>
+
+      <Text style={styles.recordingGuidance}>
+        Speak naturally. Include what you did, how you did it, and what you learned.
+      </Text>
     </>
   );
 }
 
 interface PlaybackInterfaceProps {
+  recordingUri: string;
   recordingDuration: number;
   isProcessingAudio: boolean;
   onRecordAgain: () => void;
@@ -85,11 +99,32 @@ interface PlaybackInterfaceProps {
 }
 
 function PlaybackInterface({
+  recordingUri,
   recordingDuration,
   isProcessingAudio,
   onRecordAgain,
   onSubmit,
 }: Readonly<PlaybackInterfaceProps>) {
+  const player = useAudioPlayer(recordingUri);
+  const status = useAudioPlayerStatus(player);
+  const isPlaying = status.playing;
+
+  // Releasing the player on unmount already stops audio; never call player
+  // methods from a cleanup, or the native shared object may already be gone.
+  React.useEffect(() => {
+    if (isProcessingAudio) player.pause();
+  }, [isProcessingAudio, player]);
+
+  const togglePlayback = () => {
+    if (isPlaying) {
+      player.pause();
+    } else if (status.duration > 0 && status.currentTime >= status.duration - 0.2) {
+      void player.seekTo(0).then(() => player.play());
+    } else {
+      player.play();
+    }
+  };
+
   return (
     <>
       <View style={styles.playbackContainer}>
@@ -97,6 +132,11 @@ function PlaybackInterface({
         <Text style={styles.playbackTitle}>Recording Complete!</Text>
         <Text style={styles.playbackDuration}>Duration: {formatDuration(recordingDuration)}</Text>
       </View>
+
+      <TouchableOpacity style={styles.previewButton} onPress={togglePlayback}>
+        <Ionicons name={isPlaying ? "pause-circle" : "play-circle"} size={28} color="#4ECDC4" />
+        <Text style={styles.previewButtonText}>{isPlaying ? "Pause" : "Preview recording"}</Text>
+      </TouchableOpacity>
 
       <View style={styles.voiceActions}>
         <TouchableOpacity style={styles.voiceActionButton} onPress={onRecordAgain}>
@@ -155,6 +195,7 @@ export function VoiceRecordingModal({
               <View style={styles.voiceRecordingContainer}>
                 {recordingUri ? (
                   <PlaybackInterface
+                    recordingUri={recordingUri}
                     recordingDuration={recordingDuration}
                     isProcessingAudio={isProcessingAudio}
                     onRecordAgain={onRecordAgain}
@@ -254,6 +295,23 @@ const styles = StyleSheet.create({
     marginTop: 15,
     fontVariant: ["tabular-nums"],
   },
+  recordingTimerWarning: {
+    color: "#FF9800",
+  },
+  recordingMaxHint: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 6,
+    textAlign: "center",
+  },
+  recordingGuidance: {
+    fontSize: 13,
+    fontStyle: "italic",
+    color: "#888",
+    textAlign: "center",
+    paddingHorizontal: 10,
+    marginTop: 18,
+  },
   recordingInstruction: {
     fontSize: 16,
     color: "#666",
@@ -294,6 +352,19 @@ const styles = StyleSheet.create({
   playbackDuration: {
     fontSize: 16,
     color: "#666",
+  },
+  previewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  previewButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#4ECDC4",
   },
   voiceActions: {
     flexDirection: "row",

@@ -13,6 +13,7 @@ import {
   Modal,
   Pressable,
   Animated,
+  Linking,
 } from "react-native";
 // Snackbar replaced by custom toast
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -463,9 +464,21 @@ export default function ProfileScreen() {
             ) : null}
 
             {profile?.pageUrl && (
-              <Text style={[styles.meta, { color: colors.accent.sky, marginTop: 4 }]}>
-                {profile.pageUrl}
-              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  const pageUrl = profile?.pageUrl ?? "";
+                  void Linking.openURL(pageUrl.startsWith("http") ? pageUrl : `https://${pageUrl}`);
+                }}
+                style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}
+              >
+                <Ionicons
+                  name="link-outline"
+                  size={14}
+                  color={colors.accent.sky}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={[styles.meta, { color: colors.accent.sky }]}>Portfolio</Text>
+              </TouchableOpacity>
             )}
           </TouchableOpacity>
 

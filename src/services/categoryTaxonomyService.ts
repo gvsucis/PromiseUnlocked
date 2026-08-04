@@ -5,6 +5,7 @@
  */
 
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import type { NoMapReason } from "../types/gemini";
 
 export interface CategoryDefinition {
   id: string;
@@ -39,6 +40,7 @@ export interface ConversationInteraction {
   matchedToCategory?: string | null;
   matchedToSequenceIndex?: number | null;
   justification?: string;
+  noMapReason?: NoMapReason;
   specificStamp?: string;
 }
 

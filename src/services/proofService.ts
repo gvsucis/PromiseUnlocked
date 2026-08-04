@@ -1,6 +1,11 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { CONFIG } from "../config/env";
-import { getAuthHeaders } from "./uploadService";
+import {
+  getAuthHeaders,
+  parseJsonBody,
+  uploadMultipartFile,
+  type MultipartUploadResponse,
+} from "./uploadService";
 import { compressImage } from "../utils/compressImage";
 
 const PROOF_MAX_DIMENSION = 1280;
@@ -23,6 +28,18 @@ export interface ProofStatusResponse {
   userFeedbackMessage?: string | null;
   requiredAction?: string | null;
   errorMessage?: string | null;
+}
+
+function resolveImageMimeType(uri: string): string {
+  const ext = uri.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    default:
+      return "image/jpeg";
+  }
 }
 
 async function getFileSizeBytes(uri: string): Promise<number | null> {
@@ -98,40 +115,43 @@ export async function uploadProofImage(params: {
       compressedSizeBytes: compressedImage.sizeBytes,
     });
 
-  const formData = new FormData();
-  formData.append("sessionId", params.sessionId);
-  formData.append("interactionId", params.interactionId);
-  formData.append("question", params.question);
-  formData.append("answer", params.answer);
+  const fields = {
+    sessionId: params.sessionId,
+    interactionId: params.interactionId,
+    question: params.question,
+    answer: params.answer,
+  };
 
-  // React Native requires this specific object shape for file uploads in FormData
-  formData.append("image", {
-    uri: compressedImage.uri,
-    name: `proof_${Date.now()}.jpg`,
-    type: "image/jpeg",
-  } as unknown as Blob);
+  const upload = async (fileUri: string): Promise<MultipartUploadResponse> =>
+    uploadMultipartFile({
+      endpoint: "/chat/proof/upload",
+      fileUri,
+      fileField: "image",
+      mimeType: resolveImageMimeType(fileUri),
+      fields,
+    });
 
-  const response = await fetch(`${CONFIG.API_BASE_URL}/chat/proof/upload`, {
-    method: "POST",
-    headers: {
-      ...(await getAuthHeaders()),
-      // Note: Do NOT set Content-Type here. Fetch will automatically set
-      // "multipart/form-data" with the correct boundary for FormData.
-    },
-    body: formData,
-  });
+  let response: MultipartUploadResponse;
+  try {
+    response = await upload(compressedImage.uri);
+  } catch (err) {
+    if (compressedImage.uri === params.imageUri) throw err;
+    console.warn("[ProofUpload] Native upload failed, retrying with original image", err);
+    response = await upload(params.imageUri);
+  }
 
   if (__DEV__)
     console.log("[ProofUpload] Upload response", {
       status: response.status,
-      ok: response.ok,
+      ok: response.status >= 200 && response.status < 300,
     });
 
-  if (!response.ok) {
-    throw new Error(`Proof upload failed: ${response.status} ${response.statusText}`);
+  if (response.status < 200 || response.status >= 300) {
+    const parsedBody = parseJsonBody(response.body);
+    throw new Error(parsedBody.error || `Proof upload failed: ${response.status}`);
   }
 
-  const payload = (await response.json()) as { data?: ProofUploadResponse };
+  const payload = parseJsonBody(response.body) as { data?: ProofUploadResponse };
   if (__DEV__) console.log("[ProofUpload] Upload payload", payload);
 
   if (!payload.data?.jobId) {

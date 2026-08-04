@@ -33,7 +33,6 @@ import { flushPendingFirestoreWrites } from "./src/services/firebase/firestoreWr
 import { checkBackendHealth } from "./src/services/backendHealth";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import RootErrorBoundary from "./src/components/RootErrorBoundary";
-//import { DialogueProvider } from "./src/context/DialogueContext";
 
 const Stack = createStackNavigator<RootStackParamList>();
 

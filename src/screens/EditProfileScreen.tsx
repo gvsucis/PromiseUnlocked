@@ -22,6 +22,7 @@ import { updateProfile } from "firebase/auth";
 import { auth } from "../config/firebase";
 import { fetchProfile, updateProfile as updateProfileService } from "../services/profileService";
 import { colors, spacing, radius } from "../styles/global";
+import { formatPhone } from "../utils/format";
 
 type EditProfileFormState = {
   dob: Date | null;
@@ -476,7 +477,7 @@ export default function EditProfileScreen() {
                   <Input
                     placeholder="555-555-5555"
                     value={phone}
-                    onChangeText={setPhone}
+                    onChangeText={(text) => setPhone(formatPhone(text))}
                     keyboardType="phone-pad"
                     className="h-10 px-0 text-sm bg-white border-0"
                     style={styles.flex1}

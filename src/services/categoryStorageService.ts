@@ -370,6 +370,9 @@ export async function syncFromFirestore(): Promise<void> {
         if (r.justification && !existing.justification) {
           existing.justification = r.justification;
         }
+        if (r.noMapReason && !existing.noMapReason) {
+          existing.noMapReason = r.noMapReason;
+        }
         continue;
       }
       byKey.set(key, {
@@ -384,6 +387,7 @@ export async function syncFromFirestore(): Promise<void> {
         matchedToCategory: r.matchedToCategory,
         matchedToSequenceIndex: r.matchedToSequenceIndex,
         justification: r.justification || undefined,
+        noMapReason: r.noMapReason,
         specificStamp: r.specificStamp || undefined,
       });
     }
@@ -469,6 +473,7 @@ export async function saveConversationInteraction(
       isWeakFit: interaction.mappingOutcome === "weak_fit",
       isAlreadyMapped: interaction.mappingOutcome === "already_mapped",
       justification: justification ?? "",
+      noMapReason: interaction.noMapReason ?? "",
       specificStamp: interaction.specificStamp,
       matchedToCategory: interaction.matchedToCategory ?? null,
       matchedToSequenceIndex: interaction.matchedToSequenceIndex ?? null,

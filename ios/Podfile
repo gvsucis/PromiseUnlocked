@@ -23,6 +23,12 @@ prepare_react_native_project!
 target 'promiseUnlocked' do
   use_expo_modules!
 
+  # GoogleSignIn 9.x pulls the Swift pod AppCheckCore, which imports
+  # GoogleUtilities and RecaptchaInterop. As static libraries those pods
+  # lack module maps, so CocoaPods cannot integrate AppCheckCore.
+  # Generate module maps for them so the Swift pod links correctly.
+  use_modular_headers!
+
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else

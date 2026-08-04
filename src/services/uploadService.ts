@@ -1,15 +1,50 @@
 import { auth } from "../config/firebase";
 import { CONFIG } from "../config/env";
+import * as FileSystem from "expo-file-system/legacy";
 
 export interface UploadResult {
   success: boolean;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   error?: string;
+}
+
+export interface MultipartUploadResponse {
+  status: number;
+  body: string;
+}
+
+export function parseJsonBody(body: string): Record<string, any> {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return {};
+  }
 }
 
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   const token = await auth.currentUser?.getIdToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function uploadMultipartFile(params: {
+  endpoint: string;
+  fileUri: string;
+  fileField?: string;
+  mimeType?: string;
+  fields?: Record<string, string>;
+  headers?: Record<string, string>;
+}): Promise<MultipartUploadResponse> {
+  const { endpoint, fileUri, fileField = "file", mimeType, fields, headers } = params;
+  const result = await FileSystem.uploadAsync(`${CONFIG.API_BASE_URL}${endpoint}`, fileUri, {
+    httpMethod: "POST",
+    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+    fieldName: fileField,
+    ...(mimeType ? { mimeType } : {}),
+    ...(fields && Object.keys(fields).length > 0 ? { parameters: fields } : {}),
+    headers: headers ?? (await getAuthHeaders()),
+  });
+
+  return { status: result.status, body: result.body };
 }
 
 export async function uploadImage(params: {
@@ -21,34 +56,27 @@ export async function uploadImage(params: {
   const { endpoint, imageUri, fileField = "file", fields = {} } = params;
 
   try {
-    const formData = new FormData();
-
-    for (const [key, value] of Object.entries(fields)) {
-      formData.append(key, value);
-    }
-
-    formData.append(fileField, {
-      uri: imageUri,
-      name: `upload_${Date.now()}.jpg`,
-      type: "image/jpeg",
-    } as unknown as Blob);
-
-    const response = await fetch(`${CONFIG.API_BASE_URL}${endpoint}`, {
-      method: "POST",
-      headers: await getAuthHeaders(),
-      body: formData,
+    const { status, body } = await uploadMultipartFile({
+      endpoint,
+      fileUri: imageUri,
+      fileField,
+      fields,
+      mimeType: "image/jpeg",
     });
 
-    const body = await response.json().catch(() => ({}));
+    const parsed = parseJsonBody(body);
 
-    if (!response.ok) {
+    if (status < 200 || status >= 300) {
       return {
         success: false,
-        error: body.error || `Upload failed (${response.status})`,
+        error: parsed.error || `Upload failed (${status})`,
       };
     }
 
-    return { success: true, data: body.data ?? body };
+    return {
+      success: true,
+      data: parsed.data ?? parsed,
+    };
   } catch (err) {
     return {
       success: false,
@@ -86,7 +114,7 @@ export async function uploadMultipleImages(params: {
       body: formData,
     });
 
-    const body = await response.json().catch(() => ({}));
+    const body = (await response.json().catch(() => ({}))) as Record<string, any>;
 
     if (!response.ok) {
       return {
@@ -95,7 +123,10 @@ export async function uploadMultipleImages(params: {
       };
     }
 
-    return { success: true, data: body.data ?? body };
+    return {
+      success: true,
+      data: body.data ?? body,
+    };
   } catch (err) {
     return {
       success: false,
@@ -112,34 +143,27 @@ export async function uploadPDF(params: {
   const { endpoint, pdfUri, fileField = "file", fields = {} } = params;
 
   try {
-    const formData = new FormData();
-
-    for (const [key, value] of Object.entries(fields)) {
-      formData.append(key, value);
-    }
-
-    formData.append(fileField, {
-      uri: pdfUri,
-      name: `profile_pva_${Date.now()}.pdf`,
-      type: "application/pdf",
-    } as unknown as Blob);
-
-    const response = await fetch(`${CONFIG.API_BASE_URL}${endpoint}`, {
-      method: "POST",
-      headers: await getAuthHeaders(),
-      body: formData,
+    const { status, body } = await uploadMultipartFile({
+      endpoint,
+      fileUri: pdfUri,
+      fileField,
+      fields,
+      mimeType: "application/pdf",
     });
 
-    const body = await response.json().catch(() => ({}));
+    const parsed = parseJsonBody(body);
 
-    if (!response.ok) {
+    if (status < 200 || status >= 300) {
       return {
         success: false,
-        error: body.error || `Upload failed (${response.status})`,
+        error: parsed.error || `Upload failed (${status})`,
       };
     }
 
-    return { success: true, data: body.data ?? body };
+    return {
+      success: true,
+      data: parsed.data ?? parsed,
+    };
   } catch (err) {
     return {
       success: false,

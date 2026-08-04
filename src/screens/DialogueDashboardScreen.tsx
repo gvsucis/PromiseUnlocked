@@ -50,17 +50,23 @@ export default function DialogueDashboardScreen() {
   };
 
   const completionPercentage = Math.round((d.mappedCategories.length / TOTAL_CATEGORIES) * 100);
-  const totalStampsUnlocked = React.useMemo(
-    () =>
-      d.mappedCategories.reduce(
-        (sum, mc) => sum + (Array.isArray(mc.unlockedStamps) ? mc.unlockedStamps.length : 0),
-        0
-      ),
-    [d.mappedCategories]
-  );
-  const regionsExplored = d.mappedCategories.filter(
-    (mc) => (mc.unlockedStamps?.length ?? 0) > 0
-  ).length;
+  const { totalStampsUnlocked, totalXp, regionsExplored } = React.useMemo(() => {
+    let stamps = 0;
+    let xp = 0;
+    let regions = 0;
+    for (const mc of d.mappedCategories) {
+      const list = mc.unlockedStamps;
+      const count = Array.isArray(list) ? list.length : 0;
+      stamps += count;
+      if (Array.isArray(list)) {
+        for (const st of list) {
+          xp += (st.tier ?? 1) * 5;
+        }
+      }
+      if (count > 0) regions++;
+    }
+    return { totalStampsUnlocked: stamps, totalXp: xp, regionsExplored: regions };
+  }, [d.mappedCategories]);
 
   const upgradableStamp = React.useMemo(() => {
     const candidates: {
@@ -136,10 +142,8 @@ export default function DialogueDashboardScreen() {
                 <Text style={styles.statLabel}>Regions Mapped</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>
-                  {Math.round((totalStampsUnlocked / 10) * 100)}%
-                </Text>
-                <Text style={styles.statLabel}>Passport Progress</Text>
+                <Text style={styles.statNumber}>🏆 {totalXp}</Text>
+                <Text style={styles.statLabel}>Total XP</Text>
               </View>
             </View>
             <View style={styles.progressBar}>
