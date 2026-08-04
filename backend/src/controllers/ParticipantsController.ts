@@ -15,6 +15,7 @@ import type { Address, AuthenticatedRequest, ParticipantProfile } from "@/types/
 import { canAccessParticipant, isAdminUser } from "@/utils/authz";
 import { profileUpdateSchema } from "@/validation/profileUpdateSchema";
 import { parsePagination } from "@/utils/pagination";
+import { getPvaName } from "@/services/pvaCatalogService";
 import {
   matchesSearchTerm,
   normalizeSearchTerm,
@@ -55,6 +56,16 @@ const fetchOrCreateProfile = async (uid: string): Promise<ParticipantProfile> =>
   const profile = buildProfileFromRecord(userRecord);
   await participantsCollection.doc(uid).set(profile);
   return profile;
+};
+
+// Attach the PVA display name alongside selectedPvaId so clients can render it
+// without a second catalog request.
+const withSelectedPvaName = async (participant: unknown): Promise<unknown> => {
+  const rec = participant as { selectedPvaId?: unknown };
+  if (typeof rec.selectedPvaId !== "string" || !rec.selectedPvaId) return participant;
+  const name = await getPvaName(rec.selectedPvaId);
+  if (!name) return participant;
+  return { ...(participant as Record<string, unknown>), selectedPvaName: name };
 };
 
 export class ParticipantsController {
@@ -119,7 +130,9 @@ export class ParticipantsController {
         });
       }
       const profile = await fetchOrCreateProfile(requester.uid);
-      return res.json({ participants: [normalizeParticipant(profile)] });
+      return res.json({
+        participants: [await withSelectedPvaName(normalizeParticipant(profile))],
+      });
     } catch (error) {
       console.error("Error fetching participants:", error);
       return res.status(500).json({ error: "Failed to fetch participants" });
@@ -130,7 +143,9 @@ export class ParticipantsController {
     const requester = (req as AuthenticatedRequest).user;
     try {
       const profile = await fetchOrCreateProfile(requester.uid);
-      return res.json({ participant: normalizeParticipant(profile) });
+      return res.json({
+        participant: await withSelectedPvaName(normalizeParticipant(profile)),
+      });
     } catch (error) {
       console.error("Error fetching authenticated participant:", error);
       return res.status(500).json({ error: "Failed to fetch participant profile" });
@@ -216,7 +231,9 @@ export class ParticipantsController {
         tasks.push(admin.auth().updateUser(requester.uid, authUpdates));
       }
       await Promise.all(tasks);
-      return res.json({ participant: normalizeParticipant(nextProfile) });
+      return res.json({
+        participant: await withSelectedPvaName(normalizeParticipant(nextProfile)),
+      });
     } catch (error) {
       console.error("Error updating authenticated participant:", error);
       return res.status(500).json({ error: "Failed to update participant profile" });
@@ -273,7 +290,9 @@ export class ParticipantsController {
       if (!participantSnapshot.exists) {
         return res.status(404).json({ error: "Participant not found" });
       }
-      return res.json({ participant: normalizeParticipant(participantSnapshot) });
+      return res.json({
+        participant: await withSelectedPvaName(normalizeParticipant(participantSnapshot)),
+      });
     } catch (error) {
       console.error("Error fetching participant:", error);
       return res.status(500).json({ error: "Failed to fetch participant" });

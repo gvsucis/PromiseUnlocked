@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Text, Card } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -6,6 +6,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
+import { fetchProfile, buildLocalProfile, type UserProfile } from "../services/profileService";
 import { useDialogue } from "../context/DialogueProvider";
 import { DialogueButton } from "../components/dialogue/DialogueButton";
 import { useAuth } from "../context/AuthContext";
@@ -15,27 +16,30 @@ import { signOut } from "firebase/auth";
 import { auth } from "../config/firebase";
 import StampBadge from "../components/stamps/StampBadge";
 
+// Minimal header actions component used in the screen header.
+const HeaderActions: React.FC<{ onLogout: () => void }> = () => null;
+
 export default function DialogueDashboardScreen() {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList, "DialogueDashboard">>();
   const { session } = useAuth();
   const d = useDialogue();
   const insets = useSafeAreaInsets();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
       d.refreshData();
+      fetchProfile()
+        .then(setProfile)
+        .catch(() => setProfile(buildLocalProfile()));
     }, [d.refreshData])
   );
 
+  const selectedPvaName = profile?.selectedPvaName ?? null;
+
   React.useLayoutEffect(() => {
     navigation.getParent()?.setOptions({
-      headerRight: () => (
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleLogout} style={styles.headerActionButton}>
-            <MaterialIcons name="logout" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      ),
+      headerRight: () => <HeaderActions onLogout={handleLogout} />,
     });
   }, [navigation, session.mode]);
 
@@ -90,10 +94,9 @@ export default function DialogueDashboardScreen() {
         .filter((mc) => (mc.unlockedStamps?.length ?? 0) > 0)
         .map((mc) => mc.category)
     );
+    // Use a stable, deterministic ordering instead of Math.random()
     return CATEGORY_TAXONOMY.filter((cat) => !exploredSet.has(cat.category))
-      .map((value) => ({ value, sort: Math.random() }))
-      .sort((a, b) => a.sort - b.sort)
-      .map(({ value }) => value)
+      .sort((a, b) => a.category.localeCompare(b.category))
       .slice(0, 3);
   }, [d.mappedCategories]);
 
@@ -120,7 +123,7 @@ export default function DialogueDashboardScreen() {
 
         <View style={styles.header}>
           <MaterialIcons name="explore" size={40} color={colors.accent.sky} />
-          <Text style={styles.title}>My Dashboard</Text>
+          <Text style={styles.title}>{selectedPvaName ?? "My PVA Style"}</Text>
           <Text style={styles.subtitle}>
             {d.mappedCategories.length}/{TOTAL_CATEGORIES} categories discovered
           </Text>
