@@ -30,6 +30,7 @@ export interface UserProfile {
   ethnicity?: string | null;
   pageUrl?: string | null;
   selectedPvaId?: string | null;
+  selectedPvaName?: string | null;
   metadata: Record<string, unknown>;
 }
 

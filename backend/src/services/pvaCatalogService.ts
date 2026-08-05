@@ -39,6 +39,15 @@ export async function getById(
   return { id: doc.id, ...(doc.data() as PvaCatalogEntry) };
 }
 
+/** Resolve a catalog entry's display name from its id (lightweight read). */
+export async function getPvaName(id: string): Promise<string | null> {
+  if (!id) return null;
+  const snapshot = await collection().doc(id).get();
+  if (!snapshot.exists) return null;
+  const data = snapshot.data() as PvaCatalogEntry | undefined;
+  return data?.name ?? data?.fileName ?? null;
+}
+
 type CatalogListItem = {
   id: string;
   name: string;

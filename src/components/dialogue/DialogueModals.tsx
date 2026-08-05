@@ -193,7 +193,7 @@ export function DialogueModals() {
         onNewQuestion={
           d.questionInputMode === "addDetail" ? undefined : () => d.handleSkipQuestion()
         }
-        onNewTopic={d.questionInputMode === "default" ? () => d.handleNewTopic() : undefined}
+        onNewTopic={d.questionInputMode === "addDetail" ? undefined : () => d.handleNewTopic()}
       />
 
       {d.pendingProofNotification && (

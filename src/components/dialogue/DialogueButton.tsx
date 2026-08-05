@@ -59,6 +59,7 @@ export function DialogueButton(props: DialogueButtonProps) {
   }
 
   const hasPendingQuestion = !!d.currentPrompt && !d.showQuestionInputModal;
+  const hasStarted = d.interactions.length > 0 || d.mappedCategories.length > 0;
   return (
     <TouchableOpacity
       style={styles.startButton}
@@ -67,7 +68,7 @@ export function DialogueButton(props: DialogueButtonProps) {
       activeOpacity={0.8}
     >
       <MaterialIcons name="play-arrow" size={28} color="white" style={styles.startButtonIcon} />
-      <Text style={styles.startButtonText}>{hasPendingQuestion ? "Continue" : "Start"}</Text>
+      <Text style={styles.startButtonText}>{hasStarted ? "Continue" : "Start"}</Text>
     </TouchableOpacity>
   );
 }
