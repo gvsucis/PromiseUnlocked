@@ -46,6 +46,7 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 import ArtifactPreviewModal from "../components/ArtifactPreviewModal";
 import { SegmentedArc } from "@shipt/segmented-arc-for-react-native";
+import { useDialogue } from "../context/DialogueProvider";
 
 function ChecklistItem({ label, complete }: Readonly<{ label: string; complete: boolean }>) {
   return (
@@ -73,6 +74,7 @@ function FileTypeIcon({
 }
 
 export default function ProfileScreen() {
+  const d = useDialogue();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [savingBio, setSavingBio] = useState(false);
 
@@ -280,12 +282,17 @@ export default function ProfileScreen() {
     }
   };
 
+  const hasEarnedStamp = useMemo(
+    () => d.mappedCategories.some((mc) => (mc.unlockedStamps?.length ?? 0) > 0),
+    [d.mappedCategories]
+  );
+
   const checklist = [
     { label: "About Me", complete: bio.trim().length > 0 },
     { label: "Upload Profile Photo", complete: !!profile?.photoURL },
     { label: "Full Name", complete: displayName !== "Your Name" },
-    { label: "Earn One Stamp", complete: true },
-    { label: "Complete Demographic Info", complete: true },
+    { label: "Earn One Stamp", complete: hasEarnedStamp },
+    //{ label: "Complete Demographic Info", complete: true },
   ];
 
   const progressPercent = Math.round(
@@ -714,12 +721,12 @@ export default function ProfileScreen() {
           <View style={globalStyles.card}>
             <View style={[globalStyles.row, { marginBottom: 14 }]}>
               <View style={{ flex: 1, paddingRight: 16 }}>
-                <Text style={styles.cardTitle}>Profile Completion</Text>
+                <Text style={styles.cardTitle}>Start Your Journey</Text>
                 <Text style={styles.cardSubtitle}>
-                  Complete your profile to unlock more opportunities.
+                  Complete your basic profile to earn XP points.
                 </Text>
               </View>
-              <Text style={styles.progressPercent}>{progressPercent}%</Text>
+              <Text style={styles.progressPercent}>+ 20 XP</Text>
             </View>
 
             <View style={styles.arcContainer}>
@@ -1172,7 +1179,7 @@ const styles = StyleSheet.create({
   arcCenter: {
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 24,
+    marginTop: 28,
   },
 
   arcSubtitle: {

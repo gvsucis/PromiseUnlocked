@@ -122,12 +122,7 @@ export default function DialogueDashboardScreen() {
         </View>
 
         <View style={styles.header}>
-          <MaterialIcons name="explore" size={40} color={colors.accent.sky} />
-          <Text style={styles.title}>{selectedPvaName ?? "My PVA Style"}</Text>
           <Text style={styles.title}>My Dashboard</Text>
-          <Text style={styles.subtitle}>
-            {d.mappedCategories.length}/{TOTAL_CATEGORIES} categories discovered
-          </Text>
         </View>
 
         <Card style={styles.progressCard}>
@@ -138,15 +133,15 @@ export default function DialogueDashboardScreen() {
             </View>
             <View style={styles.statsRow}>
               <View style={styles.statBox}>
+                <Text style={styles.statNumber}>✈️</Text>
+                <Text style={styles.statLabel}>{selectedPvaName ?? "My PVA Style"}</Text>
+              </View>
+              <View style={styles.statBox}>
                 <Text style={styles.statNumber}>{totalStampsUnlocked}</Text>
                 <Text style={styles.statLabel}>Stamps Earned</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{regionsExplored}</Text>
-                <Text style={styles.statLabel}>Regions Mapped</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>🏆 {totalXp}</Text>
+                <Text style={styles.statNumber}>{totalXp}</Text>
                 <Text style={styles.statLabel}>Total XP</Text>
               </View>
             </View>
