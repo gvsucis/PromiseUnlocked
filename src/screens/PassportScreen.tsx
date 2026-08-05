@@ -153,7 +153,7 @@ export default function PassportScreen() {
               opacity: 1,
             }}
             gridConfig={{
-              stroke: colors.accent.coral,
+              stroke: colors.border.medium,
               strokeWidth: 1,
               showGradient: false,
               fill: colors.background.base,

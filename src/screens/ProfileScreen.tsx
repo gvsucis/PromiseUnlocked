@@ -281,11 +281,11 @@ export default function ProfileScreen() {
   };
 
   const checklist = [
-    { label: "Basic Information", complete: true },
     { label: "About Me", complete: bio.trim().length > 0 },
-    { label: "Upload Photos", complete: !!profile?.photoURL },
-    { label: "Complete Background Info", complete: false },
+    { label: "Upload Profile Photo", complete: !!profile?.photoURL },
     { label: "Full Name", complete: displayName !== "Your Name" },
+    { label: "Earn One Stamp", complete: true },
+    { label: "Complete Demographic Info", complete: true },
   ];
 
   const progressPercent = Math.round(
