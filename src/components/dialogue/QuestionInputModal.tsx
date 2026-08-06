@@ -103,7 +103,7 @@ export function QuestionInputModal({
 
   const handleSubmit = () => {
     if (!textValue.trim() && !attachedImageUri) return;
-    if (attachedImageUri && textValue.trim() && onSubmitTextAndImage) {
+    if (attachedImageUri && onSubmitTextAndImage) {
       onSubmitTextAndImage(textValue.trim(), attachedImageUri);
       resetText();
       return;
