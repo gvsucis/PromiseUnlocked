@@ -356,8 +356,9 @@ export async function savePassportMapping(
 }
 
 /**
- * Save a stamp unlock to the passport document
- * Uses increment for atomic counter update
+ * Save a stamp unlock to the per-session skillPassport doc and to the
+ * participant-level skillsPassport/summary aggregate. Uses increment for
+ * atomic counter updates.
  */
 export async function saveStampUnlock(
   userId: string,
@@ -378,7 +379,6 @@ export async function saveStampUnlock(
       categoryId
     );
 
-    const stampKey = `unlockedStamps.${stampName.replaceAll(/[.[\]/]/g, "_")}`;
     const existing = await getDoc(passportRef);
     const data = existing.data();
     const hasStamp =
@@ -386,63 +386,83 @@ export async function saveStampUnlock(
       typeof data.unlockedStamps === "object" &&
       stampName in data.unlockedStamps;
 
-    const summaryRef = doc(db, "participants", userId, "passportSummary");
+    const summaryRef = doc(db, "participants", userId, "skillsPassport", "summary");
     const summaryDoc = await getDoc(summaryRef);
     const summaryData = summaryDoc.data();
     const hasCategorySummary = summaryData?.categorySummaries?.[categoryId] != null;
+
+    // The summary aggregates across sessions, so its increment/first-set decision
+    // must look at the summary doc, not the session-local unlockedStamps.
+    const hasStampInSummary =
+      summaryData?.stamps &&
+      typeof summaryData.stamps === "object" &&
+      stampName in summaryData.stamps;
+
+    const summaryStampEntry = hasStampInSummary
+      ? {
+          timesUnlocked: increment(1),
+          lastUnlockedAt: serverTimestamp(),
+          tier,
+          categoryId,
+          stampName,
+          sessionId,
+          ...(categoryName ? { category: categoryName } : {}),
+        }
+      : {
+          timesUnlocked: 1,
+          firstUnlockedAt: serverTimestamp(),
+          lastUnlockedAt: serverTimestamp(),
+          tier,
+          categoryId,
+          stampName,
+          sessionId,
+          ...(categoryName ? { category: categoryName } : {}),
+        };
 
     const batch = writeBatch(db);
     batch.set(
       passportRef,
       {
         categoryId,
-        [stampKey]: hasStamp
-          ? { timesUnlocked: increment(1), lastUnlockedAt: serverTimestamp(), tier, categoryId }
-          : {
-              timesUnlocked: 1,
-              firstUnlockedAt: serverTimestamp(),
-              lastUnlockedAt: serverTimestamp(),
-              tier,
-              categoryId,
-            },
+        unlockedStamps: {
+          [stampName]: hasStamp
+            ? { timesUnlocked: increment(1), lastUnlockedAt: serverTimestamp(), tier, categoryId }
+            : {
+                timesUnlocked: 1,
+                firstUnlockedAt: serverTimestamp(),
+                lastUnlockedAt: serverTimestamp(),
+                tier,
+                categoryId,
+              },
+        },
       },
       { merge: true }
     );
     batch.set(
       summaryRef,
       {
-        [`stamps.${stampName.replaceAll(/[.[\]/]/g, "_")}`]: hasStamp
-          ? {
-              timesUnlocked: increment(1),
-              lastUnlockedAt: serverTimestamp(),
-              tier,
-              categoryId,
-              stampName,
-              sessionId,
-            }
-          : {
-              timesUnlocked: 1,
-              firstUnlockedAt: serverTimestamp(),
-              lastUnlockedAt: serverTimestamp(),
-              tier,
-              categoryId,
-              stampName,
-              sessionId,
-            },
+        stamps: {
+          [stampName]: summaryStampEntry,
+        },
       },
       { merge: true }
     );
     if (categoryName) {
-      const categorySummaryFields: Record<string, unknown> = {
-        [`categorySummaries.${categoryId}.category`]: categoryName,
-        [`categorySummaries.${categoryId}.categoryId`]: categoryId,
-        [`categorySummaries.${categoryId}.totalMappings`]: increment(1),
-        [`categorySummaries.${categoryId}.lastMappedAt`]: serverTimestamp(),
-      };
-      if (!hasCategorySummary) {
-        categorySummaryFields[`categorySummaries.${categoryId}.firstMappedAt`] = serverTimestamp();
-      }
-      batch.set(summaryRef, categorySummaryFields, { merge: true });
+      batch.set(
+        summaryRef,
+        {
+          categorySummaries: {
+            [categoryId]: {
+              category: categoryName,
+              categoryId,
+              totalMappings: increment(1),
+              lastMappedAt: serverTimestamp(),
+              ...(hasCategorySummary ? {} : { firstMappedAt: serverTimestamp() }),
+            },
+          },
+        },
+        { merge: true }
+      );
     }
     await batch.commit();
   } catch (err) {

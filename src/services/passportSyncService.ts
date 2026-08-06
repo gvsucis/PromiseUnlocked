@@ -179,9 +179,9 @@ export function listenToPassport(
   onData: (data: PassportData) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
-  const passportSummaryRef = doc(db, "participants", userId, "passportSummary");
+  const skillsPassportRef = doc(db, "participants", userId, "skillsPassport", "summary");
 
-  const unsubscribe = onSnapshot(passportSummaryRef, {
+  const unsubscribe = onSnapshot(skillsPassportRef, {
     next: async (snapshot) => {
       if (snapshot.exists()) {
         const raw = snapshot.data() as PassportSummaryDocument;
@@ -201,9 +201,17 @@ export function listenToPassport(
         await cachePassportData(data);
         onData(data);
       } else {
-        const data = await fetchPassportFromSkillDocs(userId);
-        await cachePassportData(data);
-        onData(data);
+        try {
+          const data = await fetchPassportFromSkillDocs(userId);
+          await cachePassportData(data);
+          onData(data);
+        } catch (err) {
+          const cached = await getCachedPassportData();
+          if (cached.stamps.length > 0) {
+            onData(cached);
+          }
+          onError?.(err instanceof Error ? err : new Error("Failed to load passport"));
+        }
       }
     },
     error: async (err) => {

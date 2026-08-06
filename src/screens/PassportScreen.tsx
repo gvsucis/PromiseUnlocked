@@ -7,12 +7,12 @@ import type { RootStackParamList } from "../types/navigation";
 import { REGIONS } from "../config/stampTaxonomy";
 import { RadarChart } from "react-native-gifted-charts";
 import { fetchMyStamps, getCachedStamps, type StampEntry } from "../services/stampSyncService";
+import { listenToPassport, type PassportData } from "../services/passportSyncService";
 import { getCategoryIdFromName } from "../services/categoryTaxonomyService";
 import { colors } from "../styles/global";
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
-import { useDialogue } from "../context/DialogueContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DEFAULT_TIER } from "../config/stampConstants";
 
@@ -40,7 +40,6 @@ export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
 
   const { session } = useAuth();
-  const { reset } = useDialogue();
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to sign out?", [
@@ -56,49 +55,63 @@ export default function PassportScreen() {
   const [radarData, setRadarData] = useState<number[]>(REGIONS.map(() => RADAR_FLOOR));
   const [regionUnlocks, setRegionUnlocks] = useState<Record<string, string[]>>({});
 
+  const applyStamps = useCallback((stamps: StampEntry[]) => {
+    const byCategory = new Map<string, StampEntry[]>();
+    for (const s of stamps) {
+      const existing = byCategory.get(s.category);
+      if (existing) {
+        existing.push(s);
+      } else {
+        byCategory.set(s.category, [s]);
+      }
+    }
+
+    const unlocks: Record<string, string[]> = {};
+    const tierPoints: Record<string, number> = {};
+
+    for (const [category, stampsInCat] of byCategory) {
+      const uniqueNames = [...new Set(stampsInCat.map((s) => s.stampName))];
+      const maxTier = stampsInCat.reduce((max, s) => Math.max(max, s.tier ?? DEFAULT_TIER), 0);
+      unlocks[category] = uniqueNames;
+      tierPoints[category] = maxTier;
+    }
+
+    setRegionUnlocks(unlocks);
+
+    setRadarData(
+      REGIONS.map((region) => {
+        const points = tierPoints[region] ?? 0;
+        const pct = Math.min(100, (points / TIER_TARGET_PER_REGION) * 100);
+        return Math.max(pct, RADAR_FLOOR);
+      })
+    );
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       const stamps = await fetchMyStamps();
       const cached = stamps.length > 0 ? stamps : await getCachedStamps();
-
-      const byCategory = new Map<string, StampEntry[]>();
-      for (const s of cached) {
-        const existing = byCategory.get(s.category);
-        if (existing) {
-          existing.push(s);
-        } else {
-          byCategory.set(s.category, [s]);
-        }
-      }
-
-      const unlocks: Record<string, string[]> = {};
-      const tierPoints: Record<string, number> = {};
-
-      for (const [category, stampsInCat] of byCategory) {
-        const uniqueNames = [...new Set(stampsInCat.map((s) => s.stampName))];
-        const maxTier = stampsInCat.reduce((max, s) => Math.max(max, s.tier ?? DEFAULT_TIER), 0);
-        unlocks[category] = uniqueNames;
-        tierPoints[category] = maxTier;
-      }
-
-      setRegionUnlocks(unlocks);
-
-      setRadarData(
-        REGIONS.map((region) => {
-          const points = tierPoints[region] ?? 0;
-          const pct = Math.min(100, (points / TIER_TARGET_PER_REGION) * 100);
-          return Math.max(pct, RADAR_FLOOR);
-        })
-      );
+      applyStamps(cached);
     } catch {
       // silently keep zeros
     }
-  }, []);
+  }, [applyStamps]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData])
+
+      if (session.mode !== "authenticated" || !session.uid) return;
+
+      return listenToPassport(session.uid, (data: PassportData) => {
+        const categoryNameById = new Map(data.categories.map((c) => [c.categoryId, c.category]));
+        const stamps: StampEntry[] = data.stamps.map((s) => ({
+          ...s,
+          category: s.category || categoryNameById.get(s.categoryId) || "",
+        }));
+        applyStamps(stamps);
+      });
+    }, [loadData, applyStamps, session.mode, session.uid])
   );
 
   const insets = useSafeAreaInsets();
