@@ -13,6 +13,7 @@ interface WeakFitModalProps {
   visible: boolean;
   justification: string;
   isContentWarning?: boolean;
+  newQuestionLabel?: string;
   onTryAgain: () => void;
   onNewQuestion: () => void;
 }
@@ -21,6 +22,7 @@ export function WeakFitModal({
   visible,
   justification,
   isContentWarning = false,
+  newQuestionLabel = "New Question",
   onTryAgain,
   onNewQuestion,
 }: Readonly<WeakFitModalProps>) {
@@ -61,7 +63,7 @@ export function WeakFitModal({
                       onPress={onNewQuestion}
                     >
                       <MaterialIcons name="skip-next" size={20} color="#667eea" />
-                      <Text style={styles.weakFitButtonTextSecondary}>New Question</Text>
+                      <Text style={styles.weakFitButtonTextSecondary}>{newQuestionLabel}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.weakFitButton, styles.weakFitButtonPrimary]}

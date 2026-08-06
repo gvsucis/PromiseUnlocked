@@ -88,6 +88,7 @@ interface DialogueContextValue {
   pendingProofNotification: ReturnType<typeof useDialogueState>["pendingProofNotification"];
 
   activeStampUpgrade: StampUpgradeInfo | null;
+  addDetailReview: { justification: string } | null;
 
   setUserAnswer: (v: string) => void;
   setUiState: ReturnType<typeof useDialogueState>["setUiState"];
@@ -131,6 +132,7 @@ interface DialogueContextValue {
   clearStampUnlock: ReturnType<typeof useDialogueState>["clearStampUnlock"];
   handleContinueAfterStampUpgrade: () => void;
   clearActiveStampUpgrade: () => void;
+  finishAddDetail: () => void;
 
   dismissCrisisSupport: ReturnType<typeof useDialogueState>["dismissCrisisSupport"];
   dismissSensitiveIntro: ReturnType<typeof useDialogueState>["dismissSensitiveIntro"];
@@ -187,6 +189,7 @@ type DialogueStateKey =
   | "pendingProofRequest"
   | "pendingProofNotification"
   | "activeStampUpgrade"
+  | "addDetailReview"
   | "questionInputMode";
 
 // The function half of the context: stabilized once and never re-created.
@@ -240,6 +243,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     stampTierUpgrade,
     clearStampTierUpgrade,
     continueAfterStampTierUpgrade,
+    clearAddDetailReview,
     dismissCrisisSupport,
     dismissSensitiveIntro,
     dismissAnswerModal,
@@ -455,12 +459,13 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     setShowQuestionInputModal(false);
     const q = pendingQuestion || currentPrompt;
     const region = flowRegion;
+    const isAddDetail = flowContext.mode === "addDetail";
     setPendingQuestion(null);
     setCurrentPrompt("");
     setUserAnswer("");
     setIsAnswerFromVoice(false);
     suppressModalReopenRef.current = false;
-    void mapAnswerToCategory(q, text, region, true);
+    void mapAnswerToCategory(q, text, region, true, undefined, isAddDetail);
   };
 
   const handleInputTypeSelect = async (method: "voice" | "image" | "refresh") => {
@@ -502,7 +507,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
   // is armed — there is no analyzed image to attach.
   const submitCombinedTextOnly = async (q: string, text: string, region?: string) => {
     clearAutoProof();
-    await mapAnswerToCategory(q, text, region);
+    await mapAnswerToCategory(q, text, region, false, undefined, flowContext.mode === "addDetail");
   };
 
   // Return to the editor with the text and image intact so the user can retry or change.
@@ -554,7 +559,13 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
             },
             {
               text: "Submit text only",
-              onPress: () => void submitCombinedTextOnly(q, text, region),
+              onPress: () => {
+                if (text.trim()) {
+                  void submitCombinedTextOnly(q, text, region);
+                } else {
+                  reopenCombinedForEdit(q, text, imageUri);
+                }
+              },
             },
             {
               text: "Try Again",
@@ -575,7 +586,14 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
         // Not evidence-grade — arm it so a later proof prompt can offer it (user consents first).
         autoProofImageRef.current = imageUri;
       }
-      await mapAnswerToCategory(q, mergedAnswer, region, false, evidenceTier);
+      await mapAnswerToCategory(
+        q,
+        mergedAnswer,
+        region,
+        false,
+        evidenceTier,
+        flowContext.mode === "addDetail"
+      );
     } catch (err) {
       console.error("Error processing combined submission:", err);
       setIsAnalyzingImage(false);
@@ -734,7 +752,14 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       setCurrentPrompt("");
       setUserAnswer("");
       suppressModalReopenRef.current = false;
-      await mapAnswerToCategory(q, answer, region, true);
+      await mapAnswerToCategory(
+        q,
+        answer,
+        region,
+        true,
+        undefined,
+        flowContext.mode === "addDetail"
+      );
     } catch (err) {
       console.error("Error processing voice answer:", err);
       let errorMessage = "Failed to process your voice response. Please try again.";
@@ -862,7 +887,14 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       clearAutoProof();
       // A verified image is the evidence itself — grant the stamp its tier directly.
       const evidenceTier = analysisResult.supportsClaim ? analysisResult.evidenceTier : undefined;
-      await mapAnswerToCategory(currentPrompt, answer, flowRegion, false, evidenceTier);
+      await mapAnswerToCategory(
+        currentPrompt,
+        answer,
+        flowRegion,
+        false,
+        evidenceTier,
+        flowContext.mode === "addDetail"
+      );
     } catch (err) {
       console.error("Error processing image:", err);
       Alert.alert(
@@ -1015,12 +1047,20 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
   }, [pendingProofRequest]);
 
   const handleContinueAfterStampUnlock = () => {
+    if (flowContext.mode === "addDetail") {
+      finishAddDetail();
+      return;
+    }
     modalIntentionallyOpenedRef.current = true;
     clearStampUnlock();
     continueAfterStampUnlockRef.current();
   };
 
   const handleContinueAfterStampUpgrade = () => {
+    if (flowContext.mode === "addDetail") {
+      finishAddDetail();
+      return;
+    }
     continueAfterStampTierUpgrade();
   };
 
@@ -1028,6 +1068,36 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     setStampUpgrade(null);
     clearStampTierUpgrade();
   };
+
+  // Ends an addDetail turn: closes the dialogue and returns the user to the
+  // stamp detail screen. No new question is generated or shown.
+  const finishAddDetail = useCallback(() => {
+    setStampUpgrade(null);
+    clearStampTierUpgrade();
+    clearStampUnlock();
+    clearAddDetailReview();
+    clearDeferredState();
+    setCombinedImageUri(null);
+    setShowQuestionInputModal(false);
+    setPendingQuestion(null);
+    setCurrentPrompt("");
+    setUserAnswer("");
+    modalIntentionallyOpenedRef.current = false;
+    suppressModalReopenRef.current = false;
+    modalDismissedByBackdropRef.current = false;
+    setFlowContext({ mode: "default" });
+  }, [
+    clearStampTierUpgrade,
+    clearStampUnlock,
+    clearAddDetailReview,
+    clearDeferredState,
+    setCombinedImageUri,
+    setShowQuestionInputModal,
+    setPendingQuestion,
+    setCurrentPrompt,
+    setUserAnswer,
+    setStampUpgrade,
+  ]);
 
   const submitRegionAnswer = useCallback(
     async (question: string, answer: string, region?: string) => {
@@ -1139,6 +1209,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     clearStampUnlock,
     handleContinueAfterStampUpgrade,
     clearActiveStampUpgrade,
+    finishAddDetail,
     dismissCrisisSupport,
     dismissSensitiveIntro,
     activateProofFromNotification,
@@ -1198,6 +1269,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       pendingProofRequest,
       pendingProofNotification,
       activeStampUpgrade,
+      addDetailReview: dialogueState.addDetailReview,
       questionInputMode: flowContext.mode,
       ...actions,
     }),
@@ -1236,6 +1308,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       pendingProofRequest,
       pendingProofNotification,
       activeStampUpgrade,
+      dialogueState.addDetailReview,
       flowContext.mode,
       actions,
     ]
