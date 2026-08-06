@@ -55,3 +55,6 @@ redteam.yaml
 
 promptfoo-results.json
 provider.sh
+
+# data backup / rollback records
+skills-passport-backup-*.json
