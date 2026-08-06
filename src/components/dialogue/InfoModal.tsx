@@ -6,10 +6,17 @@ interface InfoModalProps {
   visible: boolean;
   title?: string;
   body: string | string[];
+  buttonLabel?: string;
   onContinue: () => void;
 }
 
-export function InfoModal({ visible, title, body, onContinue }: Readonly<InfoModalProps>) {
+export function InfoModal({
+  visible,
+  title,
+  body,
+  buttonLabel = "Continue",
+  onContinue,
+}: Readonly<InfoModalProps>) {
   const paragraphs = Array.isArray(body) ? body : [body];
 
   return (
@@ -23,7 +30,7 @@ export function InfoModal({ visible, title, body, onContinue }: Readonly<InfoMod
             </Text>
           ))}
           <TouchableOpacity style={styles.button} onPress={onContinue}>
-            <Text style={styles.buttonText}>Continue</Text>
+            <Text style={styles.buttonText}>{buttonLabel}</Text>
           </TouchableOpacity>
         </View>
       </View>

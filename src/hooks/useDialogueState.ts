@@ -82,6 +82,8 @@ export interface DialogueState {
     newTier: number;
   } | null;
   clearStampTierUpgrade: () => void;
+  addDetailReview: { justification: string } | null;
+  clearAddDetailReview: () => void;
   showCrisisSupport: boolean;
   dismissCrisisSupport: () => void;
   showSensitiveIntro: boolean;
@@ -118,7 +120,8 @@ export interface DialogueState {
     answer: string,
     targetRegion?: string,
     checkSensitive?: boolean,
-    evidenceTier?: number
+    evidenceTier?: number,
+    isAddDetail?: boolean
   ) => Promise<DialogueMapResult>;
   handleStartButtonPress: () => Promise<void>;
   handleForceNewQuestion: () => Promise<void>;
@@ -210,6 +213,7 @@ export function useDialogueState(): DialogueState {
     previousTier: number;
     newTier: number;
   } | null>(null);
+  const [addDetailReview, setAddDetailReview] = useState<{ justification: string } | null>(null);
 
   const totalUniqueStamps = useMemo(
     () => countUnlockedStamps(mappedCategories),
@@ -472,6 +476,17 @@ export function useDialogueState(): DialogueState {
     }
   };
 
+  // Ends an addDetail turn without advancing: no new question is generated and
+  // the flow lands on a "Detail recorded" review modal instead.
+  const finishAddDetailTurn = (justification: string) => {
+    setCurrentPrompt("");
+    setUserAnswer("");
+    setPrefetchedQuestion(null);
+    setIsPrefetching(false);
+    setAddDetailReview({ justification });
+    setUiState("idle");
+  };
+
   const mapAnswerToCategory = async (
     question: string,
     answer: string,
@@ -480,7 +495,8 @@ export function useDialogueState(): DialogueState {
     // Set (3-4) when the answer is backed by a Gemini-verified supporting image;
     // lifts the unlocked stamp straight to that evidence tier and skips the
     // (now-redundant) proof-upload prompt.
-    evidenceTier?: number
+    evidenceTier?: number,
+    isAddDetail: boolean = false
   ): Promise<DialogueMapResult> => {
     setUiState("loading");
     setLoadingMessage("Analyzing your response...");
@@ -601,6 +617,10 @@ export function useDialogueState(): DialogueState {
             strippedJustification
           );
           setInteractions((prev) => [...prev, interaction]);
+          if (isAddDetail) {
+            finishAddDetailTurn(strippedJustification || "Detail recorded.");
+            return { mapped: false as const, category: null, interactionId, distressSignal };
+          }
           await advanceToNextQuestion(nextQuestion, advanceOpts);
           return { mapped: false as const, category: null, interactionId, distressSignal };
         }
@@ -698,10 +718,16 @@ export function useDialogueState(): DialogueState {
           });
 
           setCurrentPrompt("");
-          setDeferredNextQuestion(nextQuestion ?? null);
-          setDeferredCheckCompletion(countUnlockedStamps(freshCategories) >= TOTAL_STAMPS);
-          setUiState("idle");
-          if (result.suggestArtifactUpload && evidenceTier == null) {
+          if (isAddDetail) {
+            setDeferredNextQuestion(null);
+            setDeferredCheckCompletion(false);
+            setUiState("idle");
+          } else {
+            setDeferredNextQuestion(nextQuestion ?? null);
+            setDeferredCheckCompletion(countUnlockedStamps(freshCategories) >= TOTAL_STAMPS);
+            setUiState("idle");
+          }
+          if (result.suggestArtifactUpload && evidenceTier == null && !isAddDetail) {
             proof.deferAfterUnlock({
               question,
               answer,
@@ -735,7 +761,7 @@ export function useDialogueState(): DialogueState {
           setUiState("complete");
           return { mapped: true as const, category: categoryNameToCheck, interactionId };
         }
-        if (result.suggestArtifactUpload && evidenceTier == null) {
+        if (result.suggestArtifactUpload && evidenceTier == null && !isAddDetail) {
           proof.requestNow({
             question,
             answer,
@@ -746,6 +772,16 @@ export function useDialogueState(): DialogueState {
             artifactUploadReason: result.artifactUploadReason,
             proofTier: result.proofTier ?? 3,
           });
+        }
+
+        if (isAddDetail) {
+          finishAddDetailTurn(effectiveJustification);
+          return {
+            mapped: false as const,
+            category: categoryNameToCheck,
+            interactionId,
+            distressSignal,
+          };
         }
 
         await advanceToNextQuestion(nextQuestion, advanceOpts);
@@ -811,11 +847,11 @@ export function useDialogueState(): DialogueState {
             previousTier: tierChange.previousTier,
             newTier: tierChange.newTier,
           });
-          setDeferredNextQuestion(nextQuestion ?? null);
+          setDeferredNextQuestion(isAddDetail ? null : (nextQuestion ?? null));
           setDeferredCheckCompletion(false);
           setUiState("idle");
 
-          if (result.suggestArtifactUpload && evidenceTier == null) {
+          if (result.suggestArtifactUpload && evidenceTier == null && !isAddDetail) {
             proof.deferAfterUnlock({
               question,
               answer,
@@ -856,11 +892,17 @@ export function useDialogueState(): DialogueState {
             sensitive: isSensitive,
           });
           setCurrentPrompt("");
-          setDeferredNextQuestion(nextQuestion ?? null);
-          setDeferredCheckCompletion(countUnlockedStamps(freshCategories) >= TOTAL_STAMPS);
-          setUiState("idle");
+          if (isAddDetail) {
+            setDeferredNextQuestion(null);
+            setDeferredCheckCompletion(false);
+            setUiState("idle");
+          } else {
+            setDeferredNextQuestion(nextQuestion ?? null);
+            setDeferredCheckCompletion(countUnlockedStamps(freshCategories) >= TOTAL_STAMPS);
+            setUiState("idle");
+          }
 
-          if (result.suggestArtifactUpload && evidenceTier == null) {
+          if (result.suggestArtifactUpload && evidenceTier == null && !isAddDetail) {
             proof.deferAfterUnlock({
               question,
               answer,
@@ -881,7 +923,7 @@ export function useDialogueState(): DialogueState {
           };
         }
 
-        if (result.suggestArtifactUpload && evidenceTier == null) {
+        if (result.suggestArtifactUpload && evidenceTier == null && !isAddDetail) {
           proof.requestNow({
             question,
             answer,
@@ -892,6 +934,15 @@ export function useDialogueState(): DialogueState {
             artifactUploadReason: result.artifactUploadReason,
             proofTier: result.proofTier ?? 3,
           });
+        }
+        if (isAddDetail) {
+          finishAddDetailTurn(turnJustification);
+          return {
+            mapped: false as const,
+            category: categoryNameToCheck,
+            interactionId,
+            distressSignal,
+          };
         }
         await advanceToNextQuestion(nextQuestion, advanceOpts);
         return {
@@ -913,6 +964,10 @@ export function useDialogueState(): DialogueState {
       };
       const interactionId = await saveConversationInteraction(interaction, strippedJustification);
       setInteractions((prev) => [...prev, interaction]);
+      if (isAddDetail) {
+        finishAddDetailTurn(strippedJustification || "Detail recorded.");
+        return { mapped: false as const, category: null, interactionId, distressSignal };
+      }
       await advanceToNextQuestion(nextQuestion, advanceOpts);
       return { mapped: false as const, category: null, interactionId, distressSignal };
     } catch (err) {
@@ -1185,6 +1240,10 @@ export function useDialogueState(): DialogueState {
     setStampTierUpgrade(null);
   };
 
+  const clearAddDetailReview = () => {
+    setAddDetailReview(null);
+  };
+
   const dismissCrisisSupport = () => {
     setShowCrisisSupport(false);
   };
@@ -1319,5 +1378,7 @@ export function useDialogueState(): DialogueState {
     stampTierUpgrade,
     clearStampTierUpgrade,
     continueAfterStampTierUpgrade,
+    addDetailReview,
+    clearAddDetailReview,
   };
 }

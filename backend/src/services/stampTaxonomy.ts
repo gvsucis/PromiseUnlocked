@@ -211,10 +211,6 @@ function computeDerivedStamps(): string[] {
 
 const DERIVED_STAMPS: string[] = computeDerivedStamps();
 
-function sanitizeStampKey(name: string): string {
-  return name.replace(/[.[\]/]/g, "_");
-}
-
 function sanitizeCategoryId(category: string): string {
   return category.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
 }
@@ -231,7 +227,6 @@ export {
   STAMP_TAXONOMY,
   VALID_CATEGORIES,
   DERIVED_STAMPS,
-  sanitizeStampKey,
   sanitizeCategoryId,
   isValidCategory,
   isValidStamp,

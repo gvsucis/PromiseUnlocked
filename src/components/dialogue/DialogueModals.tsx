@@ -17,7 +17,14 @@ import { QuestionInputModal } from "./QuestionInputModal";
 import ImageEditor from "../ImageEditor";
 import ZoomableImageView from "../ZoomableImageView";
 
-type PriorityModal = "crisis" | "sensitive" | "weakFit" | "stampUnlock" | "stampUpgrade" | null;
+type PriorityModal =
+  | "crisis"
+  | "sensitive"
+  | "weakFit"
+  | "stampUnlock"
+  | "stampUpgrade"
+  | "addDetailReview"
+  | null;
 
 function resolveActiveModal(d: ReturnType<typeof useDialogue>): PriorityModal {
   if (d.showCrisisSupport) return "crisis";
@@ -26,6 +33,7 @@ function resolveActiveModal(d: ReturnType<typeof useDialogue>): PriorityModal {
   if (d.uiState === "weak-fit") return "weakFit";
   if (d.newStampUnlock) return "stampUnlock";
   if (d.activeStampUpgrade) return "stampUpgrade";
+  if (d.addDetailReview) return "addDetailReview";
   return null;
 }
 
@@ -71,8 +79,11 @@ export function DialogueModals() {
         visible={activeModal === "weakFit"}
         justification={d.weakFitJustification}
         isContentWarning={d.contentWarning}
+        newQuestionLabel={d.questionInputMode === "addDetail" ? "Review" : "New Question"}
         onTryAgain={d.handleWeakFitTryAgain}
-        onNewQuestion={d.handleWeakFitNewQuestion}
+        onNewQuestion={
+          d.questionInputMode === "addDetail" ? d.finishAddDetail : d.handleWeakFitNewQuestion
+        }
       />
 
       <AnswerModal
@@ -118,6 +129,7 @@ export function DialogueModals() {
           region={d.newStampUnlock.category}
           sensitive={d.newStampUnlock.sensitive}
           showConfetti={d.showConfetti}
+          primaryLabel={d.questionInputMode === "addDetail" ? "Review" : "Continue"}
           onContinue={d.handleContinueAfterStampUnlock}
           onViewStamp={() => {
             const unlock = d.newStampUnlock;
@@ -142,6 +154,7 @@ export function DialogueModals() {
           newTier={d.activeStampUpgrade.newTier}
           region={d.activeStampUpgrade.category}
           showConfetti={d.showConfetti}
+          primaryLabel={d.questionInputMode === "addDetail" ? "Review" : "Continue"}
           onContinue={d.handleContinueAfterStampUpgrade}
           onViewStamp={() => {
             const upgrade = d.activeStampUpgrade;
@@ -156,6 +169,17 @@ export function DialogueModals() {
           }}
         />
       )}
+
+      <InfoModal
+        visible={activeModal === "addDetailReview"}
+        title="Detail Added"
+        body={[
+          d.addDetailReview?.justification ?? "Thanks — your detail was recorded.",
+          "Review your stamp to see the updated detail.",
+        ]}
+        buttonLabel="Review"
+        onContinue={d.finishAddDetail}
+      />
 
       <InfoModal
         visible={activeModal === "crisis"}

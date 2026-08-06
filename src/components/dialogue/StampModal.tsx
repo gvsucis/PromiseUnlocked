@@ -21,6 +21,7 @@ interface BaseStampModalProps {
   stampName: string;
   region: string;
   showConfetti?: boolean;
+  primaryLabel?: string;
   onContinue: () => void;
   onViewStamp: () => void;
 }
@@ -32,7 +33,15 @@ type StampModalVariant =
 type StampModalProps = BaseStampModalProps & StampModalVariant;
 
 export function StampModal(props: StampModalProps) {
-  const { visible, stampName, region, showConfetti = false, onContinue, onViewStamp } = props;
+  const {
+    visible,
+    stampName,
+    region,
+    showConfetti = false,
+    primaryLabel = "Continue",
+    onContinue,
+    onViewStamp,
+  } = props;
 
   const isUpgrade = props.variant === "upgrade";
   const unlockProps = !isUpgrade
@@ -42,16 +51,21 @@ export function StampModal(props: StampModalProps) {
 
   const iconName = isUpgrade ? "trending-up" : "celebration";
   const iconColor = isUpgrade ? colors.accent.coral : colors.accent.yellow;
-  const titleText = isUpgrade
-    ? "Tier Up!"
-    : isSensitive
-      ? "We unlocked a new stamp."
-      : "Congratulations!";
-  const subtitleText = isUpgrade
-    ? "Your stamp leveled up!"
-    : isSensitive
-      ? "We've added a new experience to your profile."
-      : "You unlocked a new stamp!";
+  let titleText = "Congratulations!";
+
+  if (isUpgrade) {
+    titleText = "Tier Up!";
+  } else if (isSensitive) {
+    titleText = "We unlocked a new stamp.";
+  }
+
+  let subtitleText = "You unlocked a new stamp!";
+
+  if (isUpgrade) {
+    subtitleText = "Your stamp leveled up!";
+  } else if (isSensitive) {
+    subtitleText = "We've added a new experience to your profile.";
+  }
 
   const tier = isUpgrade ? props.newTier : (props.tier ?? DEFAULT_TIER);
   const tierCfg = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG[DEFAULT_TIER];
@@ -112,7 +126,7 @@ export function StampModal(props: StampModalProps) {
                     onPress={onContinue}
                   >
                     <MaterialIcons name="arrow-forward" size={18} color={colors.text.inverse} />
-                    <Text style={styles.buttonPrimaryText}>Continue</Text>
+                    <Text style={styles.buttonPrimaryText}>{primaryLabel}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

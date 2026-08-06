@@ -56,8 +56,9 @@ async function mirrorStampUnlockToFirestore(
       tier,
       categoryName
     );
-  } catch {
-    // AsyncStorage is the source of truth; Firestore mirror is best-effort
+  } catch (error) {
+    // AsyncStorage is the source of truth; the Firestore mirror is best-effort.
+    logErrorToFile("Error mirroring stamp unlock to Firestore:", error);
   }
 }
 

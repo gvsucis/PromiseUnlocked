@@ -2,12 +2,7 @@ import type { Request, Response } from "express";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "@/services/firestore";
 import type { AuthenticatedRequest } from "@/types/firestore";
-import {
-  sanitizeStampKey,
-  sanitizeCategoryId,
-  isValidCategory,
-  isValidStamp,
-} from "@/services/stampTaxonomy";
+import { sanitizeCategoryId, isValidCategory, isValidStamp } from "@/services/stampTaxonomy";
 import { stampQueries } from "@/services/stampQueries";
 
 export class StampController {
@@ -51,7 +46,6 @@ export class StampController {
         .collection("skillPassport")
         .doc(docId);
 
-      const stampKey = `unlockedStamps.${sanitizeStampKey(stampName)}`;
       const existing = await passportRef.get();
       const data = existing.data();
       const hasStamp =
@@ -61,42 +55,39 @@ export class StampController {
 
       const existingTier =
         hasStamp && data?.unlockedStamps
-          ? (data.unlockedStamps as Record<string, { tier?: number }>)[stampName]?.tier ?? 1
+          ? ((data.unlockedStamps as Record<string, { tier?: number }>)[stampName]?.tier ?? 1)
           : 1;
 
       const mergedTier = Math.max(existingTier, targetTier);
 
-      if (hasStamp) {
-        await passportRef.set(
-          {
-            [stampKey]: {
-              timesUnlocked: FieldValue.increment(1),
-              lastUnlockedAt: FieldValue.serverTimestamp(),
-              tier: mergedTier,
-              categoryId: docId,
-            },
+      const stampEntry = hasStamp
+        ? {
+            timesUnlocked: FieldValue.increment(1),
+            lastUnlockedAt: FieldValue.serverTimestamp(),
+            tier: mergedTier,
+            categoryId: docId,
+          }
+        : {
+            timesUnlocked: 1,
+            firstUnlockedAt: FieldValue.serverTimestamp(),
+            lastUnlockedAt: FieldValue.serverTimestamp(),
+            tier: mergedTier,
+            categoryId: docId,
+          };
+
+      await passportRef.set(
+        {
+          unlockedStamps: {
+            [stampName]: stampEntry,
           },
-          { merge: true }
-        );
-      } else {
-        await passportRef.set(
-          {
-            [stampKey]: {
-              timesUnlocked: 1,
-              firstUnlockedAt: FieldValue.serverTimestamp(),
-              lastUnlockedAt: FieldValue.serverTimestamp(),
-              tier: mergedTier,
-              categoryId: docId,
-            },
-          },
-          { merge: true }
-        );
-      }
+        },
+        { merge: true }
+      );
 
       const existingUnlocks =
         hasStamp && data?.unlockedStamps
-          ? (data.unlockedStamps as Record<string, { timesUnlocked?: number }>)[stampName]
-              ?.timesUnlocked ?? 0
+          ? ((data.unlockedStamps as Record<string, { timesUnlocked?: number }>)[stampName]
+              ?.timesUnlocked ?? 0)
           : 0;
 
       return res.json({
