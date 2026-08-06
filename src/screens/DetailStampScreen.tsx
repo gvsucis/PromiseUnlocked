@@ -167,12 +167,12 @@ export default function StampDetailScreen() {
 
           <Text style={styles.subtitle}>{region}</Text>
 
-          {unlockInfo && (
+          {/*{unlockInfo && (
             <View style={styles.unlockedBadge}>
               <MaterialIcons name="lock-open" size={16} color="#FFFFFF" />
               <Text style={styles.unlockedBadgeText}>Unlocked ×{unlockInfo.timesUnlocked}</Text>
             </View>
-          )}
+          )}*/}
         </View>
 
         <View style={styles.sectionHeader}>

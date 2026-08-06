@@ -138,9 +138,17 @@ export default function StampScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background.subtle, paddingTop: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background.subtle,
+  },
+
+  content: {
+    padding: 16,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
   backButton: { marginBottom: 8 },
-  content: { padding: 16, paddingBottom: 40 },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",

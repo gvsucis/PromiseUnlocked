@@ -35,6 +35,7 @@ const radarLabelMap: Record<string, string> = {
 const radarLabels: string[] = REGIONS.map((region) => radarLabelMap[region] ?? region);
 const TIER_TARGET_PER_REGION = 3;
 const RADAR_FLOOR = 8;
+const HEADER_HEIGHT = 130;
 
 export default function PassportScreen() {
   const navigation = useNavigation<PassportNavigationProp>();
@@ -124,15 +125,20 @@ export default function PassportScreen() {
             <MaterialIcons
               name={session.mode === "authenticated" ? "logout" : "person"}
               size={24}
-              color={colors.brand.primary}
+              color={colors.text.inverse}
             />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.title}>My Passport</Text>
+        <View style={styles.headerContainer}>
+          <View style={styles.headerClip}>
+            <View style={styles.headerCircle} />
+            <Text style={styles.headerTitle}>My Passport</Text>
+          </View>
+        </View>
 
         <View style={styles.radarCard}>
-          <Text style={styles.radarTitle}>Growth Radar</Text>
+          <Text style={styles.radarTitle}>My Skills</Text>
           <RadarChart
             data={radarData}
             labels={radarLabels}
@@ -166,46 +172,26 @@ export default function PassportScreen() {
           />
         </View>
 
-        <View style={styles.regionsCard}>
-          <Text style={styles.sectionTitle}>Explore Regions</Text>
-          <View style={styles.grid}>
-            {REGIONS.map((region) => {
-              const unlocked = regionUnlocks[region] ?? [];
-              return (
-                <TouchableOpacity
-                  key={region}
-                  style={styles.regionItem}
-                  onPress={() => {
-                    const catId = getCategoryIdFromName(region);
-                    navigation.navigate("Stamps", { region, categoryId: catId });
-                  }}
-                >
-                  <View style={styles.iconContainer}>
-                    <MaterialIcons
-                      name={unlocked.length > 0 ? "check-circle" : "explore"}
-                      size={32}
-                      color={unlocked.length > 0 ? colors.accent.sky : colors.text.muted}
-                    />
-                  </View>
-                  <Text style={styles.regionText}>{region}</Text>
-                  {unlocked.length > 0 && (
-                    <View style={styles.chipRow}>
-                      {unlocked.slice(0, 2).map((name) => (
-                        <View key={name} style={styles.chip}>
-                          <Text style={styles.chipText} numberOfLines={1}>
-                            {name.length > 18 ? name.slice(0, 16) + "…" : name}
-                          </Text>
-                        </View>
-                      ))}
-                      {unlocked.length > 2 && (
-                        <Text style={styles.moreChip}>+{unlocked.length - 2}</Text>
-                      )}
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+        <Text style={styles.sectionTitle}>Explore Regions</Text>
+        <View style={styles.list}>
+          {REGIONS.map((region) => {
+            const unlocked = regionUnlocks[region] ?? [];
+            const isUnlocked = unlocked.length > 0;
+            return (
+              <TouchableOpacity
+                key={region}
+                style={[styles.regionItem, isUnlocked && styles.regionItemUnlocked]}
+                onPress={() => {
+                  const catId = getCategoryIdFromName(region);
+                  navigation.navigate("Stamps", { region, categoryId: catId });
+                }}
+              >
+                <Text style={isUnlocked ? styles.regionTextUnlocked : styles.regionTextLocked}>
+                  {region}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -215,33 +201,51 @@ export default function PassportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.tinted,
-    paddingTop: 52,
+    backgroundColor: colors.brand.primary,
   },
 
   content: {
-    padding: 16,
+    paddingHorizontal: 16,
     paddingBottom: 40,
-    paddingTop: 20,
+    backgroundColor: colors.background.subtle,
   },
 
   backButton: {
     marginBottom: 8,
   },
 
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: colors.text.primary,
-    textAlign: "center",
-    marginBottom: 16,
-    paddingTop: 60,
+  headerContainer: {
+    marginHorizontal: -16,
+    alignItems: "center",
+    marginBottom: 18,
+  },
+
+  headerClip: {
+    width: "100%",
+    height: HEADER_HEIGHT,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerCircle: {
+    width: 900,
+    height: 900,
+    borderRadius: 450,
+    backgroundColor: colors.brand.primary,
+    position: "absolute",
+    top: -900 + HEADER_HEIGHT,
+  },
+
+  headerTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: colors.text.inverse,
   },
 
   radarCard: {
     backgroundColor: colors.background.card,
     borderRadius: 20,
-    padding: 20,
     alignItems: "center",
     marginBottom: 18,
     shadowColor: colors.accent.sky,
@@ -254,6 +258,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     color: colors.text.primary,
+    paddingTop: 38,
   },
 
   regionsCard: {
@@ -270,7 +275,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: colors.text.primary,
-    marginBottom: 14,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+
+  list: {
+    gap: 12,
+  },
+
+  regionItem: {
+    width: "100%",
+    minHeight: 250,
+    backgroundColor: colors.background.card,
+    borderRadius: 20,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border.medium,
+    shadowColor: colors.accent.sky,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
+  regionItemUnlocked: {
+    backgroundColor: colors.accent.skyLighter,
+    borderColor: colors.brand.primary,
+  },
+
+  regionTextLocked: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: colors.text.secondary,
+    textAlign: "center",
+  },
+
+  regionTextUnlocked: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.accent.skyDark,
+    textAlign: "center",
   },
 
   grid: {
@@ -279,62 +326,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
-  regionItem: {
-    width: "48%",
-    backgroundColor: colors.background.base,
-    borderRadius: 20,
-    paddingVertical: 22,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: colors.border.accent,
-  },
-
-  iconContainer: {
-    width: 68,
-    height: 68,
-    borderRadius: 18,
-    backgroundColor: colors.background.tinted,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-
-  regionText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.text.primary,
-    textAlign: "center",
-  },
-
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    marginTop: 6,
-    gap: 4,
-  },
-
-  chip: {
-    backgroundColor: colors.border.accent,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-
-  chipText: {
-    fontSize: 10,
-    color: colors.accent.skyDark,
-    fontWeight: "600",
-  },
-
-  moreChip: {
-    fontSize: 10,
-    color: colors.text.secondary,
-    fontWeight: "600",
-    lineHeight: 20,
-  },
   floatingButtons: {
     position: "absolute",
     top: 0,

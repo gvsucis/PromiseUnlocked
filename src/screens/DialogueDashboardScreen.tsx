@@ -18,6 +18,7 @@ import StampBadge from "../components/stamps/StampBadge";
 
 // Minimal header actions component used in the screen header.
 const HeaderActions: React.FC<{ onLogout: () => void }> = () => null;
+const HEADER_HEIGHT = 130;
 
 export default function DialogueDashboardScreen() {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList, "DialogueDashboard">>();
@@ -117,12 +118,15 @@ export default function DialogueDashboardScreen() {
       >
         <View style={styles.floatingButtons} pointerEvents="box-none">
           <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
-            <MaterialIcons name="logout" size={24} color={colors.status.error} />
+            <MaterialIcons name="logout" size={24} color={colors.text.inverse} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.header}>
-          <Text style={styles.title}>My Dashboard</Text>
+        <View style={styles.headerContainer}>
+          <View style={styles.headerClip}>
+            <View style={styles.headerCircle} />
+            <Text style={styles.headerTitle}>My Dashboard</Text>
+          </View>
         </View>
 
         <Card style={styles.progressCard}>
@@ -254,7 +258,7 @@ export default function DialogueDashboardScreen() {
 const styles = StyleSheet.create({
   headerActions: { flexDirection: "row", alignItems: "center", marginRight: 8 },
   headerActionButton: { marginLeft: 12 },
-  container: { flex: 1, backgroundColor: colors.background.tinted, paddingTop: 52 },
+  container: { flex: 1, backgroundColor: colors.brand.primary },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -263,9 +267,36 @@ const styles = StyleSheet.create({
   },
   loadingText: { marginTop: 15, fontSize: 16, color: colors.text.accent },
   scrollView: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 110, paddingTop: 80 },
-  header: { alignItems: "center", marginBottom: 20 },
-  title: { fontSize: 28, fontWeight: "bold", color: colors.text.primary, marginTop: 10 },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 110,
+    backgroundColor: colors.background.subtle,
+  },
+  headerContainer: {
+    marginHorizontal: -20,
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  headerClip: {
+    width: "100%",
+    height: HEADER_HEIGHT,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerCircle: {
+    width: 900,
+    height: 900,
+    borderRadius: 450,
+    backgroundColor: colors.brand.primary,
+    position: "absolute",
+    top: -900 + HEADER_HEIGHT,
+  },
+  headerTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: colors.text.inverse,
+  },
   stampUpgradeBadgeContainer: {
     width: 120,
     height: 120,

@@ -2,6 +2,7 @@
  * Stamp-related constants and utilities
  * Centralized for clean configuration and reuse
  */
+import { colors } from "../styles/global";
 
 export const DEFAULT_TIER_IMAGES = {
   t1: "Untitled_design_-_Tier_1__Pencil.png",
@@ -135,10 +136,10 @@ export const TIER_WRAPPERS: Record<number, { uri: string }> = {
 };
 
 export const TIER_CONFIG = {
-  1: { label: "Tier 1", color: "#9CA3AF" },
-  2: { label: "Tier 2", color: "#2E6EE6" },
-  3: { label: "Tier 3", color: "#7C3AED" },
-  4: { label: "Tier 4", color: "#F59E0B" },
+  1: { label: "Tier 1", color: colors.accent.coral },
+  2: { label: "Tier 2", color: colors.accent.magenta },
+  3: { label: "Tier 3", color: colors.accent.teal },
+  4: { label: "Tier 4", color: colors.accent.yellow },
 } as const;
 
 export const DEFAULT_TIER = 1;

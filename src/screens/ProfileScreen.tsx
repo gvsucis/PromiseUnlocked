@@ -788,7 +788,7 @@ export default function ProfileScreen() {
   );
 }
 
-const BANNER_HEIGHT = 160;
+const BANNER_HEIGHT = 130;
 const AVATAR_SIZE = 110;
 
 const styles = StyleSheet.create({
