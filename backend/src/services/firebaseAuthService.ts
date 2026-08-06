@@ -1,12 +1,15 @@
 import axios from "axios";
-import { firebaseAuthSchema } from "../validation/firebaseAuthSchema";
+import { firebaseAuthSchema } from "@/validation/firebaseAuthSchema";
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
+import { db as firestore } from "@/services/firestore";
 
-const FIREBASE_API_KEY =
-  process.env.FIREBASE_API_KEY || "AIzaSyD9KKN0M--DKCwdi5WkLn6sfLkycRlwerwerwr";
+const CLIENT_FIREBASE_API_KEY = process.env.CLIENT_FIREBASE_API_KEY;
 
 const endpoints = {
-  login: `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
-  register: `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
+  login: `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${CLIENT_FIREBASE_API_KEY}`,
+  register: `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${CLIENT_FIREBASE_API_KEY}`,
 };
 
 function mapFirebaseError(code: string) {
@@ -28,7 +31,7 @@ export async function firebaseLogin(email: string, password: string) {
       success: false,
       status: 400,
       message: "Validation failed",
-      details: parseResult.error.errors,
+      details: parseResult.error.issues,
     };
   }
   try {
@@ -37,12 +40,25 @@ export async function firebaseLogin(email: string, password: string) {
       password,
       returnSecureToken: true,
     });
+    const userId = response.data.localId;
+    // Ensure user profile exists in Firestore
+    const userDoc = await firestore.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      await firestore.collection("users").doc(userId).set({
+        uid: userId,
+        email,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        role: "user",
+        metadata: {},
+      });
+    }
     return {
       success: true,
       data: {
         idToken: response.data.idToken,
         refreshToken: response.data.refreshToken,
-        userId: response.data.localId,
+        userId,
       },
     };
   } catch (error: any) {
@@ -55,14 +71,19 @@ export async function firebaseLogin(email: string, password: string) {
   }
 }
 
-export async function firebaseRegister(email: string, password: string) {
+export async function firebaseRegister(
+  email: string,
+  password: string,
+  firstName?: string,
+  lastName?: string
+) {
   const parseResult = firebaseAuthSchema.safeParse({ email, password });
   if (!parseResult.success) {
     return {
       success: false,
       status: 400,
       message: "Validation failed",
-      details: parseResult.error.errors,
+      details: parseResult.error.issues,
     };
   }
   try {
@@ -71,12 +92,32 @@ export async function firebaseRegister(email: string, password: string) {
       password,
       returnSecureToken: true,
     });
+    // Create user profile in Firestore (users collection)
+    const userId = response.data.localId;
+    const fullName = [firstName, lastName].filter(Boolean).join(" ") || undefined;
+    await firestore
+      .collection("users")
+      .doc(userId)
+      .set({
+        uid: userId,
+        email,
+        displayName: fullName ?? null,
+        fullName: fullName ?? null,
+        photoURL: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        role: "user",
+        metadata: {},
+      });
     return {
       success: true,
       data: {
         idToken: response.data.idToken,
         refreshToken: response.data.refreshToken,
-        userId: response.data.localId,
+        userId,
+        firstName,
+        lastName,
+        role: response.data.role,
       },
     };
   } catch (error: any) {

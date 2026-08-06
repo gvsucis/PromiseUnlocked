@@ -1,684 +1,335 @@
-import React, { useRef } from "react";
-import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from "react-native";
-import { Text, Card, ActivityIndicator } from "react-native-paper";
-import { LinearGradient } from "expo-linear-gradient";
-import TopTabBar from "../components/TopTabBar";
+import React, { useState } from "react";
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { Text, Card } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { RouteProp } from "@react-navigation/native";
-import ConfettiCannon from "react-native-confetti-cannon";
 import { RootStackParamList } from "../types/navigation";
 import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
-import { GeminiService } from "../services/geminiService";
-import { ImagePickerService } from "../services/imagePickerService";
-import { Audio } from "expo-av";
-import ZoomableImageView from "../components/ZoomableImageView";
-import ImageEditor from "../components/ImageEditor";
-import { LoadingModal } from "../components/dialogue/LoadingModal";
-import { CompletionModal } from "../components/dialogue/CompletionModal";
-import { WeakFitModal } from "../components/dialogue/WeakFitModal";
-import { InputMethodModal } from "../components/dialogue/InputMethodModal";
-import { AnswerModal } from "../components/dialogue/AnswerModal";
-import { VoiceRecordingModal } from "../components/dialogue/VoiceRecordingModal";
-import { CategoryCard } from "../components/dialogue/CategoryCard";
-import { useDialogueState } from "../hooks/useDialogueState";
+import { fetchProfile, buildLocalProfile, type UserProfile } from "../services/profileService";
+import { useDialogue } from "../context/DialogueProvider";
+import { DialogueButton } from "../components/dialogue/DialogueButton";
+import { useAuth } from "../context/AuthContext";
+import { colors } from "../styles/global";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { signOut } from "firebase/auth";
+import { auth } from "../config/firebase";
+import StampBadge from "../components/stamps/StampBadge";
 
-const { width } = Dimensions.get("window");
+// Minimal header actions component used in the screen header.
+const HeaderActions: React.FC<{ onLogout: () => void }> = () => null;
 
-type DialogueDashboardNavigationProp = StackNavigationProp<RootStackParamList, "DialogueDashboard">;
-type DialogueDashboardRouteProp = RouteProp<RootStackParamList, "DialogueDashboard">;
+export default function DialogueDashboardScreen() {
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, "DialogueDashboard">>();
+  const { session } = useAuth();
+  const d = useDialogue();
+  const insets = useSafeAreaInsets();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
-interface Props {
-  readonly navigation: DialogueDashboardNavigationProp;
-  readonly route: DialogueDashboardRouteProp;
-}
+  useFocusEffect(
+    React.useCallback(() => {
+      d.refreshData();
+      fetchProfile()
+        .then(setProfile)
+        .catch(() => setProfile(buildLocalProfile()));
+    }, [d.refreshData])
+  );
 
-export default function DialogueDashboardScreen({ navigation }: Props) {
-  const {
-    mappedCategories,
-    uiState,
-    currentPrompt,
-    userAnswer,
-    loadingMessage,
-    error,
-    weakFitJustification,
-    showConfetti,
-    showInputMethodModal,
-    loading,
-    setUserAnswer,
-    setUiState,
-    setCurrentPrompt,
-    setShowInputMethodModal,
-    resetData,
-    mapAnswerToCategory,
-    handleStartButtonPress,
-    handleTextInputPress,
-    handleVoiceInputPress,
-    prepareImageQuestion,
-    handleSubmitAnswer,
-    handleWeakFitTryAgain,
-    handleWeakFitNewQuestion,
-    dismissAnswerModal,
-  } = useDialogueState();
-
-  // Voice recording state
-  const [isRecording, setIsRecording] = React.useState(false);
-  const [recordingDuration, setRecordingDuration] = React.useState(0);
-  const [recordingUri, setRecordingUri] = React.useState<string | null>(null);
-  const [isProcessingAudio, setIsProcessingAudio] = React.useState(false);
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Image state
-  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
-  const [showImageEditor, setShowImageEditor] = React.useState(false);
-  const [tempImageUri, setTempImageUri] = React.useState<string | null>(null);
-  const [zoomViewerVisible, setZoomViewerVisible] = React.useState(false);
-  const [isAnalyzingImage, setIsAnalyzingImage] = React.useState(false);
-  const [isAnswerFromVoice, setIsAnswerFromVoice] = React.useState(false);
+  const selectedPvaName = profile?.selectedPvaName ?? null;
 
   React.useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity
-          onPress={handleReset}
-          style={{ marginRight: 15 }}
-          disabled={uiState !== "idle" && uiState !== "complete"}
-        >
-          <MaterialIcons
-            name="refresh"
-            size={24}
-            color={uiState !== "idle" && uiState !== "complete" ? "#ccc" : "#fff"}
-          />
-        </TouchableOpacity>
-      ),
+    navigation.getParent()?.setOptions({
+      headerRight: () => <HeaderActions onLogout={handleLogout} />,
     });
-  }, [navigation, uiState]);
+  }, [navigation, session.mode]);
 
-  const handleReset = () => {
-    Alert.alert("Reset Dashboard", "Are you sure you want to reset? All progress will be lost.", [
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Reset",
-        style: "destructive",
-        onPress: () => {
-          resetData().catch(() => {
-            Alert.alert("Error", "Failed to reset dashboard");
-          });
-        },
+        text: "Sign Out",
+        onPress: () => void signOut(auth).then(() => navigation.replace("Login")),
       },
     ]);
   };
 
-  const handleInputMethodSelect = async (method: "text" | "voice" | "image") => {
-    setShowInputMethodModal(false);
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    if (method === "text") {
-      handleTextInputPress();
-    } else if (method === "voice") {
-      handleVoiceInputPress();
-    } else if (method === "image") {
-      const ready = prepareImageQuestion();
-      if (ready) showImageSourceDialog();
-    }
-  };
-
-  // --- Voice recording ---
-
-  const startRecording = async () => {
-    try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordingDuration(0);
-
-      timerRef.current = setInterval(() => {
-        setRecordingDuration((prev) => prev + 1);
-      }, 1000);
-    } catch (err) {
-      console.error("Failed to start recording", err);
-      Alert.alert("Error", "Failed to start recording. Please check your microphone permissions.");
-    }
-  };
-
-  const stopRecording = async () => {
-    if (!recordingRef.current) return;
-
-    try {
-      setIsRecording(false);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-
-      await recordingRef.current.stopAndUnloadAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
-
-      if (uri) setRecordingUri(uri);
-    } catch (err) {
-      console.error("Error stopping recording:", err);
-      Alert.alert("Error", "Failed to stop recording");
-    }
-  };
-
-  const handleVoiceSubmit = async () => {
-    if (!recordingUri || !currentPrompt) {
-      Alert.alert("Error", "No recording available");
-      return;
-    }
-
-    setIsProcessingAudio(true);
-
-    try {
-      const transcriptionResult = await GeminiService.transcribeAudio(recordingUri);
-
-      if (
-        !transcriptionResult.success ||
-        !transcriptionResult.transcript ||
-        transcriptionResult.transcript.trim().length === 0
-      ) {
-        Alert.alert(
-          "Transcription Error",
-          transcriptionResult.error ||
-            "Could not transcribe your audio. Please try recording again."
-        );
-        return;
-      }
-
-      const question = currentPrompt;
-      const answer = transcriptionResult.transcript.trim();
-
-      setRecordingUri(null);
-      setRecordingDuration(0);
-      setCurrentPrompt("");
-
-      await mapAnswerToCategory(question, answer);
-      setIsAnswerFromVoice(false);
-    } catch (err) {
-      console.error("Error processing voice answer:", err);
-      let errorMessage = "Failed to process your voice response. Please try again.";
-
-      if (err instanceof Error) {
-        if (err.message.includes("Rate limit")) {
-          errorMessage = "Rate limit exceeded. Please wait a moment and try again.";
-        } else if (err.message.includes("API key")) {
-          errorMessage = "API key issue. Please check your configuration.";
+  const completionPercentage = Math.round((d.mappedCategories.length / TOTAL_CATEGORIES) * 100);
+  const { totalStampsUnlocked, totalXp, regionsExplored } = React.useMemo(() => {
+    let stamps = 0;
+    let xp = 0;
+    let regions = 0;
+    for (const mc of d.mappedCategories) {
+      const list = mc.unlockedStamps;
+      const count = Array.isArray(list) ? list.length : 0;
+      stamps += count;
+      if (Array.isArray(list)) {
+        for (const st of list) {
+          xp += (st.tier ?? 1) * 5;
         }
       }
-
-      Alert.alert("Processing Error", errorMessage);
-    } finally {
-      setIsProcessingAudio(false);
+      if (count > 0) regions++;
     }
-  };
+    return { totalStampsUnlocked: stamps, totalXp: xp, regionsExplored: regions };
+  }, [d.mappedCategories]);
 
-  const handleVoiceCancel = async () => {
-    if (isRecording && recordingRef.current) {
-      try {
-        await recordingRef.current.stopAndUnloadAsync();
-        recordingRef.current = null;
-      } catch (err) {
-        console.error("Error stopping recording on cancel:", err);
+  const upgradableStamp = React.useMemo(() => {
+    const candidates: {
+      stamp: { name: string; tier?: number };
+      category: string;
+      categoryId: string;
+    }[] = [];
+    for (const mc of d.mappedCategories) {
+      for (const s of mc.unlockedStamps ?? []) {
+        if ((s.tier ?? 1) <= 2)
+          candidates.push({ stamp: s, category: mc.category, categoryId: mc.categoryId });
       }
     }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setUiState("idle");
-    setIsRecording(false);
-    setRecordingUri(null);
-    setRecordingDuration(0);
-  };
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Date.now() / 60000) % candidates.length];
+  }, [d.mappedCategories]);
 
-  // --- Image handling ---
-
-  const showImageSourceDialog = () => {
-    Alert.alert(
-      "Choose Image Source",
-      "How would you like to add your image?",
-      [
-        { text: "Take Photo", onPress: () => handleImageSelection(true) },
-        { text: "Choose from Gallery", onPress: () => handleImageSelection(false) },
-        { text: "Cancel", style: "cancel" },
-      ],
-      { cancelable: true }
+  const unexploredRegions = React.useMemo(() => {
+    const exploredSet = new Set(
+      d.mappedCategories
+        .filter((mc) => (mc.unlockedStamps?.length ?? 0) > 0)
+        .map((mc) => mc.category)
     );
-  };
+    // Use a stable, deterministic ordering instead of Math.random()
+    return CATEGORY_TAXONOMY.filter((cat) => !exploredSet.has(cat.category))
+      .sort((a, b) => a.category.localeCompare(b.category))
+      .slice(0, 3);
+  }, [d.mappedCategories]);
 
-  const handleImageSelection = async (useCamera: boolean) => {
-    try {
-      const hasPermissions = await ImagePickerService.requestPermissions();
-      if (!hasPermissions) {
-        Alert.alert(
-          "Permissions Required",
-          "Camera and photo library permissions are required to use this feature."
-        );
-        return;
-      }
-
-      const result = useCamera
-        ? await ImagePickerService.takePhotoWithCamera()
-        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
-
-      if (result.success && result.imageUri) {
-        setTempImageUri(result.imageUri);
-        setShowImageEditor(true);
-      } else if (result.error) {
-        Alert.alert("Error", result.error);
-      }
-    } catch (err) {
-      console.error("Error selecting image:", err);
-      Alert.alert("Error", "An error occurred while selecting image");
-    }
-  };
-
-  const handleImageEditorSave = (editedImageUri: string) => {
-    setSelectedImage(editedImageUri);
-    setShowImageEditor(false);
-    setTempImageUri(null);
-    setUiState("answering");
-  };
-
-  const handleImageEditorCancel = () => {
-    setShowImageEditor(false);
-    setTempImageUri(null);
-    setUiState("idle");
-  };
-
-  const handleSubmitImage = async () => {
-    if (!selectedImage || !currentPrompt) {
-      Alert.alert("Error", "Missing image or question");
-      return;
-    }
-
-    setIsAnalyzingImage(true);
-    setUiState("loading");
-
-    try {
-      const analysisResult = await GeminiService.analyzeActionImage(selectedImage);
-
-      if (!analysisResult.success || !analysisResult.rawResponse) {
-        throw new Error(analysisResult.error || "Failed to analyze image");
-      }
-
-      const answer = analysisResult.rawResponse;
-      setSelectedImage(null);
-
-      await mapAnswerToCategory(currentPrompt, answer);
-    } catch (err) {
-      console.error("Error processing image:", err);
-      Alert.alert("Error", "Failed to process image. Please try again.");
-      setUiState("idle");
-    } finally {
-      setIsAnalyzingImage(false);
-    }
-  };
-
-  // --- UI helpers ---
-
-  const handleCardClick = (categoryName: string) => {
-    const mapped = mappedCategories.find((c) => c.category === categoryName);
-    if (mapped) {
-      Alert.alert(categoryName, `Why you have this trait:\n\n"${mapped.justification}"`, [
-        { text: "OK" },
-      ]);
-    } else {
-      {
-        mappedCategories.length === 0
-          ? Alert.alert(
-              "Not Yet Mapped",
-              "This trait is not yet mapped to you. Click the 'Start' button to discover new traits!",
-              [{ text: "OK" }]
-            )
-          : Alert.alert(
-              "Not Yet Mapped",
-              "This trait is not yet mapped to you. Click the 'Continue' button to discover new traits!",
-              [{ text: "OK" }]
-            );
-      }
-    }
-  };
-
-  const renderCategoryCards = () => {
-    const mappedNames = new Map(mappedCategories.map((c) => [c.category, c]));
-
-    return CATEGORY_TAXONOMY.map((item) => (
-      <CategoryCard
-        key={item.category}
-        category={{
-          ...item,
-          example: "",
-          icon: item.icon || "category",
-        }}
-        isMapped={mappedNames.has(item.category)}
-        mappedData={mappedNames.get(item.category)}
-        onPress={() => handleCardClick(item.category)}
-      />
-    ));
-  };
-
-  const completionPercentage = Math.round((mappedCategories.length / TOTAL_CATEGORIES) * 100);
-
-  if (loading) {
+  if (d.loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#667eea" />
         <Text style={styles.loadingText}>Loading your journey...</Text>
       </View>
     );
   }
 
   return (
-    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.floatingButtons} pointerEvents="box-none">
+          <TouchableOpacity onPress={handleLogout} style={styles.floatingButton}>
+            <MaterialIcons name="logout" size={24} color={colors.status.error} />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.header}>
-          <MaterialIcons name="explore" size={40} color="#fff" />
-          <Text style={styles.title}>My Skills Passport</Text>
+          <MaterialIcons name="explore" size={40} color={colors.accent.sky} />
+          <Text style={styles.title}>{selectedPvaName ?? "My PVA Style"}</Text>
           <Text style={styles.subtitle}>
-            {mappedCategories.length}/{TOTAL_CATEGORIES} categories discovered
+            {d.mappedCategories.length}/{TOTAL_CATEGORIES} categories discovered
           </Text>
         </View>
 
         <Card style={styles.progressCard}>
           <Card.Content>
             <View style={styles.progressHeader}>
-              <MaterialIcons name="trending-up" size={24} color="#667eea" />
-              <Text style={styles.progressTitle}>Your Progress</Text>
+              <MaterialIcons name="trending-up" size={24} color={colors.accent.sky} />
+              <Text style={styles.nextStepsTitle}>Your Progress</Text>
             </View>
             <View style={styles.statsRow}>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{mappedCategories.length}</Text>
-                <Text style={styles.statLabel}>Mapped</Text>
+                <Text style={styles.statNumber}>{totalStampsUnlocked}</Text>
+                <Text style={styles.statLabel}>Stamps Earned</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{TOTAL_CATEGORIES}</Text>
-                <Text style={styles.statLabel}>Total</Text>
+                <Text style={styles.statNumber}>{regionsExplored}</Text>
+                <Text style={styles.statLabel}>Regions Mapped</Text>
               </View>
               <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{completionPercentage}%</Text>
-                <Text style={styles.statLabel}>Complete</Text>
+                <Text style={styles.statNumber}>🏆 {totalXp}</Text>
+                <Text style={styles.statLabel}>Total XP</Text>
               </View>
             </View>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${completionPercentage}%` }]} />
             </View>
-
-            {mappedCategories.length < TOTAL_CATEGORIES && (
-              <TouchableOpacity
-                style={styles.startButton}
-                onPress={handleStartButtonPress}
-                disabled={uiState !== "idle"}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons
-                  name="play-arrow"
-                  size={28}
-                  color="white"
-                  style={styles.startButtonIcon}
-                />
-                <Text style={styles.startButtonText}>
-                  {mappedCategories.length === 0 ? "Start" : "Continue"}
-                </Text>
-              </TouchableOpacity>
-            )}
+            <DialogueButton variant="dashboard" />
           </Card.Content>
         </Card>
 
-        <TopTabBar
-          containerStyle={styles.topTabBarInPassport}
-          tabs={[
-            {
-              key: "profile",
-              title: "Profile",
-              onPress: () => navigation.navigate("Profile"),
-            },
-            {
-              key: "schools",
-              title: "Schools",
-              onPress: () => {},
-            },
-            {
-              key: "interests",
-              title: "Interests",
-              onPress: () => {},
-            },
-          ]}
-        />
-
-        {error ? (
-          <Card style={styles.errorCard}>
+        {upgradableStamp && (
+          <Card style={styles.nextStepsCard}>
             <Card.Content>
-              <Text style={styles.errorText}>🚨 {error}</Text>
+              <View style={styles.nextStepsHeader}>
+                <MaterialIcons name="auto-awesome" size={20} color={colors.accent.sky} />
+                <Text style={styles.nextStepsTitle}>Add More Detail</Text>
+              </View>
+              <View style={styles.stampUpgradeBody}>
+                <View style={styles.stampUpgradeBadgeContainer}>
+                  <StampBadge
+                    stampName={upgradableStamp.stamp.name}
+                    tier={upgradableStamp.stamp.tier ?? 1}
+                    size="detail"
+                  />
+                </View>
+                <Text style={styles.stampUpgradeName}>{upgradableStamp.stamp.name}</Text>
+                <Text style={styles.stampUpgradeRegion}>{upgradableStamp.category}</Text>
+                <TouchableOpacity
+                  style={styles.stampUpgradeButton}
+                  onPress={() =>
+                    navigation.navigate("StampDetails", {
+                      stamp: upgradableStamp.stamp.name,
+                      region: upgradableStamp.category,
+                      categoryId: upgradableStamp.categoryId,
+                    })
+                  }
+                >
+                  <Text style={styles.stampUpgradeButtonText}>View Stamp</Text>
+                </TouchableOpacity>
+              </View>
             </Card.Content>
           </Card>
-        ) : null}
+        )}
 
-        <View style={styles.categoryGrid}>{renderCategoryCards()}</View>
+        {unexploredRegions.length > 0 && (
+          <Card style={styles.nextStepsCard}>
+            <Card.Content>
+              <View style={styles.nextStepsHeader}>
+                <MaterialIcons name="explore" size={20} color={colors.accent.sky} />
+                <Text style={styles.nextStepsTitle}>Explore New Regions</Text>
+              </View>
+              {unexploredRegions.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={styles.nextStepsRow}
+                  onPress={() =>
+                    navigation.navigate("Stamps", { region: cat.category, categoryId: cat.id })
+                  }
+                >
+                  <View style={styles.nextStepsRowLeft}>
+                    <MaterialIcons
+                      name={
+                        (cat.icon as React.ComponentProps<typeof MaterialIcons>["name"]) ?? "place"
+                      }
+                      size={20}
+                      color={colors.accent.sky}
+                    />
+                    <Text style={styles.nextStepsRowTitle}>{cat.category}</Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={20} color={colors.text.muted} />
+                </TouchableOpacity>
+              ))}
+            </Card.Content>
+          </Card>
+        )}
+
+        {(() => {
+          const next = [
+            { label: "Collect your first stamp", target: 1 },
+            { label: "Collect 5 stamps", target: 5 },
+            { label: "Collect 10 stamps", target: 10 },
+          ].find(({ target }) => totalStampsUnlocked < target);
+          if (!next) return null;
+          return (
+            <Card style={styles.nextStepsCard}>
+              <Card.Content>
+                <View style={styles.nextStepsHeader}>
+                  <MaterialIcons name="military-tech" size={20} color={colors.accent.sky} />
+                  <Text style={styles.nextStepsTitle}>Next Milestone</Text>
+                </View>
+                <View style={styles.stampUpgradeBody}>
+                  <View style={styles.stampUpgradePlaceholder}>
+                    <Text style={styles.milestoneBubbleText}>{next.target}</Text>
+                  </View>
+                  <Text style={styles.stampUpgradeName}>{next.label}</Text>
+                  <Text style={styles.stampUpgradeRegion}>
+                    {totalStampsUnlocked} / {next.target} stamps
+                  </Text>
+                  <DialogueButton variant="dashboard" />
+                </View>
+              </Card.Content>
+            </Card>
+          );
+        })()}
       </ScrollView>
-
-      <LoadingModal visible={uiState === "loading"} message={loadingMessage} />
-
-      <CompletionModal visible={uiState === "complete"} onDismiss={() => setUiState("idle")} />
-
-      <WeakFitModal
-        visible={uiState === "weak-fit"}
-        justification={weakFitJustification}
-        onTryAgain={handleWeakFitTryAgain}
-        onNewQuestion={handleWeakFitNewQuestion}
-      />
-
-      <AnswerModal
-        visible={uiState === "answering"}
-        currentPrompt={currentPrompt}
-        userAnswer={userAnswer}
-        selectedImage={selectedImage}
-        isAnswerFromVoice={isAnswerFromVoice}
-        isAnalyzingImage={isAnalyzingImage}
-        onDismiss={dismissAnswerModal}
-        onZoomImage={() => setZoomViewerVisible(true)}
-        onChangeImage={() => {
-          setSelectedImage(null);
-          showImageSourceDialog();
-        }}
-        onSubmitImage={handleSubmitImage}
-        onAnswerChange={setUserAnswer}
-        onRecordAgain={() => {
-          setUiState("voice-recording");
-          setUserAnswer("");
-          setIsAnswerFromVoice(false);
-        }}
-        onSubmit={handleSubmitAnswer}
-      />
-
-      <VoiceRecordingModal
-        visible={uiState === "voice-recording"}
-        currentPrompt={currentPrompt}
-        isRecording={isRecording}
-        recordingDuration={recordingDuration}
-        recordingUri={recordingUri}
-        isProcessingAudio={isProcessingAudio}
-        onStartRecording={startRecording}
-        onStopRecording={stopRecording}
-        onRecordAgain={() => {
-          setRecordingUri(null);
-          setRecordingDuration(0);
-        }}
-        onSubmit={handleVoiceSubmit}
-        onCancel={handleVoiceCancel}
-      />
-
-      <InputMethodModal
-        visible={showInputMethodModal}
-        onSelect={handleInputMethodSelect}
-        onClose={() => setShowInputMethodModal(false)}
-      />
-
-      {showImageEditor && tempImageUri && (
-        <ImageEditor
-          imageUri={tempImageUri}
-          onSave={handleImageEditorSave}
-          onCancel={handleImageEditorCancel}
-        />
-      )}
-
-      {zoomViewerVisible && selectedImage && (
-        <ZoomableImageView
-          imageUri={selectedImage}
-          visible={zoomViewerVisible}
-          onClose={() => setZoomViewerVisible(false)}
-        />
-      )}
-
-      {showConfetti && (
-        <ConfettiCannon
-          count={200}
-          origin={{ x: width / 2, y: 0 }}
-          autoStart={true}
-          fadeOut={true}
-          fallSpeed={3000}
-        />
-      )}
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  headerActions: { flexDirection: "row", alignItems: "center", marginRight: 8 },
+  headerActionButton: { marginLeft: 12 },
+  container: { flex: 1, backgroundColor: colors.background.tinted, paddingTop: 52 },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#667eea",
+    backgroundColor: colors.background.tinted,
   },
-  loadingText: {
-    marginTop: 15,
-    fontSize: 16,
-    color: "#fff",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  header: {
+  loadingText: { marginTop: 15, fontSize: 16, color: colors.text.accent },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 110, paddingTop: 80 },
+  header: { alignItems: "center", marginBottom: 20 },
+  title: { fontSize: 28, fontWeight: "bold", color: colors.text.primary, marginTop: 10 },
+  stampUpgradeBadgeContainer: {
+    width: 120,
+    height: 120,
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 10,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
-    marginTop: 10,
-  },
-  topTabBarInPassport: {
-    marginTop: 14,
-    marginBottom: 14,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.45)",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
-    marginTop: 5,
-  },
-  progressCard: {
-    marginBottom: 20,
-    elevation: 4,
-  },
-  progressHeader: {
+  subtitle: { fontSize: 16, color: colors.text.secondary, marginTop: 5 },
+  progressCard: { marginBottom: 20, elevation: 4 },
+  progressHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 15 },
+  statsRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 20 },
+  statBox: { alignItems: "center" },
+  statNumber: { fontSize: 32, fontWeight: "bold", color: colors.brand.primary },
+  statLabel: { fontSize: 12, color: "#666", marginTop: 5 },
+  progressBar: { height: 10, backgroundColor: "#E0E0E0", borderRadius: 5, overflow: "hidden" },
+  progressFill: { height: "100%", backgroundColor: colors.brand.primary },
+  floatingButtons: { position: "absolute", right: 16, flexDirection: "row", gap: 8, zIndex: 10 },
+  floatingButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  nextStepsCard: { marginBottom: 20, elevation: 4 },
+  nextStepsHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  nextStepsTitle: { fontSize: 18, fontWeight: "700", color: colors.text.primary },
+  nextStepsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 15,
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.accent,
   },
-  progressTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 20,
-  },
-  statBox: {
-    alignItems: "center",
-  },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#667eea",
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-    marginTop: 5,
-  },
-  progressBar: {
-    height: 10,
-    backgroundColor: "#E0E0E0",
-    borderRadius: 5,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#667eea",
-  },
-  startButton: {
-    flexDirection: "row",
+  nextStepsRowLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  nextStepsRowTitle: { fontSize: 14, fontWeight: "600", color: colors.text.primary },
+  milestoneBubbleText: { color: colors.accent.magenta, fontSize: 32, fontWeight: "800" },
+  stampUpgradeBody: { alignItems: "center", paddingVertical: 12 },
+  stampUpgradePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.accent.yellow,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#4CAF50",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginTop: 20,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    marginBottom: 10,
   },
-  startButtonIcon: {
-    marginRight: 8,
+  stampUpgradeName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text.primary,
+    textAlign: "center",
+    marginBottom: 4,
   },
-  startButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
+  stampUpgradeRegion: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    textAlign: "center",
+    marginBottom: 14,
   },
-  errorCard: {
-    marginBottom: 20,
-    backgroundColor: "#ffebee",
-    elevation: 4,
+  stampUpgradeButton: {
+    backgroundColor: colors.accent.teal,
+    paddingVertical: 10,
+    paddingHorizontal: 28,
+    borderRadius: 10,
   },
-  errorText: {
-    fontSize: 14,
-    color: "#c62828",
-  },
-  categoryGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
+  stampUpgradeButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 });

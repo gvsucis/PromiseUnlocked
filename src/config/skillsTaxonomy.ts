@@ -1,96 +1,18 @@
-// Centralized Skills Taxonomy config
-// Exported for use across services and screens
+/**
+ * Skills Taxonomy Configuration
+ * - SKILLS_TAXONOMY: derived from STAMP_TAXONOMY
+ * - SKILL_SYNONYMS: common variations for better user input matching
+ * - AVAILABLE_STAMPS: computed from STAMP_TAXONOMY (one entry per detailed variant)
+ */
+
+import { Stamp } from "../types/dashboard";
+import { STAMP_TAXONOMY, computeDerivedSkills } from "./stampTaxonomy";
+import { DEFAULT_TIER_IMAGES, slugify } from "./stampConstants";
 
 export type SkillsTaxonomy = Record<string, string[]>;
 
-export const SKILLS_TAXONOMY: SkillsTaxonomy = {
-  "Human Skills": [
-    "Communication",
-    "Collaboration",
-    "Leadership",
-    "Empathy",
-    "Active Listening",
-    "Conflict Resolution",
-    "Networking",
-    "Public Speaking",
-    "Team Management",
-  ],
-  "Meta-Learning": [
-    "Critical Thinking",
-    "Research Skills",
-    "Self-Reflection",
-    "Learning Strategies",
-    "Information Synthesis",
-    "Knowledge Transfer",
-    "Continuous Learning",
-    "Adaptability",
-  ],
-  "Maker & Builder": [
-    "Prototyping",
-    "Design Thinking",
-    "Craftsmanship",
-    "Innovation",
-    "Technical Skills",
-    "Project Management",
-    "Problem Solving",
-    "Creative Construction",
-    "Engineering",
-  ],
-  "Civic Impact": [
-    "Community Engagement",
-    "Social Responsibility",
-    "Advocacy",
-    "Volunteer Work",
-    "Policy Understanding",
-    "Cultural Awareness",
-    "Environmental Stewardship",
-    "Civic Participation",
-  ],
-  "Creative Expression": [
-    "Artistic Creation",
-    "Storytelling",
-    "Music",
-    "Writing",
-    "Visual Arts",
-    "Performance",
-    "Creative Problem Solving",
-    "Imagination",
-    "Aesthetic Appreciation",
-  ],
-  "Problem-Solving": [
-    "Analytical Thinking",
-    "Strategic Planning",
-    "Troubleshooting",
-    "Decision Making",
-    "Systems Thinking",
-    "Root Cause Analysis",
-    "Innovation",
-    "Logic",
-    "Pattern Recognition",
-  ],
-  "Work Experience": [
-    "Professional Skills",
-    "Industry Knowledge",
-    "Workplace Etiquette",
-    "Time Management",
-    "Client Relations",
-    "Business Acumen",
-    "Career Development",
-    "Mentorship",
-  ],
-  "Future Self": [
-    "Goal Setting",
-    "Vision Creation",
-    "Personal Growth",
-    "Skill Development",
-    "Career Planning",
-    "Life Balance",
-    "Self-Improvement",
-    "Aspiration Mapping",
-  ],
-};
+export const SKILLS_TAXONOMY: SkillsTaxonomy = computeDerivedSkills();
 
-//Common Skills variations for better matching
 export const SKILL_SYNONYMS: Record<string, string[]> = {
   Communication: [
     "communicating",
@@ -130,3 +52,51 @@ export const SKILL_SYNONYMS: Record<string, string[]> = {
   "Time Management": ["managing time", "scheduling", "planning", "organizing time"],
   "Goal Setting": ["setting goals", "planning goals", "objective setting", "target setting"],
 };
+
+/**
+ * Generate AVAILABLE_STAMPS from STAMP_TAXONOMY
+ * Creates one Stamp entry per detailed variant, with default tier images
+ */
+function computeAvailableStamps(): Stamp[] {
+  const stampMap = new Map<string, Stamp>();
+
+  Object.entries(STAMP_TAXONOMY).forEach(([category, families]) => {
+    families.forEach((family) => {
+      const familyName = family.stampCategory;
+      const baseDescription = family.description || family.iconConcept || familyName;
+
+      const stamps = family.detailedStamps?.length
+        ? family.detailedStamps.map((variant) => ({
+            id: slugify(category, familyName, variant.name),
+            name: variant.name,
+            description: variant.iconConcept || baseDescription,
+          }))
+        : [
+            {
+              id: slugify(category, familyName),
+              name: familyName,
+              description: baseDescription,
+            },
+          ];
+
+      stamps.forEach(({ id, name, description }) => {
+        if (!stampMap.has(id)) {
+          stampMap.set(id, {
+            id,
+            name,
+            icon: "",
+            category,
+            description,
+            unlocked: false,
+            tierImages: { ...DEFAULT_TIER_IMAGES },
+          });
+        }
+      });
+    });
+  });
+
+  return Array.from(stampMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export const AVAILABLE_STAMPS: Stamp[] = computeAvailableStamps();
+export const TOTAL_STAMPS = AVAILABLE_STAMPS.length;

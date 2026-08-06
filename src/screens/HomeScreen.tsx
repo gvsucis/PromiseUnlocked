@@ -15,7 +15,7 @@ import { RootStackParamList } from "../types/navigation";
 
 import { ImagePickerService } from "../services/imagePickerService";
 import { GeminiService } from "../services/geminiService";
-import { AnalysisResult } from "../types";
+
 import ZoomableImageView from "../components/ZoomableImageView";
 import ImageEditor from "../components/ImageEditor";
 
@@ -23,9 +23,9 @@ import ImageEditor from "../components/ImageEditor";
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, "Home">;
 
-interface Props {
+type Props = Readonly<{
   navigation: HomeScreenNavigationProp;
-}
+}>;
 
 const { width } = Dimensions.get("window");
 
@@ -73,6 +73,7 @@ export default function HomeScreen({ navigation }: Props) {
         showSnackbar(result.error || "Failed to select image");
       }
     } catch (error) {
+      console.error("Image selection error:", error);
       showSnackbar("An error occurred while selecting image");
     }
   };
@@ -126,6 +127,7 @@ export default function HomeScreen({ navigation }: Props) {
         );
       }
     } catch (error) {
+      console.error("Image analysis error:", error);
       Alert.alert(
         "Error",
         "An unexpected error occurred. Please check your internet connection and try again.",
@@ -151,6 +153,7 @@ export default function HomeScreen({ navigation }: Props) {
         ]);
       }
     } catch (error) {
+      console.error("API test error:", error);
       Alert.alert("Test Error", "An unexpected error occurred during API test.", [{ text: "OK" }]);
     } finally {
       setIsAnalyzing(false);

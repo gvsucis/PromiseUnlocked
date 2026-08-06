@@ -1,16 +1,16 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   StyleSheet,
   Text,
-  Animated,
   ScrollView,
   Alert,
-  Dimensions,
   Image,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import { FAB, Card, Title, Paragraph, Snackbar, TextInput, Button } from "react-native-paper";
+import { Card, Title, Paragraph, Snackbar, TextInput, Button } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -19,12 +19,18 @@ import { RootStackParamList } from "../types/navigation";
 import { ImagePickerService } from "../services/imagePickerService";
 import { GeminiService } from "../services/geminiService";
 import ZoomableImageView from "../components/ZoomableImageView";
-import ImageEditor from "../components/ImageEditor";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from "expo-audio";
 
 type FollowUpQuestionScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   "FollowUpQuestion"
 >;
+
 type FollowUpQuestionScreenRouteProp = RouteProp<RootStackParamList, "FollowUpQuestion">;
 
 interface Props {
@@ -32,177 +38,48 @@ interface Props {
   route: FollowUpQuestionScreenRouteProp;
 }
 
-const { width, height } = Dimensions.get("window");
+export default function FollowUpQuestionScreen({ navigation, route }: Readonly<Props>) {
+  const { question } = route.params;
 
-export default function FollowUpQuestionScreen({ navigation, route }: Props) {
-  const { question, context } = route.params;
-
-  // State management
-  const [isOpen, setIsOpen] = useState(false);
-  const [inputMode, setInputMode] = useState<"none" | "text" | "voice" | "image">("none");
   const [textInput, setTextInput] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [zoomViewerVisible, setZoomViewerVisible] = useState(false);
-  const [showImageEditor, setShowImageEditor] = useState(false);
-  const [tempImageUri, setTempImageUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [voiceUri, setVoiceUri] = useState<string | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recordingTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Animation values for FAB
-  const animation = useRef(new Animated.Value(0)).current;
-  const button1Animation = useRef(new Animated.Value(0)).current;
-  const button2Animation = useRef(new Animated.Value(0)).current;
-  const button3Animation = useRef(new Animated.Value(0)).current;
-  const rotateAnimation = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    return () => {
+      if (recordingTimer.current) clearInterval(recordingTimer.current);
+      if (recorder.isRecording) {
+        recorder.stop().catch(() => {});
+      }
+    };
+  }, []);
 
   const showSnackbar = (message: string) => {
     setSnackbarMessage(message);
     setSnackbarVisible(true);
   };
 
-  const toggleMenu = () => {
-    const toValue = isOpen ? 0 : 1;
-
-    Animated.parallel([
-      Animated.spring(animation, {
-        toValue,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 8,
-      }),
-      Animated.spring(rotateAnimation, {
-        toValue,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 8,
-      }),
-      Animated.stagger(50, [
-        Animated.spring(button1Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-        Animated.spring(button2Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-        Animated.spring(button3Animation, {
-          toValue,
-          useNativeDriver: true,
-          tension: 100,
-          friction: 8,
-        }),
-      ]),
-    ]).start();
-
-    setIsOpen(!isOpen);
-  };
-
-  const rotation = rotateAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "45deg"],
-  });
-
-  const button1Style = {
-    transform: [
-      {
-        translateX: button1Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -96],
-        }),
-      },
-      {
-        translateY: button1Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 0],
-        }),
-      },
-      {
-        scale: button1Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  const button2Style = {
-    transform: [
-      {
-        translateX: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -68],
-        }),
-      },
-      {
-        translateY: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -68],
-        }),
-      },
-      {
-        scale: button2Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  const button3Style = {
-    transform: [
-      {
-        translateX: button3Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 0],
-        }),
-      },
-      {
-        translateY: button3Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -96],
-        }),
-      },
-      {
-        scale: button3Animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 1],
-        }),
-      },
-    ],
-  };
-
-  // Handle image selection
-  const handleImageSelection = async (useCamera: boolean, allowEditing: boolean = false) => {
+  const handleImageSelection = async (useCamera: boolean) => {
     try {
       const hasPermissions = await ImagePickerService.requestPermissions();
       if (!hasPermissions) {
-        Alert.alert(
-          "Permissions Required",
-          "Camera and photo library permissions are required to use this feature."
-        );
+        Alert.alert("Permissions Required", "Camera and photo library permissions are required.");
         return;
       }
-
-      let result;
-      if (useCamera) {
-        result = await ImagePickerService.takePhotoWithCamera();
-      } else {
-        result = await ImagePickerService.pickImageFromGalleryWithOptions(allowEditing);
-      }
-
+      const result = useCamera
+        ? await ImagePickerService.takePhotoWithCamera()
+        : await ImagePickerService.pickImageFromGalleryWithOptions(false);
       if (result.success && result.imageUri) {
-        setTempImageUri(result.imageUri);
-        setShowImageEditor(!allowEditing);
-        if (allowEditing) {
-          setSelectedImage(result.imageUri);
-          showSnackbar("Image selected successfully!");
-        }
+        setSelectedImage(result.imageUri);
+        showSnackbar("Image attached!");
       } else {
         showSnackbar(result.error || "Failed to select image");
       }
@@ -212,134 +89,120 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleImageEditorSave = (editedImageUri: string) => {
-    setSelectedImage(editedImageUri);
-    setShowImageEditor(false);
-    setTempImageUri(null);
-    showSnackbar("Image ready for analysis!");
-  };
-
-  const handleImageEditorCancel = () => {
-    setShowImageEditor(false);
-    setTempImageUri(null);
-  };
-
-  // Handle photo button press
-  const handlePhotoPress = () => {
-    toggleMenu();
-
-    // Use setTimeout to ensure the FAB menu animation completes before showing Alert
-    setTimeout(() => {
-      setInputMode("image");
-
-      // Show options to choose between camera and gallery
-      Alert.alert(
-        "Choose Image Source",
-        "How would you like to add your image?",
-        [
-          {
-            text: "Take Photo",
-            onPress: () => handleImageSelection(true, false), // Use camera
-          },
-          {
-            text: "Choose from Gallery",
-            onPress: () => handleImageSelection(false, false), // Use gallery
-          },
-          {
-            text: "Cancel",
-            style: "cancel",
-            onPress: () => setInputMode("none"),
-          },
-        ],
-        { cancelable: true, onDismiss: () => setInputMode("none") }
-      );
-    }, 300); // Wait for FAB animation to complete
-  };
-
-  // Handle voice button press
-  const handleVoicePress = () => {
-    toggleMenu();
-    setInputMode("voice");
-    navigation.navigate("VoiceAnalysis", { question, context });
-  };
-
-  // Handle text button press
-  const handleTextPress = () => {
-    toggleMenu();
-    setInputMode("text");
-  };
-
-  // Submit text response
-  const handleSubmitText = async () => {
-    if (!textInput.trim()) {
-      showSnackbar("Please enter a response");
-      return;
-    }
-
-    setIsAnalyzing(true);
+  const handleStartRecording = async () => {
     try {
-      // For text responses, we'll navigate to TextAnalysis screen with the question context
-      // Or we could create a simple result showing the user's response
-      Alert.alert(
-        "Response Recorded",
-        "Your response has been recorded. This feature will send your answer for AI analysis.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              setTextInput("");
-              navigation.goBack();
-            },
-          },
-        ]
-      );
+      const { status } = await requestRecordingPermissionsAsync();
+      if (status !== "granted") {
+        showSnackbar("Microphone permission is required");
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecordingDuration(0);
+      setIsRecording(true);
+      recordingTimer.current = setInterval(() => {
+        setRecordingDuration((d) => d + 1);
+      }, 1000);
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred");
-    } finally {
-      setIsAnalyzing(false);
+      console.error("Failed to start recording:", error);
+      showSnackbar("Failed to start recording");
     }
   };
 
-  // Submit image response
-  const handleSubmitImage = async () => {
-    if (!selectedImage) {
-      showSnackbar("Please select an image first");
+  const handleStopRecording = async () => {
+    if (!recorder.isRecording) return;
+    try {
+      setIsRecording(false);
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current);
+        recordingTimer.current = null;
+      }
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      if (recorder.uri) setVoiceUri(recorder.uri);
+    } catch (error) {
+      console.error("Failed to stop recording:", error);
+      showSnackbar("Failed to stop recording");
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!textInput.trim() && !selectedImage && !voiceUri) {
+      showSnackbar("Please enter a response, record audio, or attach an image");
       return;
     }
 
     setIsAnalyzing(true);
     try {
-      // Analyze the image in the context of the follow-up question
-      const result = await GeminiService.analyzeActionImage(selectedImage);
+      if (voiceUri) {
+        // Voice-to-text: transcribe into the input so it can be reviewed and sent.
+        const transcription = await GeminiService.transcribeAudio(voiceUri);
+        if (transcription.success && transcription.transcript?.trim()) {
+          setTextInput((prev) =>
+            [prev.trim(), transcription.transcript!.trim()].filter(Boolean).join(" ")
+          );
+          setVoiceUri(null);
+          setRecordingDuration(0);
+        } else {
+          Alert.alert(
+            "Transcription Failed",
+            transcription.error || "Couldn't transcribe your recording. Please try again."
+          );
+        }
+        return;
+      }
 
-      if (result.success) {
-        navigation.navigate("Result", { result });
+      if (selectedImage) {
+        const result = await GeminiService.analyzeActionImage(selectedImage, question);
+        if (result.success) {
+          navigation.navigate("Result", { result });
+        } else {
+          Alert.alert("Analysis Failed", result.error || "Failed to analyze");
+        }
       } else {
-        Alert.alert("Analysis Failed", result.error || "Failed to analyze image");
+        setTextInput("");
+        navigation.goBack();
       }
     } catch (error) {
+      console.error("Follow-up submit error:", error);
       Alert.alert("Error", "An unexpected error occurred");
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleImagePickPress = () => {
+    Alert.alert("Choose Image Source", "How would you like to add your image?", [
+      { text: "Take Photo", onPress: () => handleImageSelection(true) },
+      { text: "Choose from Gallery", onPress: () => handleImageSelection(false) },
+      { text: "Cancel", style: "cancel" },
+    ]);
   };
 
   return (
-    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Question Card */}
-        <Card style={styles.questionCard}>
-          <Card.Content>
-            <View style={styles.cardTitleContainer}>
-              <MaterialIcons name="extension" size={24} color="#667eea" />
-              <Title style={styles.cardTitle}>Follow-up Question</Title>
-            </View>
-            <Paragraph style={styles.questionText}>{question}</Paragraph>
-          </Card.Content>
-        </Card>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Question Card */}
+          <Card style={styles.questionCard}>
+            <Card.Content>
+              <View style={styles.cardTitleContainer}>
+                <MaterialIcons name="extension" size={24} color="#667eea" />
+                <Title style={styles.cardTitle}>Follow-up Question</Title>
+              </View>
+              <Paragraph style={styles.questionText}>{question}</Paragraph>
+            </Card.Content>
+          </Card>
 
-        {/* Text Input Mode */}
-        {inputMode === "text" && (
+          {/* Text Input */}
           <Card style={styles.inputCard}>
             <Card.Content>
               <View style={styles.cardTitleContainer}>
@@ -352,175 +215,104 @@ export default function FollowUpQuestionScreen({ navigation, route }: Props) {
                 value={textInput}
                 onChangeText={setTextInput}
                 multiline
-                numberOfLines={6}
+                numberOfLines={4}
                 style={styles.textInput}
                 outlineColor="#6C5CE7"
                 activeOutlineColor="#667eea"
-                autoCorrect={true}
               />
-              <Button
-                mode="contained"
-                onPress={handleSubmitText}
-                loading={isAnalyzing}
-                disabled={isAnalyzing || !textInput.trim()}
-                style={styles.submitButton}
-                buttonColor="#6C5CE7"
+            </Card.Content>
+          </Card>
+
+          {/* Preview Row: image/voice on left, icons on right */}
+          <View style={styles.attachmentRow}>
+            <View style={styles.previewsLeft}>
+              {selectedImage && (
+                <View style={styles.previewItem}>
+                  <TouchableOpacity onPress={() => setZoomViewerVisible(true)}>
+                    <Image source={{ uri: selectedImage }} style={styles.thumbnail} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.removeBtn} onPress={() => setSelectedImage(null)}>
+                    <MaterialIcons name="cancel" size={18} color="#FF6B6B" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {voiceUri && (
+                <View style={styles.previewItem}>
+                  <View style={styles.voicePreview}>
+                    <MaterialIcons name="mic" size={20} color="#4ECDC4" />
+                    <Text style={styles.voiceDuration}>{recordingDuration}s</Text>
+                  </View>
+                  <TouchableOpacity style={styles.removeBtn} onPress={() => setVoiceUri(null)}>
+                    <MaterialIcons name="cancel" size={18} color="#FF6B6B" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+            <View style={styles.iconsRight}>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={isRecording ? handleStopRecording : handleStartRecording}
               >
-                {isAnalyzing ? "Analyzing..." : "Submit Response"}
-              </Button>
-            </Card.Content>
-          </Card>
-        )}
-
-        {/* Image Input Mode */}
-        {inputMode === "image" && selectedImage && (
-          <Card style={styles.inputCard}>
-            <Card.Content>
-              <View style={styles.cardTitleContainer}>
-                <MaterialIcons name="photo-camera" size={22} color="#667eea" />
-                <Title style={styles.inputTitle}>Selected Image</Title>
-              </View>
-              <TouchableOpacity onPress={() => setZoomViewerVisible(true)}>
-                <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+                <MaterialIcons
+                  name={isRecording ? "stop-circle" : "mic"}
+                  size={28}
+                  color={isRecording ? "#FF6B6B" : "#4ECDC4"}
+                />
               </TouchableOpacity>
-              <View style={styles.imageActions}>
-                <Button
-                  mode="outlined"
-                  onPress={() => setSelectedImage(null)}
-                  style={styles.changeImageButton}
-                  textColor="#6C5CE7"
-                >
-                  Change Image
-                </Button>
-                <Button
-                  mode="contained"
-                  onPress={handleSubmitImage}
-                  loading={isAnalyzing}
-                  disabled={isAnalyzing}
-                  style={styles.submitButton}
-                  buttonColor="#6C5CE7"
-                >
-                  {isAnalyzing ? "Analyzing..." : "Submit Image"}
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
+              <TouchableOpacity style={styles.iconBtn} onPress={handleImagePickPress}>
+                <MaterialIcons name="image" size={28} color="#FF6B6B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionRow}>
+            <Button
+              mode="text"
+              textColor="rgba(255,255,255,0.7)"
+              onPress={() => navigation.goBack()}
+            >
+              Skip
+            </Button>
+            <Button
+              mode="text"
+              textColor="rgba(255,255,255,0.7)"
+              onPress={() => navigation.goBack()}
+            >
+              New Region
+            </Button>
+            <Button
+              mode="contained"
+              onPress={handleSubmit}
+              loading={isAnalyzing}
+              disabled={isAnalyzing || (!textInput.trim() && !selectedImage && !voiceUri)}
+              buttonColor="#6C5CE7"
+            >
+              {isAnalyzing ? "Analyzing..." : "Submit"}
+            </Button>
+          </View>
+        </ScrollView>
+
+        {/* Zoom Viewer */}
+        {zoomViewerVisible && selectedImage && (
+          <ZoomableImageView
+            imageUri={selectedImage}
+            visible={zoomViewerVisible}
+            onClose={() => setZoomViewerVisible(false)}
+          />
         )}
 
-        {/* Instructions when no input mode selected */}
-        {inputMode === "none" && (
-          <Card style={styles.instructionCard}>
-            <Card.Content>
-              <Paragraph style={styles.instructionText}>
-                Tap the + button below to choose how you'd like to respond:
-              </Paragraph>
-              <View style={styles.optionsList}>
-                <View style={styles.optionItem}>
-                  <MaterialIcons name="image" size={24} color="#FF6B6B" />
-                  <Text style={styles.optionText}>Share a photo</Text>
-                </View>
-                <View style={styles.optionItem}>
-                  <MaterialIcons name="mic" size={24} color="#4ECDC4" />
-                  <Text style={styles.optionText}>Record your voice</Text>
-                </View>
-                <View style={styles.optionItem}>
-                  <MaterialIcons name="chat-bubble" size={24} color="#45B7D1" />
-                  <Text style={styles.optionText}>Type a response</Text>
-                </View>
-              </View>
-            </Card.Content>
-          </Card>
-        )}
-      </ScrollView>
-
-      {/* Floating Action Buttons */}
-      <View style={styles.fabContainer}>
-        <View style={styles.fabInner}>
-          {/* Action Button 1 - Photo */}
-          <Animated.View style={[styles.actionButton, button1Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="image" size={28} color="white" />
-                </View>
-              )}
-              onPress={handlePhotoPress}
-              style={[styles.fab, { backgroundColor: "#FF6B6B" }]}
-              size="small"
-            />
-          </Animated.View>
-
-          {/* Action Button 2 - Voice */}
-          <Animated.View style={[styles.actionButton, button2Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="mic" size={28} color="white" />
-                </View>
-              )}
-              onPress={handleVoicePress}
-              style={[styles.fab, { backgroundColor: "#4ECDC4" }]}
-              size="small"
-            />
-          </Animated.View>
-
-          {/* Action Button 3 - Text */}
-          <Animated.View style={[styles.actionButton, button3Style]} pointerEvents="auto">
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="chat-bubble" size={28} color="white" />
-                </View>
-              )}
-              onPress={handleTextPress}
-              style={[styles.fab, { backgroundColor: "#45B7D1" }]}
-              size="small"
-            />
-          </Animated.View>
-
-          {/* Main FAB */}
-          <Animated.View style={[styles.mainFabWrapper, { transform: [{ rotate: rotation }] }]}>
-            <FAB
-              icon={() => (
-                <View style={styles.iconContainer}>
-                  <MaterialIcons name="add" size={32} color="white" />
-                </View>
-              )}
-              onPress={toggleMenu}
-              style={[styles.mainFab, { backgroundColor: "#6C5CE7" }]}
-            />
-          </Animated.View>
-        </View>
-      </View>
-
-      {/* Image Editor Modal */}
-      {showImageEditor && tempImageUri && (
-        <ImageEditor
-          imageUri={tempImageUri}
-          onSave={handleImageEditorSave}
-          onCancel={handleImageEditorCancel}
-        />
-      )}
-
-      {/* Zoom Viewer Modal */}
-      {zoomViewerVisible && selectedImage && (
-        <ZoomableImageView
-          imageUri={selectedImage}
-          visible={zoomViewerVisible}
-          onClose={() => setZoomViewerVisible(false)}
-        />
-      )}
-
-      {/* Snackbar */}
-      <Snackbar
-        visible={snackbarVisible}
-        onDismiss={() => setSnackbarVisible(false)}
-        duration={3000}
-        style={styles.snackbar}
-      >
-        {snackbarMessage}
-      </Snackbar>
-    </LinearGradient>
+        {/* Snackbar */}
+        <Snackbar
+          visible={snackbarVisible}
+          onDismiss={() => setSnackbarVisible(false)}
+          duration={3000}
+          style={styles.snackbar}
+        >
+          {snackbarMessage}
+        </Snackbar>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -569,87 +361,70 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   textInput: {
-    marginBottom: 15,
+    marginBottom: 0,
     backgroundColor: "#fff",
   },
-  submitButton: {
-    marginTop: 10,
+  attachmentRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    minHeight: 60,
   },
-  previewImage: {
-    width: "100%",
-    height: 200,
+  previewsLeft: {
+    flexDirection: "row",
+    gap: 10,
+    flex: 1,
+    flexWrap: "wrap",
+  },
+  previewItem: {
+    position: "relative",
+  },
+  thumbnail: {
+    width: 80,
+    height: 80,
     borderRadius: 8,
-    marginBottom: 15,
+    backgroundColor: "#eee",
   },
-  imageActions: {
+  voicePreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: "rgba(78, 205, 196, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  voiceDuration: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4ECDC4",
+  },
+  removeBtn: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+  },
+  iconsRight: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    marginLeft: 12,
+  },
+  iconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 10,
-  },
-  changeImageButton: {
-    flex: 1,
-    borderColor: "#6C5CE7",
-  },
-  instructionCard: {
-    elevation: 4,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-  },
-  instructionText: {
-    fontSize: 16,
-    color: "#555",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  optionsList: {
-    gap: 15,
-  },
-  optionItem: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 15,
-    paddingVertical: 8,
-  },
-  optionText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  fabContainer: {
-    position: "absolute",
-    bottom: 30,
-    right: 0,
-    left: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fabInner: {
-    position: "relative",
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mainFab: {
-    position: "absolute",
-    margin: 0,
-    elevation: 6,
-  },
-  mainFabWrapper: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionButton: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fab: {
-    elevation: 6,
-  },
-  iconContainer: {
-    alignItems: "center",
-    justifyContent: "center",
   },
   snackbar: {
     backgroundColor: "#6C5CE7",

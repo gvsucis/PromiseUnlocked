@@ -3,12 +3,17 @@ import { View, StyleSheet, Text, TouchableOpacity, ScrollView, Alert } from "rea
 import { Button, Card, Title, Paragraph, ActivityIndicator } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from "expo-audio";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../types/navigation";
 import { GeminiService } from "../services/geminiService";
-import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { SKILLS_TAXONOMY, normalizeTaxonomyCategoryName } from "../services/skillTaxonomyService";
 
 type VoiceAnalysisScreenNavigationProp = StackNavigationProp<RootStackParamList, "VoiceAnalysis">;
 type VoiceAnalysisScreenRouteProp = RouteProp<RootStackParamList, "VoiceAnalysis">;
@@ -19,7 +24,7 @@ interface Props {
 }
 
 export default function VoiceAnalysisScreen({ navigation, route }: Props) {
-  const { question, context } = route.params || {};
+  const { question } = route.params || {};
 
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,8 +32,8 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
   const [analysis, setAnalysis] = useState<string>("");
   const [identifiedSkills, setIdentifiedSkills] = useState<{ [category: string]: string[] }>({});
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
-  const recording = useRef<Audio.Recording | null>(null);
   const durationTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -41,7 +46,7 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
 
   const requestPermissions = async () => {
     try {
-      const { status } = await Audio.requestPermissionsAsync();
+      const { status } = await requestRecordingPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("Permission Required", "Please grant microphone permission to record audio.");
         return false;
@@ -58,16 +63,13 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
       const hasPermission = await requestPermissions();
       if (!hasPermission) return;
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-
-      recording.current = newRecording;
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
       setRecordingDuration(0);
 
@@ -83,7 +85,7 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
 
   const stopRecording = async () => {
     try {
-      if (!recording.current) return;
+      if (!recorder.isRecording) return;
 
       setIsRecording(false);
       if (durationTimer.current) {
@@ -91,15 +93,14 @@ export default function VoiceAnalysisScreen({ navigation, route }: Props) {
         durationTimer.current = null;
       }
 
-      await recording.current.stopAndUnloadAsync();
-      const uri = recording.current.getURI();
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      const uri = recorder.uri;
 
       if (uri) {
         setIsProcessing(true);
         await processAudio(uri);
       }
-
-      recording.current = null;
     } catch (error) {
       console.error("Failed to stop recording:", error);
       Alert.alert("Error", "Failed to stop recording. Please try again.");
@@ -212,32 +213,35 @@ Format your response as a thoughtful analysis that helps them understand their s
     setRecordingDuration(0);
   };
 
+  const hasCategory = (categories: string[], targetCategory: string): boolean =>
+    categories.map(normalizeTaxonomyCategoryName).includes(targetCategory);
+
   const generateFollowUpQuestion = (): string => {
     const categories = Object.keys(identifiedSkills);
     const firstCategory = categories[0];
     const firstSkill = firstCategory ? identifiedSkills[firstCategory]?.[0] : undefined;
-    if (categories.includes("Creative Expression")) {
+    if (hasCategory(categories, "Creative Expression")) {
       return "Would you create a small piece this week (e.g., a 60-second reel, a sketch, or a short story) to explore this interest?";
     }
-    if (categories.includes("Maker & Builder")) {
+    if (hasCategory(categories, "Maker & Builder")) {
       return "What quick prototype could you build in the next 2–3 hours to test an idea from this activity?";
     }
-    if (categories.includes("Meta-Learning")) {
+    if (hasCategory(categories, "Meta-Learning & Self-Awareness")) {
       return "What is one question you’re curious about here, and how would you research it?";
     }
-    if (categories.includes("Human Skills")) {
+    if (hasCategory(categories, "Human Skills")) {
       return "Who could you share or collaborate with this week to amplify your impact or get feedback?";
     }
-    if (categories.includes("Problem-Solving")) {
+    if (hasCategory(categories, "Problem-Solving")) {
       return "What challenge did you hit during this activity, and how might you approach it differently next time?";
     }
-    if (categories.includes("Civic Impact")) {
+    if (hasCategory(categories, "Civic & Community")) {
       return "Is there a community or cause that could benefit from this—what’s one small action you could take?";
     }
-    if (categories.includes("Work Experience")) {
+    if (hasCategory(categories, "Work Experience")) {
       return "Is there a real-world context (internship, freelance, volunteer) where you could apply this in the next month?";
     }
-    if (categories.includes("Future Self")) {
+    if (hasCategory(categories, "Future Self & Direction")) {
       return "If this became part of your routine, what would “leveling up” look like in 30 days?";
     }
     if (firstSkill) {

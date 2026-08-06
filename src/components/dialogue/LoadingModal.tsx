@@ -1,30 +1,38 @@
 import React from "react";
-import { Modal, View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 
 interface LoadingModalProps {
   visible: boolean;
   message: string;
 }
 
-export function LoadingModal({ visible, message }: LoadingModalProps) {
+// Plain overlay instead of a native <Modal>: iOS can't transition two modals at
+// once, so a native modal here would make the question modal fail to present.
+export function LoadingModal({ visible, message }: Readonly<LoadingModalProps>) {
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalLoadingText}>{message}</Text>
-          <ActivityIndicator size="large" color="#667eea" style={styles.modalSpinner} />
-        </View>
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        <Text style={styles.modalLoadingText}>{message}</Text>
+        <ActivityIndicator size="large" color="#667eea" style={styles.modalSpinner} />
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    flex: 1,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 1000,
+    elevation: 1000,
   },
   modalContent: {
     backgroundColor: "white",

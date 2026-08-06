@@ -12,6 +12,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 interface WeakFitModalProps {
   visible: boolean;
   justification: string;
+  isContentWarning?: boolean;
+  newQuestionLabel?: string;
   onTryAgain: () => void;
   onNewQuestion: () => void;
 }
@@ -19,42 +21,59 @@ interface WeakFitModalProps {
 export function WeakFitModal({
   visible,
   justification,
+  isContentWarning = false,
+  newQuestionLabel = "New Question",
   onTryAgain,
   onNewQuestion,
-}: WeakFitModalProps) {
+}: Readonly<WeakFitModalProps>) {
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <TouchableWithoutFeedback onPress={onNewQuestion}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+      <TouchableWithoutFeedback onPress={onTryAgain}>
         <View style={styles.modalOverlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalContent}>
               <MaterialIcons
-                name="help-outline"
+                name={isContentWarning ? "warning" : "help-outline"}
                 size={48}
-                color="#ff9800"
+                color={isContentWarning ? "#e53935" : "#ff9800"}
                 style={styles.weakFitIcon}
               />
-              <Text style={styles.weakFitTitle}>Need More Details</Text>
+              <Text style={styles.weakFitTitle}>
+                {isContentWarning ? "Inappropriate Content" : "Need More Details"}
+              </Text>
               <Text style={styles.weakFitJustification}>{justification}</Text>
               <Text style={styles.weakFitPrompt}>
-                Would you like to provide more details about your answer, or move to a different
-                question?
+                {isContentWarning
+                  ? "Please keep your response respectful and try again."
+                  : "Would you like to provide more details about your answer, or move to a different question?"}
               </Text>
               <View style={styles.weakFitButtons}>
-                <TouchableOpacity
-                  style={[styles.weakFitButton, styles.weakFitButtonSecondary]}
-                  onPress={onNewQuestion}
-                >
-                  <MaterialIcons name="skip-next" size={20} color="#667eea" />
-                  <Text style={styles.weakFitButtonTextSecondary}>New Question</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.weakFitButton, styles.weakFitButtonPrimary]}
-                  onPress={onTryAgain}
-                >
-                  <MaterialIcons name="edit" size={20} color="#fff" />
-                  <Text style={styles.weakFitButtonTextPrimary}>Add Details</Text>
-                </TouchableOpacity>
+                {isContentWarning ? (
+                  <TouchableOpacity
+                    style={[styles.weakFitButton, styles.weakFitButtonPrimary]}
+                    onPress={onTryAgain}
+                  >
+                    <MaterialIcons name="check" size={20} color="#fff" />
+                    <Text style={styles.weakFitButtonTextPrimary}>OK</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.weakFitButton, styles.weakFitButtonSecondary]}
+                      onPress={onNewQuestion}
+                    >
+                      <MaterialIcons name="skip-next" size={20} color="#667eea" />
+                      <Text style={styles.weakFitButtonTextSecondary}>{newQuestionLabel}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.weakFitButton, styles.weakFitButtonPrimary]}
+                      onPress={onTryAgain}
+                    >
+                      <MaterialIcons name="edit" size={20} color="#fff" />
+                      <Text style={styles.weakFitButtonTextPrimary}>Add Details</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             </View>
           </TouchableWithoutFeedback>
@@ -66,7 +85,7 @@ export function WeakFitModal({
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",

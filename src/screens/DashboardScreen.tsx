@@ -7,190 +7,25 @@ import {
   TouchableOpacity,
   Dimensions,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Button, Card, ActivityIndicator, Chip } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import TopTabBar from "../components/TopTabBar";
 import { getTaxonomySkillsWithStatus, getSkillsStats } from "../services/userSkillsService";
-import { getJSONFromStorage, setJSONInStorage } from "../util/asyncStorage";
-
+import { getJSONFromStorage, setJSONInStorage } from "../utils/asyncStorage";
+import { Stamp, UserProgress, TranscriptSummary, CourseAnalysis } from "../types/dashboard";
+import { AVAILABLE_STAMPS, SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { fetchMyStamps, getCachedStamps } from "../services/stampSyncService";
+import { subscribeToDashboardRefresh } from "../services/dashboardRefreshService";
 const { width } = Dimensions.get("window");
 
-interface Stamp {
-  id: string;
-  name: string;
-  icon: string;
-  category: string;
-  description: string;
-  unlocked: boolean;
-  dateUnlocked?: string;
+interface UnknownType {
+  [key: string]: string;
 }
-
-interface UserProgress {
-  totalScans: number;
-  stamps: Stamp[];
-  achievements: string[];
-  transcriptData?: TranscriptSummary;
-  lastScanDate?: string;
-}
-
-interface TranscriptSummary {
-  institution?: string;
-  studentName?: string;
-  degree?: string;
-  gpa?: string;
-  totalCredits?: string;
-  graduationDate?: string;
-  coursesBySubject: { [key: string]: number };
-  topGrades: string[];
-  achievements: string[];
-}
-
-interface CourseAnalysis {
-  subjects: { [key: string]: number };
-  advancedCourses: number;
-  diversityScore: number;
-  totalCourses: number;
-}
-
-const AVAILABLE_STAMPS: Stamp[] = [
-  // Academic Stamps
-  {
-    id: "math",
-    name: "Mathematics Master",
-    icon: "🧮",
-    category: "Academic",
-    description: "Completed mathematics courses",
-    unlocked: false,
-  },
-  {
-    id: "science",
-    name: "Science Scholar",
-    icon: "🔬",
-    category: "Academic",
-    description: "Excelled in science subjects",
-    unlocked: false,
-  },
-  {
-    id: "literature",
-    name: "Literature Lover",
-    icon: "📚",
-    category: "Academic",
-    description: "Studied literature and languages",
-    unlocked: false,
-  },
-  {
-    id: "history",
-    name: "History Buff",
-    icon: "🏛️",
-    category: "Academic",
-    description: "Passionate about history",
-    unlocked: false,
-  },
-  {
-    id: "art",
-    name: "Creative Artist",
-    icon: "🎨",
-    category: "Academic",
-    description: "Pursued arts and creativity",
-    unlocked: false,
-  },
-  {
-    id: "music",
-    name: "Music Maestro",
-    icon: "🎵",
-    category: "Academic",
-    description: "Talented in music",
-    unlocked: false,
-  },
-
-  // Achievement Stamps
-  {
-    id: "dean_list",
-    name: "Dean's List",
-    icon: "⭐",
-    category: "Achievement",
-    description: "Made it to the Dean's List",
-    unlocked: false,
-  },
-  {
-    id: "honor_roll",
-    name: "Honor Roll",
-    icon: "🏆",
-    category: "Achievement",
-    description: "Achieved honor roll status",
-    unlocked: false,
-  },
-  {
-    id: "graduate",
-    name: "Graduate",
-    icon: "🎓",
-    category: "Achievement",
-    description: "Successfully graduated",
-    unlocked: false,
-  },
-  {
-    id: "scholarship",
-    name: "Scholar",
-    icon: "💎",
-    category: "Achievement",
-    description: "Received scholarships",
-    unlocked: false,
-  },
-
-  // Interest Stamps
-  {
-    id: "technology",
-    name: "Tech Enthusiast",
-    icon: "💻",
-    category: "Interest",
-    description: "Passionate about technology",
-    unlocked: false,
-  },
-  {
-    id: "sports",
-    name: "Athletic Spirit",
-    icon: "⚽",
-    category: "Interest",
-    description: "Active in sports",
-    unlocked: false,
-  },
-  {
-    id: "leadership",
-    name: "Natural Leader",
-    icon: "👑",
-    category: "Interest",
-    description: "Demonstrated leadership skills",
-    unlocked: false,
-  },
-  {
-    id: "community",
-    name: "Community Helper",
-    icon: "🤝",
-    category: "Interest",
-    description: "Engaged in community service",
-    unlocked: false,
-  },
-  {
-    id: "research",
-    name: "Research Pioneer",
-    icon: "🔍",
-    category: "Interest",
-    description: "Involved in research projects",
-    unlocked: false,
-  },
-  {
-    id: "international",
-    name: "Global Citizen",
-    icon: "🌍",
-    category: "Interest",
-    description: "International experience",
-    unlocked: false,
-  },
-];
 
 // Helper functions for transcript analysis
-const analyzeCourses = (courses: any[]): CourseAnalysis => {
+const analyzeCourses = (courses: { [key: string]: string }[]): CourseAnalysis => {
   const subjects: { [key: string]: number } = {};
   let advancedCourses = 0;
 
@@ -289,7 +124,7 @@ const analyzeCourses = (courses: any[]): CourseAnalysis => {
 };
 
 const getSubjectStampId = (subject: string): string => {
-  const subjectMap: { [key: string]: string } = {
+  const subjectMap: UnknownType = {
     math: "math",
     science: "science",
     literature: "literature",
@@ -305,7 +140,7 @@ const getSubjectStampId = (subject: string): string => {
   return subjectMap[subject] || subject;
 };
 
-const generateDynamicStamps = (transcriptData: any): Stamp[] => {
+const generateDynamicStamps = (transcriptData: UnknownType): Stamp[] => {
   const dynamicStamps: Stamp[] = [];
 
   // Create stamps based on specific institution
@@ -348,7 +183,7 @@ const createTranscriptSummary = (transcriptData: any): TranscriptSummary => {
     Object.assign(coursesBySubject, courseAnalysis.subjects);
 
     // Find top grades (A or A+ grades)
-    transcriptData.courses.forEach((course: any) => {
+    transcriptData.courses.forEach((course: UnknownType) => {
       if (course.grade === "A" || course.grade === "A+" || course.grade === "A-") {
         topGrades.push(`${course.name}: ${course.grade}`);
       }
@@ -356,7 +191,7 @@ const createTranscriptSummary = (transcriptData: any): TranscriptSummary => {
   }
 
   // Determine achievements based on GPA
-  const gpa = parseFloat(transcriptData.gpa || "0");
+  const gpa = Number.parseFloat(transcriptData.gpa || "0");
   if (gpa >= 3.9) achievements.push("Summa Cum Laude");
   else if (gpa >= 3.7) achievements.push("Magna Cum Laude");
   else if (gpa >= 3.5) achievements.push("Dean's List");
@@ -388,24 +223,67 @@ export default function DashboardScreen({ route, navigation }: any) {
   const [skillsData, setSkillsData] = useState<any[]>([]);
   const [skillsStats, setSkillsStats] = useState<any>(null);
   const [selectedSkillCategory, setSelectedSkillCategory] = useState<string>("All");
+  const [refreshing, setRefreshing] = useState(false);
+  const [remoteStampCount, setRemoteStampCount] = useState(0);
+  const [lastSyncLabel, setLastSyncLabel] = useState("Tap sync to refresh your dashboard");
 
   const analysisResult = route?.params?.analysisResult;
 
+  const syncDashboardData = async (showAlert = false) => {
+    try {
+      setRefreshing(true);
+      const [remoteStamps, cachedStamps] = await Promise.all([fetchMyStamps(), getCachedStamps()]);
+
+      const syncedStampCount = remoteStamps.length || cachedStamps.length || 0;
+      const stampLabel = syncedStampCount === 1 ? "stamp" : "stamps";
+      setRemoteStampCount(syncedStampCount);
+      setLastSyncLabel(
+        syncedStampCount > 0
+          ? `Synced ${syncedStampCount} ${stampLabel} from your account`
+          : "No stamps available yet"
+      );
+
+      await Promise.all([loadUserProgress(), loadSkillsData()]);
+
+      if (showAlert) {
+        Alert.alert(
+          "Sync complete",
+          syncedStampCount > 0
+            ? `Loaded ${syncedStampCount} stamps from your account.`
+            : "Your dashboard is up to date."
+        );
+      }
+    } catch (error) {
+      console.error("Error syncing dashboard:", error);
+      setLastSyncLabel("Sync failed. Please try again.");
+      if (showAlert) {
+        Alert.alert("Sync failed", "We couldn't refresh your dashboard right now.");
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
-    loadUserProgress();
-    loadSkillsData();
+    void syncDashboardData(false);
     if (analysisResult) {
-      processTranscriptAnalysis(analysisResult);
+      void processTranscriptAnalysis(analysisResult);
     }
   }, []);
 
   useEffect(() => {
-    // Reload skills when screen comes into focus
     const unsubscribe = navigation.addListener("focus", () => {
-      loadSkillsData();
+      void syncDashboardData(false);
     });
     return unsubscribe;
   }, [navigation]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToDashboardRefresh(() => {
+      void syncDashboardData(false);
+    });
+    return unsubscribe;
+  }, []);
 
   const loadUserProgress = async () => {
     try {
@@ -563,8 +441,6 @@ export default function DashboardScreen({ route, navigation }: any) {
       ? userProgress.stamps
       : userProgress.stamps.filter((stamp) => stamp.category === selectedCategory);
 
-  const unlockedCount = userProgress.stamps.filter((s) => s.unlocked).length;
-  const totalCount = userProgress.stamps.length;
   // Skills progress: identified vs total taxonomy skills
   const totalTaxonomySkills = Array.isArray(skillsData)
     ? skillsData.reduce(
@@ -587,11 +463,45 @@ export default function DashboardScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void syncDashboardData(true);
+            }}
+            colors={["#2196F3"]}
+            tintColor="#2196F3"
+          />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>🎯 Your Achievement Dashboard</Text>
-          <Text style={styles.subtitle}>Track your identified skills and achievements!</Text>
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerTextWrap}>
+              <Text style={styles.title}>🎯 Your Achievement Dashboard</Text>
+              <Text style={styles.subtitle}>Track your identified skills and achievements!</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.syncButton}
+              onPress={() => {
+                void syncDashboardData(true);
+              }}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <MaterialIcons name="sync" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+          <View style={styles.headerMetaRow}>
+            <Text style={styles.headerMetaText}>{lastSyncLabel}</Text>
+            <Text style={styles.headerMetaCount}>{remoteStampCount} stamps</Text>
+          </View>
         </View>
 
         <TopTabBar
@@ -639,106 +549,114 @@ export default function DashboardScreen({ route, navigation }: any) {
         </Card>
 
         {/* Skills Taxonomy Section */}
-        {skillsStats && skillsStats.totalSkills > 0 && (
-          <Card style={styles.skillsCard}>
-            <Card.Content>
-              <View style={styles.skillsHeader}>
-                <MaterialIcons name="emoji-events" size={24} color="#667eea" />
-                <Text style={styles.skillsTitle}>Your Identified Skills</Text>
-              </View>
+        <Card style={styles.skillsCard}>
+          <Card.Content>
+            <View style={styles.skillsHeader}>
+              <MaterialIcons name="emoji-events" size={24} color="#667eea" />
+              <Text style={styles.skillsTitle}>Your Identified Skills</Text>
+            </View>
 
-              {/* Skills Stats */}
-              <View style={styles.skillsStatsContainer}>
-                <View style={styles.skillStatItem}>
-                  <Text style={styles.skillStatNumber}>{skillsStats.totalSkills}</Text>
-                  <Text style={styles.skillStatLabel}>Skills Identified</Text>
-                </View>
-                <View style={styles.skillStatItem}>
-                  <Text style={styles.skillStatNumber}>
-                    {Object.keys(skillsStats.skillsByCategory).length}
-                  </Text>
-                  <Text style={styles.skillStatLabel}>Categories</Text>
-                </View>
+            {/* Skills Stats */}
+            <View style={styles.skillsStatsContainer}>
+              <View style={styles.skillStatItem}>
+                <Text style={styles.skillStatNumber}>{skillsStats?.totalSkills || 0}</Text>
+                <Text style={styles.skillStatLabel}>Skills Identified</Text>
               </View>
+              <View style={styles.skillStatItem}>
+                <Text style={styles.skillStatNumber}>{Object.keys(SKILLS_TAXONOMY).length}</Text>
+                <Text style={styles.skillStatLabel}>Categories</Text>
+              </View>
+            </View>
 
-              {/* Category Filter for Skills */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.skillCategoryScroll}
+            {/* Category Filter for Skills */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.skillCategoryScroll}
+            >
+              <Chip
+                mode={selectedSkillCategory === "All" ? "flat" : "outlined"}
+                selected={selectedSkillCategory === "All"}
+                onPress={() => setSelectedSkillCategory("All")}
+                style={styles.skillCategoryChip}
+                textStyle={styles.skillCategoryChipText}
               >
+                All
+              </Chip>
+              {Object.keys(SKILLS_TAXONOMY).map((category) => (
                 <Chip
-                  mode={selectedSkillCategory === "All" ? "flat" : "outlined"}
-                  selected={selectedSkillCategory === "All"}
-                  onPress={() => setSelectedSkillCategory("All")}
+                  key={category}
+                  mode={selectedSkillCategory === category ? "flat" : "outlined"}
+                  selected={selectedSkillCategory === category}
+                  onPress={() => setSelectedSkillCategory(category)}
                   style={styles.skillCategoryChip}
                   textStyle={styles.skillCategoryChipText}
                 >
-                  All
+                  {category}
                 </Chip>
-                {skillsData.map(({ category }) => (
-                  <Chip
-                    key={category}
-                    mode={selectedSkillCategory === category ? "flat" : "outlined"}
-                    selected={selectedSkillCategory === category}
-                    onPress={() => setSelectedSkillCategory(category)}
-                    style={styles.skillCategoryChip}
-                    textStyle={styles.skillCategoryChipText}
-                  >
-                    {category}
-                  </Chip>
-                ))}
-              </ScrollView>
+              ))}
+            </ScrollView>
 
-              {/* Skills Grid */}
-              {skillsData
+            {/* Skills Grid */}
+            {(() => {
+              const skillsByCategory = new Map<string, Set<string>>();
+              skillsData.forEach(({ category, skills }: any) => {
+                const identifiedSkills: Set<string> = new Set(
+                  skills.filter((s: any) => s.identified).map((s: any) => s.name)
+                );
+                skillsByCategory.set(category, identifiedSkills);
+              });
+
+              return Object.entries(SKILLS_TAXONOMY)
                 .filter(
-                  ({ category }) =>
+                  ([category]) =>
                     selectedSkillCategory === "All" || category === selectedSkillCategory
                 )
-                .map(({ category, skills }) => (
+                .map(([category, skills]) => (
                   <View key={category} style={styles.categorySkillsSection}>
                     <Text style={styles.categorySkillsTitle}>{category}</Text>
                     <View style={styles.skillsGrid}>
-                      {skills.map(
-                        (skill: { name: string; identified: boolean; dateIdentified?: string }) => (
+                      {skills.map((skillName: string) => {
+                        const isIdentified =
+                          skillsByCategory.get(category)?.has(skillName) || false;
+                        return (
                           <Chip
-                            key={skill.name}
+                            key={skillName}
                             mode="flat"
-                            selected={skill.identified}
+                            selected={isIdentified}
                             style={[
                               styles.skillChipItem,
-                              skill.identified
+                              isIdentified
                                 ? styles.skillChipIdentified
                                 : styles.skillChipUnidentified,
                             ]}
                             textStyle={[
                               styles.skillChipText,
-                              skill.identified
+                              isIdentified
                                 ? styles.skillChipTextIdentified
                                 : styles.skillChipTextUnidentified,
                             ]}
                             icon={() =>
-                              skill.identified ? (
+                              isIdentified ? (
                                 <MaterialIcons name="check-circle" size={16} color="#4CAF50" />
                               ) : null
                             }
                           >
-                            {skill.name}
+                            {skillName}
                           </Chip>
-                        )
-                      )}
+                        );
+                      })}
                     </View>
                   </View>
-                ))}
+                ));
+            })()}
 
-              <Text style={styles.skillsHint}>
-                💡 Identified skills are highlighted in color. Keep analyzing activities to discover
-                more!
-              </Text>
-            </Card.Content>
-          </Card>
-        )}
+            <Text style={styles.skillsHint}>
+              💡 Identified skills are highlighted in color. Keep analyzing activities to discover
+              more!
+            </Text>
+          </Card.Content>
+        </Card>
 
         {/* Category Filter */}
         <View style={styles.categoryFilter}>
@@ -865,6 +783,40 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     backgroundColor: "#2196F3",
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  headerTextWrap: {
+    flex: 1,
+  },
+  syncButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+  headerMetaText: {
+    flex: 1,
+    color: "#E3F2FD",
+    fontSize: 12,
+  },
+  headerMetaCount: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   title: {
     fontSize: 24,

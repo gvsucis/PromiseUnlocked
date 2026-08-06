@@ -8,11 +8,11 @@ import {
   Pressable,
   TouchableOpacity,
   KeyboardAvoidingView,
-  ScrollView,
   Platform,
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { SplitQuestionRenderer } from "./SplitQuestionRenderer";
 
 interface AnswerModalProps {
   readonly visible: boolean;
@@ -44,12 +44,13 @@ export function AnswerModal({
   onRecordAgain,
   onDismiss,
   onAnswerChange,
-}: AnswerModalProps) {
+}: Readonly<AnswerModalProps>) {
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onShow={() =>
         console.log("✅ Answer modal onShow callback fired with prompt:", currentPrompt)
       }
@@ -64,13 +65,12 @@ export function AnswerModal({
 
           <View style={styles.modalContent}>
             <Text style={styles.questionTitle}>Question for You</Text>
-            <ScrollView
-              style={{ maxHeight: 200 }}
-              contentContainerStyle={{ paddingVertical: 4 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Text style={styles.questionText}>{currentPrompt || "(No question loaded)"}</Text>
-            </ScrollView>
+            <SplitQuestionRenderer
+              text={currentPrompt}
+              textStyle={styles.questionText}
+              fallbackText="(No question loaded)"
+              scrollable
+            />
 
             {selectedImage ? (
               <>
@@ -78,16 +78,20 @@ export function AnswerModal({
                   <Image source={{ uri: selectedImage }} style={styles.previewImage} />
                 </TouchableOpacity>
                 <View style={styles.imageActions}>
-                  <TouchableOpacity style={styles.changeImageButton} onPress={onChangeImage}>
-                    <Text style={styles.changeImageButtonText}>Change Image</Text>
+                  <TouchableOpacity style={styles.replaceImageButton} onPress={onChangeImage}>
+                    <Text style={styles.replaceImageButtonText}>Change Image</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.submitButton}
+                    style={[
+                      styles.submitButton,
+                      { flex: 1 },
+                      isAnalyzingImage && styles.submitButtonDisabled,
+                    ]}
                     onPress={onSubmitImage}
                     disabled={isAnalyzingImage}
                   >
                     <Text style={styles.submitButtonText}>
-                      {isAnalyzingImage ? "Analyzing..." : "Submit Image"}
+                      {isAnalyzingImage ? "Analyzing..." : "Submit"}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -115,7 +119,7 @@ export function AnswerModal({
                   numberOfLines={4}
                 />
                 <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
-                  <Text style={styles.submitButtonText}>Submit Answer</Text>
+                  <Text style={styles.submitButtonText}>Submit</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -128,7 +132,8 @@ export function AnswerModal({
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    flex: 1,
+    position: "absolute",
+    inset: 0,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
@@ -145,13 +150,13 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     marginBottom: 12,
-    textAlign: "center",
+    textAlign: "left",
   },
   questionText: {
     fontSize: 16,
     color: "#666",
     lineHeight: 24,
-    textAlign: "center",
+    textAlign: "left",
   },
   previewImage: {
     width: "100%",
@@ -159,23 +164,25 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginTop: 15,
     marginBottom: 15,
-    resizeMode: "cover",
+    resizeMode: "contain",
+    backgroundColor: "#f1f3f5",
   },
   imageActions: {
     flexDirection: "row",
     gap: 10,
+    marginTop: 10,
   },
-  changeImageButton: {
+  replaceImageButton: {
     flex: 1,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#eef2ff",
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#c7d2fe",
   },
-  changeImageButtonText: {
-    color: "#666",
+  replaceImageButtonText: {
+    color: "#4f46e5",
     fontSize: 15,
     fontWeight: "600",
   },
@@ -246,5 +253,8 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  submitButtonDisabled: {
+    opacity: 0.5,
   },
 });

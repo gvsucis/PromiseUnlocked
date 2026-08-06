@@ -1,22 +1,46 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  setLogLevel,
+  persistentLocalCache,
+  type Firestore,
+} from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { getAuth, initializeAuth } from "firebase/auth";
 import * as FirebaseAuth from "firebase/auth";
-import { CONFIG } from "./env";
 
 const firebaseConfig = {
-  apiKey: CONFIG.apiKey,
-  authDomain: CONFIG.authDomain,
-  projectId: CONFIG.projectId,
-  storageBucket: CONFIG.storageBucket,
-  messagingSenderId: CONFIG.messagingSenderId,
-  appId: CONFIG.appId,
+  apiKey: "AIzaSyCZKgqKsdbPr1OdpElH2Xz28EGSPrwMJaY",
+  authDomain: "promise-unlocked-for-sure.firebaseapp.com",
+  projectId: "promise-unlocked-for-sure",
+  storageBucket: "promise-unlocked-for-sure.firebasestorage.app",
+  messagingSenderId: "26141705792",
+  appId: "1:26141705792:web:c20f90f4e21e999c7a01a5",
+  measurementId: "G-Q8ZTZ5N8L7",
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const db = getFirestore(app);
+function createFirestoreInstance() {
+  if (Platform.OS === "web") {
+    return getFirestore(app);
+  }
+
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache(),
+    });
+  } catch {
+    // Firestore can already be initialized during hot reload; reuse existing instance.
+    return getFirestore(app);
+  }
+}
+
+setLogLevel("error");
+
+export const db = createFirestoreInstance();
 
 type ReactNativePersistenceFactory = (storage: typeof AsyncStorage) => unknown;
 

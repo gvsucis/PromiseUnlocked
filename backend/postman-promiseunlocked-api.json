@@ -1,0 +1,772 @@
+{
+  "info": {
+    "_postman_id": "promiseunlocked-api-collection",
+    "name": "PromiseUnlocked API",
+    "description": "Postman notes:\n1. Run `Login` first to store `bearerToken`.\n2. Requests that use `{{participantId}}`, `{{sessionId}}`, or `{{interactionId}}` depend on a previous list request.\n3. The list requests automatically save a random id from the response into the matching environment variable so the next request can reuse it.\n4. For participant self-serve flows, `List Participants` returns only the authenticated participant unless the token belongs to an admin.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save idToken as Bearer token",
+              "if (pm.response.code === 200) {",
+              "  var data = pm.response.json();",
+              "  if (data.idToken) {",
+              "    pm.environment.set('bearerToken', data.idToken);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "List Participants",
+      "request": {
+        "description": "Dependency note: run this before `Get Participant`, `List Sessions for Participant`, `Get Session`, `List Interactions for Session`, or `Get Interaction`. On success, a random `participantId` from the response is stored in the environment.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants"]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save a random participantId for the next dependent requests.",
+              "if (pm.response.code === 200) {",
+              "  var data = pm.response.json();",
+              "  var participants = Array.isArray(data.participants) ? data.participants.filter(function (participant) {",
+              "    return participant && participant.uid;",
+              "  }) : [];",
+              "  if (participants.length > 0) {",
+              "    var randomParticipant = participants[Math.floor(Math.random() * participants.length)];",
+              "    pm.environment.set('participantId', randomParticipant.uid);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get My Participant Profile",
+      "request": {
+        "description": "Authenticated participant route. Use this for the signed-in user's own participant profile. On success, the returned `participant.uid` is saved as `participantId` so later participant/session requests can reuse it.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me"]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save the authenticated participantId for later dependent requests.",
+              "if (pm.response.code === 200) {",
+              "  var data = pm.response.json();",
+              "  if (data.participant && data.participant.uid) {",
+              "    pm.environment.set('participantId', data.participant.uid);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "List My Sessions",
+      "request": {
+        "description": "Authenticated participant route. Lists only the signed-in user's sessions. On success, a random `sessionId` is saved for the next dependent request.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/me/sessions",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me", "sessions"],
+          "query": [
+            {
+              "key": "status",
+              "value": "in_progress",
+              "description": "Filter by status (in_progress, completed, abandoned)"
+            },
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "pageSize",
+              "value": "20",
+              "description": "Results per page (max 100)"
+            }
+          ]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save a random sessionId for the next dependent requests.",
+              "if (pm.response.code === 200) {",
+              "  var data = pm.response.json();",
+              "  var sessions = Array.isArray(data.sessions) ? data.sessions.filter(function (session) {",
+              "    return session && session.id;",
+              "  }) : [];",
+              "  if (sessions.length > 0) {",
+              "    var randomSession = sessions[Math.floor(Math.random() * sessions.length)];",
+              "    pm.environment.set('sessionId', randomSession.id);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get My Session",
+      "request": {
+        "description": "Authenticated participant route. Requires `sessionId`. Run `List My Sessions` first so the environment variable is set automatically.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/me/sessions/{{sessionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me", "sessions", "{{sessionId}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get My Passport",
+      "request": {
+        "description": "Returns the authenticated participant's aggregated passport across all sessions (in_progress, completed, abandoned).",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/me/passport",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me", "passport"]
+        }
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/participants/me/passport",
+              "host": ["{{baseUrl}}"],
+              "path": ["participants", "me", "passport"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"passport\": [\n    {\n      \"category\": \"Human Skills (Durable)\",\n      \"totalMappings\": 5,\n      \"unlockedStampCount\": 2\n    },\n    {\n      \"category\": \"Creative Expression & Communication\",\n      \"totalMappings\": 3,\n      \"unlockedStampCount\": 1\n    }\n  ],\n  \"totalStampsUnlocked\": 3,\n  \"totalMappings\": 8\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get My User Profile",
+      "request": {
+        "description": "Returns the authenticated user's bio profile (no school fields). Uses the separate `users` Firestore collection.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/users/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["users", "me"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Users (Admin)",
+      "request": {
+        "description": "Admin-only. Lists all users with pagination (separate `users` collection).",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/users/all?page=1&pageSize=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["users", "all"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "pageSize",
+              "value": "20",
+              "description": "Results per page (max 100)"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update My Participant Profile",
+      "request": {
+        "description": "Updates the authenticated participant's profile including school fields, address, etc.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"John Doe\",\n  \"schoolName\": \"Springfield High\",\n  \"schoolAddress\": \"123 Main St\",\n  \"phone\": \"555-0123\",\n  \"gender\": \"male\",\n  \"ethnicity\": \"prefer-not-to-say\",\n  \"dateOfBirth\": \"2000-01-15\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/participants/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update My User Profile",
+      "request": {
+        "description": "Updates the authenticated user's bio (displayName, photoURL, metadata). Does not include school fields.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"displayName\": \"John Doe\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/users/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["users", "me"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "All Passports (Admin)",
+      "request": {
+        "description": "Admin-only. Returns aggregated passport data across all participants (paginated). Includes schoolName in each participant record.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/passport/all?page=1&pageSize=50",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "passport", "all"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "pageSize",
+              "value": "50",
+              "description": "Results per page (max 100)"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Participant Passport",
+      "request": {
+        "description": "Returns a participant's passport for a specific session. Requires `participantId` and `sessionId`.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/{{participantId}}/passport?sessionId={{sessionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "{{participantId}}", "passport"],
+          "query": [
+            {
+              "key": "sessionId",
+              "value": "{{sessionId}}",
+              "description": "Session ID (required)"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Save Interaction",
+      "request": {
+        "description": "Saves an interaction to the authenticated participant's session. Only participants can save their own interactions.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sessionId\": \"{{sessionId}}\",\n  \"interaction\": {\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"The answer shows structured analysis.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/participants/me/interactions",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "me", "interactions"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Participant",
+      "request": {
+        "description": "Dependency note: requires `participantId`. Run `List Participants` first so the environment variable is set automatically.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/{{participantId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "{{participantId}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Sessions for Participant",
+      "request": {
+        "description": "Dependency note: requires `participantId` from `List Participants`. On success, a random `sessionId` from the response is stored in the environment for the next dependent requests.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/{{participantId}}/sessions",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "{{participantId}}", "sessions"],
+          "query": [
+            {
+              "key": "status",
+              "value": "in_progress",
+              "description": "Filter by status (in_progress, completed, abandoned)"
+            },
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number"
+            },
+            {
+              "key": "pageSize",
+              "value": "20",
+              "description": "Results per page (max 100)"
+            }
+          ]
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save a random sessionId for the next dependent requests.",
+              "if (pm.response.code === 200) {",
+              "  var data = pm.response.json();",
+              "  var sessions = Array.isArray(data.sessions) ? data.sessions.filter(function (session) {",
+              "    return session && session.id;",
+              "  }) : [];",
+              "  if (sessions.length > 0) {",
+              "    var randomSession = sessions[Math.floor(Math.random() * sessions.length)];",
+              "    pm.environment.set('sessionId', randomSession.id);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Session",
+      "request": {
+        "description": "Dependency note: requires both `participantId` and `sessionId`. Run `List Participants` and then `List Sessions for Participant` first.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["participants", "{{participantId}}", "sessions", "{{sessionId}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Interactions for Session",
+      "request": {
+        "description": "Returns the interaction documents for a session ordered by timestamp ascending. Optional query param: limit.\nDependency note: requires `participantId` and `sessionId`. Run `List Participants` and `List Sessions for Participant` first. On success, a random `interactionId` from the response is stored in the environment.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
+          "host": ["{{baseUrl}}"],
+          "path": [
+            "participants",
+            "{{participantId}}",
+            "sessions",
+            "{{sessionId}}",
+            "interactions"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "50",
+              "description": "Optional. Max 200."
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "participants",
+                "{{participantId}}",
+                "sessions",
+                "{{sessionId}}",
+                "interactions"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"interactions\": [\n    {\n      \"id\": \"abc123\",\n      \"sequenceIndex\": 1,\n      \"question\": \"Tell me about a time you solved a hard problem?\",\n      \"answer\": \"I debugged a production issue by tracing logs and isolating the failing service.\",\n      \"inputMethod\": \"text\",\n      \"mappingOutcome\": \"mapped\",\n      \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n      \"isWeakFit\": false,\n      \"isAlreadyMapped\": false,\n      \"justification\": \"The answer shows structured analysis and resolution of a complex issue.\",\n      \"matchedToCategory\": null,\n      \"matchedToSequenceIndex\": null,\n      \"timestamp\": \"2026-04-03T15:22:11.000Z\"\n    }\n  ]\n}"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Save a random interactionId for the next dependent request.",
+              "if (pm.response.code === 200) {",
+              "  var data = pm.response.json();",
+              "  var interactions = Array.isArray(data.interactions) ? data.interactions.filter(function (interaction) {",
+              "    return interaction && interaction.id;",
+              "  }) : [];",
+              "  if (interactions.length > 0) {",
+              "    var randomInteraction = interactions[Math.floor(Math.random() * interactions.length)];",
+              "    pm.environment.set('interactionId', randomInteraction.id);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Interaction",
+      "request": {
+        "description": "Returns a single interaction document for the session.\nDependency note: requires `participantId`, `sessionId`, and `interactionId`. Run the list requests first so Postman sets those environment variables automatically.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{bearerToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": [
+            "participants",
+            "{{participantId}}",
+            "sessions",
+            "{{sessionId}}",
+            "interactions",
+            "{{interactionId}}"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "200 OK",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/participants/{{participantId}}/sessions/{{sessionId}}/interactions/{{interactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "participants",
+                "{{participantId}}",
+                "sessions",
+                "{{sessionId}}",
+                "interactions",
+                "{{interactionId}}"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"interaction\": {\n    \"id\": \"abc123\",\n    \"sequenceIndex\": 1,\n    \"question\": \"Tell me about a time you solved a hard problem?\",\n    \"answer\": \"I debugged a production issue by tracing logs and isolating the failing service.\",\n    \"inputMethod\": \"text\",\n    \"mappingOutcome\": \"mapped\",\n    \"mappedCategory\": \"Problem-Solving & Systems Thinking\",\n    \"isWeakFit\": false,\n    \"isAlreadyMapped\": false,\n    \"justification\": \"The answer shows structured analysis and resolution of a complex issue.\",\n    \"matchedToCategory\": null,\n    \"matchedToSequenceIndex\": null,\n    \"timestamp\": \"2026-04-03T15:22:11.000Z\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Notes - Skills, Stamps, Awarded",
+      "request": {
+        "description": "Backend status note: there are currently no Express API routes in `backend/src` for authenticated `me` skills, stamps, awarded items, or dedicated `me` interactions. \n\nAvailable self-service routes:\n- GET /api/participants/me\n- GET /api/users/me\n- GET /api/participants/me/passport (aggregated across all sessions)\n- GET /api/participants/me/sessions?status=in_progress&page=1&pageSize=20\n- GET /api/participants/me/sessions/:sessionId\n- PUT /api/participants/me (update participant profile)\n- PATCH /api/users/me (update user bio)\n- POST /api/participants/me/interactions (save interaction)\n- POST /api/participants/me/profile-picture\n- POST /api/users/me/profile-picture\n\nAdmin-only routes:\n- GET /api/users/all?page=1&pageSize=20 (list users)\n- GET /api/participants/passport/all (all passports)\n- GET /api/participants/:uid/passport?sessionId=xxx\n\nSession status values (Firestore): in_progress | completed | abandoned"
+      },
+      "response": []
+    }
+  ],
+  "event": [],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    }
+  ]
+}

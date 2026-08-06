@@ -1,191 +1,214 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Alert, ActivityIndicator, ScrollView } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from "react-native";
 import { Button, Card, Divider, TextInput, HelperText } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
-import {
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  GoogleAuthProvider,
-  signInWithCredential,
-} from "firebase/auth";
-import { auth } from "../config/firebase";
-//import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { useAuth } from "../context/AuthContext";
+import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
+import { waitForAuthenticated } from "../services/auth/authSessionService";
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, "Login">;
 interface Props {
   navigation: LoginScreenNavigationProp;
 }
 
-export default function LoginScreen({ navigation }: Props) {
+export default function LoginScreen({ navigation }: Readonly<Props>) {
+  const { signInWithEmail, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const { handleGoogleSignIn, googleLoading, googleReady } = useGoogleSignIn({
+    onSuccess: () => navigation.replace("MainTabs" as const, undefined as never),
+  });
 
   const emailValid = /.+@.+\..+/.test(email.trim());
   const passwordValid = password.length >= 6;
   const hasEmailError = email.length > 0 && !emailValid;
   const hasPasswordError = password.length > 0 && !passwordValid;
   const formValid = emailValid && passwordValid;
+  const isAnyLoading = loading || googleLoading;
 
   const handleForgotPassword = async () => {
-    if (!email) return Alert.alert("Email Required", "Enter your email above first.");
+    if (!email || !emailValid)
+      return Alert.alert("Email Required", "Enter a valid email address first.");
     try {
-      await sendPasswordResetEmail(auth, email);
+      await resetPassword(email);
       Alert.alert("Reset Sent", "Check your email for a reset link.");
-    } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.code === "auth/user-not-found" ? "No account exists with that email." : error.message
-      );
+    } catch {
+      Alert.alert("Error", "No account exists with that email.");
     }
   };
 
   const handleLogin = async () => {
+    if (loading) return;
     if (!email || !password) return Alert.alert("Missing Info", "Please fill in all fields.");
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(auth, email, password);
-      navigation.replace("DialogueDashboard");
-    } catch (error: any) {
-      const msg =
-        error.code === "auth/user-not-found"
-          ? "No account found with that email."
-          : error.code === "auth/wrong-password"
-            ? "Incorrect password."
-            : error.code === "auth/invalid-email"
-              ? "Invalid email address."
-              : error.message;
+      await signInWithEmail(email, password);
+      await waitForAuthenticated();
+      navigation.replace("MainTabs" as const, undefined as never);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      let msg = message;
+
+      if (message.includes("auth/user-not-found")) {
+        msg = "No account found with that email.";
+      } else if (
+        message.includes("auth/wrong-password") ||
+        message.includes("auth/invalid-credential")
+      ) {
+        msg = "Incorrect email or password.";
+      } else if (message.includes("auth/invalid-email")) {
+        msg = "Invalid email address.";
+      } else if (message.includes("auth/user-disabled")) {
+        msg = "This account has been disabled. Please contact support.";
+      } else if (message.includes("auth/too-many-requests")) {
+        msg = "Too many login attempts. Please wait a bit and try again.";
+      } else if (message.includes("auth/network-request-failed")) {
+        msg = "Network error. Check your connection and try again.";
+      }
+
       Alert.alert("Error", msg);
-    } finally {
       setLoading(false);
     }
   };
 
-  {
-    /*const handleGoogleSignIn = async () => {
-    try {
-      setLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.data?.idToken;
-      if (!idToken) throw new Error('No ID token');
-      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
-      navigation.replace('DialogueDashboard');
-    } catch (error: any) {
-      if (error.code !== 'sign_in_cancelled')
-        Alert.alert('Error', error.message || 'Google sign-in failed');
-    } finally { setLoading(false); }
-  };
-  */
-  }
-
   return (
-    <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.hero}>
-          <MaterialIcons name="psychology" size={36} color="#fff" />
-        </View>
-        <Card style={styles.card}>
-          <Card.Title
-            title="Welcome back"
-            subtitle="Sign in to continue"
-            titleStyle={styles.cardTitle}
-            subtitleStyle={styles.cardSubtitle}
-          />
-          <Card.Content>
-            <View style={styles.cardContentWrap}>
-              <TextInput
-                mode="flat"
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                style={styles.input}
-                error={hasEmailError}
-                theme={{ colors: { onSurfaceVariant: "#fff" } }}
-              />
-              <HelperText type="error" visible={hasEmailError} style={styles.helper}>
-                Enter a valid email address
-              </HelperText>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.hero}>
+            <MaterialIcons name="psychology" size={43} color="#fff" />
+          </View>
+          <Card style={styles.card}>
+            <Card.Title
+              title="Welcome back"
+              subtitle="Sign in to continue"
+              titleStyle={styles.cardTitle}
+              subtitleStyle={styles.cardSubtitle}
+            />
+            <Card.Content>
+              <View style={styles.cardContentWrap}>
+                <TextInput
+                  mode="flat"
+                  label="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  style={styles.input}
+                  error={hasEmailError}
+                  theme={{ colors: { onSurfaceVariant: "#fff" } }}
+                />
+                <HelperText type="error" visible={hasEmailError} style={styles.helper}>
+                  Enter a valid email address
+                </HelperText>
 
-              <TextInput
-                mode="flat"
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                style={styles.input}
-                error={hasPasswordError}
-                theme={{ colors: { onSurfaceVariant: "#fff" } }}
-              />
-              <HelperText type="error" visible={hasPasswordError} style={styles.helper}>
-                Minimum 6 characters
-              </HelperText>
+                <TextInput
+                  mode="flat"
+                  label="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  style={styles.input}
+                  error={hasPasswordError}
+                  theme={{ colors: { onSurfaceVariant: "#fff" } }}
+                />
+                <HelperText type="error" visible={hasPasswordError} style={styles.helper}>
+                  Minimum 6 characters
+                </HelperText>
 
-              <Button
-                onPress={handleForgotPassword}
-                labelStyle={[styles.linkLabel, { fontSize: 13, opacity: 0.85 }]}
-                style={{ alignSelf: "flex-end", marginBottom: 4 }}
-              >
-                Forgot password?
-              </Button>
+                <Button
+                  onPress={handleForgotPassword}
+                  labelStyle={[styles.linkLabel, { fontSize: 13, opacity: 0.85 }]}
+                  style={{ alignSelf: "flex-end", marginBottom: 4 }}
+                >
+                  Forgot password?
+                </Button>
 
-              <Button
-                mode="contained"
-                style={[styles.primary, styles.pill]}
-                contentStyle={styles.primaryContent}
-                labelStyle={styles.primaryLabel}
-                disabled={!formValid || loading}
-                onPress={handleLogin}
-              >
-                {loading ? <ActivityIndicator color="#fff" size="small" /> : "Sign in"}
-              </Button>
+                <Button
+                  mode="contained"
+                  style={[styles.primary, styles.pill]}
+                  contentStyle={styles.primaryContent}
+                  labelStyle={styles.primaryLabel}
+                  disabled={!formValid || isAnyLoading}
+                  onPress={handleLogin}
+                >
+                  {loading ? <ActivityIndicator color="#fff" size="small" /> : "Sign in"}
+                </Button>
 
-              <Divider style={styles.divider} />
+                <Divider style={styles.divider} />
 
-              {/*<Button mode="outlined" icon="google" style={[styles.outlined, styles.pill]}
-                labelStyle={styles.outlinedLabel} disabled={loading} onPress={handleGoogleSignIn}>
-                Sign in with Google
-              </Button>
-              <Button mode="outlined" icon="apple" style={[styles.outlined, styles.apple, styles.pill]}
-                labelStyle={styles.outlinedLabel}
-                onPress={() => Alert.alert('Coming Soon', 'Apple sign-in not yet implemented.')}>
-                Sign in with Apple
-              </Button>
-              */}
+                <Button
+                  mode="outlined"
+                  icon="google"
+                  style={[styles.outlined, styles.pill]}
+                  contentStyle={styles.primaryContent}
+                  labelStyle={styles.outlinedLabel}
+                  disabled={isAnyLoading || !googleReady}
+                  onPress={handleGoogleSignIn}
+                >
+                  {googleLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    "Sign in with Google"
+                  )}
+                </Button>
 
-              <Divider style={styles.divider} />
+                <Divider style={styles.divider} />
 
-              <Button
-                mode="contained"
-                style={[styles.pill, styles.secondaryContained]}
-                contentStyle={styles.primaryContent}
-                labelStyle={styles.secondaryLabel}
-                onPress={() => navigation.replace("DialogueDashboard")}
-              >
-                Continue without signing in
-              </Button>
+                <View style={styles.linkGroup}>
+                  <Button
+                    onPress={() => navigation.navigate("Welcome")}
+                    labelStyle={styles.linkLabel}
+                    style={styles.linkButton}
+                  >
+                    Back to welcome
+                  </Button>
 
-              <Divider style={styles.divider} />
-
-              <Button onPress={() => navigation.navigate("Register")} labelStyle={styles.linkLabel}>
-                Create an account
-              </Button>
-            </View>
-          </Card.Content>
-        </Card>
-      </View>
-    </LinearGradient>
+                  <Button
+                    onPress={() => navigation.navigate("Register")}
+                    labelStyle={styles.linkLabel}
+                    style={styles.linkButton}
+                  >
+                    Create an account
+                  </Button>
+                </View>
+              </View>
+            </Card.Content>
+          </Card>
+        </ScrollView>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  content: { flex: 1, justifyContent: "center", alignItems: "center" },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 24,
+  },
   hero: { alignItems: "center", marginBottom: 16 },
   card: {
     width: "90%",
@@ -194,10 +217,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.25)",
     borderWidth: 1,
     borderRadius: 16,
+    textAlign: "center",
   },
-  cardContentWrap: { overflow: "hidden", borderRadius: 16 },
-  cardTitle: { color: "#fff" },
-  cardSubtitle: { color: "rgba(255,255,255,0.85)" },
+  cardContentWrap: { overflow: "hidden", borderRadius: 16, paddingHorizontal: 12 },
+  cardTitle: { color: "#fff", textAlign: "center" },
+  cardSubtitle: { color: "rgba(255,255,255,0.85)", textAlign: "center" },
   input: { backgroundColor: "transparent", marginBottom: 4 },
   helper: { color: "#ffb4b4", marginTop: -8, marginBottom: 8 },
   primary: { marginBottom: 8, backgroundColor: "#6C5CE7" },
@@ -206,9 +230,8 @@ const styles = StyleSheet.create({
   pill: { borderRadius: 28 },
   divider: { marginVertical: 12, backgroundColor: "rgba(255,255,255,0.2)" },
   outlined: { borderColor: "rgba(255,255,255,0.7)", marginBottom: 8 },
-  outlinedLabel: { color: "#fff" },
-  apple: { marginTop: 0 },
+  outlinedLabel: { color: "#fff", fontWeight: "600" },
   linkLabel: { color: "#fff" },
-  secondaryContained: { backgroundColor: "rgba(255,255,255,0.18)" },
-  secondaryLabel: { color: "#fff", fontWeight: "600" },
+  linkButton: { alignSelf: "center" },
+  linkGroup: { alignItems: "center", gap: 4 },
 });

@@ -3,8 +3,12 @@
  * Manages identified skills in AsyncStorage
  */
 
-import { SKILLS_TAXONOMY } from "./skillTaxonomyService";
-import { getJSONFromStorage, removeFromStorage, setJSONInStorage } from "../util/asyncStorage";
+import {
+  SKILLS_TAXONOMY,
+  mapSkillToTaxonomy,
+  normalizeTaxonomyCategoryName,
+} from "./skillTaxonomyService";
+import { getJSONFromStorage, removeFromStorage, setJSONInStorage } from "../utils/asyncStorage";
 import { getActiveSessionId, getUserId } from "./sessionManager";
 import {
   saveIdentifiedSkillToFirestore,
@@ -20,7 +24,7 @@ export interface IdentifiedSkill {
   skill: string;
   category: string;
   dateIdentified: string;
-  source: SkillSource; // How the skill was identified
+  source: SkillSource;
   confidence?: number;
 }
 
@@ -40,21 +44,26 @@ export async function saveIdentifiedSkill(
 ): Promise<void> {
   try {
     const existingData = await getUserSkills();
+    const taxonomyMatch = mapSkillToTaxonomy(skill);
+    const shouldUseMatchedSkill = taxonomyMatch.confidence >= 0.5;
+    const normalizedSkill = shouldUseMatchedSkill ? taxonomyMatch.skill : skill;
+    const normalizedCategory = shouldUseMatchedSkill
+      ? taxonomyMatch.category
+      : normalizeTaxonomyCategoryName(category);
+    const storedConfidence = confidence ?? taxonomyMatch.confidence;
 
-    // Check if skill already exists
-    const skillExists = existingData.skills.some((s) => s.skill === skill);
-
-    if (skillExists) {
-      console.log("Skill already exists:", skill);
+    // Check if skill already exists using Set for O(1) lookup
+    if (existingData.skills.some((s) => s.skill === normalizedSkill)) {
+      console.log("Skill already exists:", normalizedSkill);
       return;
     }
 
     const newSkill: IdentifiedSkill = {
-      skill,
-      category,
+      skill: normalizedSkill,
+      category: normalizedCategory,
       dateIdentified: new Date().toISOString(),
       source,
-      confidence,
+      confidence: storedConfidence,
     };
 
     existingData.skills.push(newSkill);
@@ -65,7 +74,14 @@ export async function saveIdentifiedSkill(
 
     enqueueFirestoreWrite(async () => {
       const [userId, sessionId] = await Promise.all([getUserId(), getActiveSessionId()]);
-      await saveIdentifiedSkillToFirestore(userId, skill, category, source, confidence, sessionId);
+      await saveIdentifiedSkillToFirestore(
+        userId,
+        normalizedSkill,
+        normalizedCategory,
+        source,
+        storedConfidence,
+        sessionId
+      );
     });
   } catch (error) {
     console.error("Error saving skill:", error);
@@ -79,39 +95,70 @@ export async function saveIdentifiedSkill(
 export async function saveIdentifiedSkills(
   skills: string[],
   categories: string[],
-  source: SkillSource
+  source: SkillSource,
+  confidences: number[] = []
 ): Promise<void> {
   try {
     const existingData = await getUserSkills();
 
+    // Convert existing skills to Set for O(1) lookup instead of O(N) Array.some()
+    const existingSkillNames = new Set(existingData.skills.map((s) => s.skill));
+
+    // Pre-compute all taxonomy mappings once (instead of 3x per skill)
+    const taxonomyMappings = skills.map((skill) => mapSkillToTaxonomy(skill));
+
+    const skillsToAdd: IdentifiedSkill[] = [];
+
     for (let i = 0; i < skills.length; i++) {
       const skill = skills[i];
       const category = categories[i] || "Unknown";
+      const taxonomyMatch = taxonomyMappings[i];
+      const shouldUseMatchedSkill = taxonomyMatch.confidence >= 0.5;
+      const normalizedSkill = shouldUseMatchedSkill ? taxonomyMatch.skill : skill;
+      const normalizedCategory = shouldUseMatchedSkill
+        ? taxonomyMatch.category
+        : normalizeTaxonomyCategoryName(category);
+      const storedConfidence = confidences[i] ?? taxonomyMatch.confidence;
 
-      // Check if skill already exists
-      const skillExists = existingData.skills.some((s) => s.skill === skill);
-
-      if (skillExists) {
+      // Check if skill already exists using Set (O(1) instead of O(N))
+      if (existingSkillNames.has(normalizedSkill)) {
         continue;
       }
 
       const newSkill: IdentifiedSkill = {
-        skill,
-        category,
+        skill: normalizedSkill,
+        category: normalizedCategory,
         dateIdentified: new Date().toISOString(),
         source,
+        confidence: storedConfidence,
       };
 
-      existingData.skills.push(newSkill);
+      skillsToAdd.push(newSkill);
     }
 
+    if (skillsToAdd.length === 0) {
+      return; // No new skills to save
+    }
+
+    existingData.skills.push(...skillsToAdd);
     existingData.lastUpdated = new Date().toISOString();
     await setJSONInStorage(SKILLS_STORAGE_KEY, existingData);
-    console.log("Multiple skills saved:", skills.length);
+    console.log("Multiple skills saved:", skillsToAdd.length);
 
     enqueueFirestoreWrite(async () => {
       const [userId, sessionId] = await Promise.all([getUserId(), getActiveSessionId()]);
-      await saveIdentifiedSkillsToFirestore(userId, skills, categories, source, sessionId);
+
+      // Use pre-computed mappings instead of recalculating
+      const normalizedSkills = skillsToAdd.map((skill) => skill.skill);
+      const normalizedCategories = skillsToAdd.map((skill) => skill.category);
+
+      await saveIdentifiedSkillsToFirestore(
+        userId,
+        normalizedSkills,
+        normalizedCategories,
+        source,
+        sessionId
+      );
     });
   } catch (error) {
     console.error("Error saving multiple skills:", error);
@@ -226,18 +273,40 @@ export async function getTaxonomySkillsWithStatus(): Promise<
       name: string;
       identified: boolean;
       dateIdentified?: string;
+      confidence?: number;
     }[];
   }[]
 > {
   const userData = await getUserSkills();
-  const identifiedSkillNames = new Set(userData.skills.map((s) => s.skill));
 
   const result = Object.entries(SKILLS_TAXONOMY).map(([category, skills]) => ({
     category,
     skills: skills.map((skillName) => ({
       name: skillName,
-      identified: identifiedSkillNames.has(skillName),
-      dateIdentified: userData.skills.find((s) => s.skill === skillName)?.dateIdentified,
+      identified: userData.skills.some((s) => {
+        const matchedSkill = mapSkillToTaxonomy(s.skill);
+        return (
+          s.skill === skillName ||
+          matchedSkill.skill === skillName ||
+          normalizeTaxonomyCategoryName(s.category) === category
+        );
+      }),
+      dateIdentified: userData.skills.find((s) => {
+        const matchedSkill = mapSkillToTaxonomy(s.skill);
+        return (
+          s.skill === skillName ||
+          matchedSkill.skill === skillName ||
+          normalizeTaxonomyCategoryName(s.category) === category
+        );
+      })?.dateIdentified,
+      confidence: userData.skills.find((s) => {
+        const matchedSkill = mapSkillToTaxonomy(s.skill);
+        return (
+          s.skill === skillName ||
+          matchedSkill.skill === skillName ||
+          normalizeTaxonomyCategoryName(s.category) === category
+        );
+      })?.confidence,
     })),
   }));
 

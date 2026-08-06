@@ -2,40 +2,58 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "Backend for Promise Unlock",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "tsx src/index.ts",
+    "test": "node --test --import tsx test/**/*.test.ts",
+    "dev": "tsx watch src/server.ts",
+    "dev:functions": "firebase emulators:start --only functions,firestore,auth",
+    "build": "tsc && tsc-alias --resolve-full-paths",
+    "start": "nodemon --watch src --ext ts --exec tsx src/index.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
     "serve": "firebase emulators:start --only functions,firestore,auth",
-    "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "deploy": "npm run build && firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "seed:superadmin": "tsx src/seed-superadmin.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@google/genai": "^1.52.0",
     "@types/swagger-ui-express": "^4.1.8",
+    "axios": "^1.16.1",
+    "busboy": "^1.6.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "firebase-admin": "^13.7.0",
+    "firebase-functions": "^7.2.3",
     "http-graceful-shutdown": "^3.1.16",
+    "mammoth": "^1.12.0",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "unpdf": "^1.6.2",
+    "uuid": "^9.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/busboy": "^1.5.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",
     "@types/swagger-jsdoc": "^6.0.4",
+    "@types/uuid": "^10.0.0",
     "eslint": "^8.15.0",
     "eslint-config-google": "^0.14.0",
+    "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.17",
+    "tsx": "^3.13.1",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": "22"
   }
 }

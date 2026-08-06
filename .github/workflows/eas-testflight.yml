@@ -1,0 +1,44 @@
+name: EAS Build & Submit to TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type "submit" to build and push to TestFlight
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: eas-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    name: Build iOS & submit to TestFlight
+    runs-on: ubuntu-latest
+    # Manual runs require typing "submit"; tag pushes are trusted release markers.
+    if: github.event_name == 'push' || github.event.inputs.confirm == 'submit'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: 20.5.1
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and submit to TestFlight
+        run: eas build --platform ios --profile production --non-interactive --auto-submit

@@ -11,27 +11,39 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  writeBatch,
   arrayUnion,
   increment,
   serverTimestamp,
+  query,
+  where,
+  limit,
   Timestamp,
 } from "firebase/firestore";
-import { signInAnonymously } from "firebase/auth";
 import { db, auth } from "../../config/firebase";
-import { setJSONInStorage } from "../../util/asyncStorage";
+import { randomUUID } from "expo-crypto";
+import { setJSONInStorage } from "../../utils/asyncStorage";
 import type {
-  UserDocument,
   SessionDocument,
   InteractionDocument,
   IdentifiedSkillDocument,
   InteractionMappingOutcome,
 } from "../../types/firestore";
+import type { NoMapReason } from "../../types/gemini";
 
 const USER_ID_STORAGE_KEY = "@firestore_user_id";
 type InputMethod = "text" | "voice" | "image";
 
+/**
+ * Firebase persistence is reserved for authenticated users.
+ * Every client-side Firestore write goes through this gate.
+ */
+export function canWriteToFirestore(): boolean {
+  return Boolean(auth.currentUser);
+}
+
 function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return randomUUID();
 }
 
 async function cacheUserId(userId: string): Promise<void> {
@@ -42,10 +54,6 @@ async function cacheUserId(userId: string): Promise<void> {
     console.warn("[Firestore] Failed to persist user id:", storageError);
   }
 }
-
-//
-// User identity (anonymous auth until real auth is wired up)
-//
 
 let _cachedUserId: string | null = null;
 const _verifiedSessionDocs = new Set<string>();
@@ -83,39 +91,25 @@ async function ensureSessionDocument(userId: string, sessionId: string): Promise
   _verifiedSessionDocs.add(key);
 }
 
+async function ensureFirebaseUserForWrites(): Promise<string> {
+  const currentUid = auth.currentUser?.uid;
+  if (!currentUid) {
+    throw new Error("No Firebase auth user is available for Firestore writes.");
+  }
+  return currentUid;
+}
+
 export async function getOrCreateUserId(): Promise<string> {
+  const { waitForAuthReady } = await import("../auth/authSessionService");
+  await waitForAuthReady();
+
   if (_cachedUserId && auth.currentUser?.uid === _cachedUserId) {
     return _cachedUserId;
   }
 
-  const currentUid = auth.currentUser?.uid;
-  if (currentUid) {
-    await cacheUserId(currentUid);
-    return currentUid;
-  }
-
-  try {
-    const credential = await signInAnonymously(auth);
-    const uid = credential.user.uid;
-
-    await cacheUserId(uid);
-
-    const userRef = doc(db, "participants", uid);
-    const userDoc: UserDocument = {
-      email: null,
-      displayName: null,
-      createdAt: serverTimestamp() as unknown as Timestamp,
-      lastActiveAt: serverTimestamp() as unknown as Timestamp,
-      isAnonymous: true,
-    };
-    await setDoc(userRef, userDoc, { merge: true });
-
-    return uid;
-  } catch (err) {
-    console.error("[Firestore] Failed to get/create user:", err);
-    _cachedUserId = null;
-    throw err;
-  }
+  const resolvedUid = await ensureFirebaseUserForWrites();
+  await cacheUserId(resolvedUid);
+  return resolvedUid;
 }
 
 //
@@ -157,6 +151,55 @@ export async function closeSession(
   }
 }
 
+export async function getSessionStatus(
+  userId: string,
+  sessionId: string
+): Promise<"in_progress" | "completed" | "abandoned" | null> {
+  try {
+    const sessionRef = doc(db, "participants", userId, "sessions", sessionId);
+    const snapshot = await getDoc(sessionRef);
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data();
+    return (data?.status as "in_progress" | "completed" | "abandoned") ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Find the user's current in_progress session, if any.
+ * A user has at most one in_progress session at a time, shared across every
+ * device, so Firestore — not local storage — is the source of truth for which
+ * session is active. Returns null when there is no in_progress session, and
+ * rethrows on read failure so callers can distinguish "none" from "offline".
+ */
+export async function getInProgressSession(userId: string): Promise<string | null> {
+  const sessionsRef = collection(db, "participants", userId, "sessions");
+  const q = query(sessionsRef, where("status", "==", "in_progress"), limit(1));
+  const snapshot = await getDocs(q);
+  return snapshot.empty ? null : snapshot.docs[0].id;
+}
+
+export async function fetchSessionInteractions(
+  userId: string,
+  sessionId: string
+): Promise<InteractionDocument[]> {
+  try {
+    const interactionsRef = collection(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "interactions"
+    );
+    const snapshot = await getDocs(interactionsRef);
+    return snapshot.docs.map((doc) => doc.data() as InteractionDocument);
+  } catch {
+    return [];
+  }
+}
+
 //
 // Interaction writes
 //
@@ -164,6 +207,7 @@ export async function closeSession(
 export async function saveInteraction(
   userId: string,
   sessionId: string,
+  interactionId: string | null,
   interaction: {
     sequenceIndex: number;
     question: string;
@@ -171,14 +215,17 @@ export async function saveInteraction(
     inputMethod: InputMethod;
     mappingOutcome: InteractionMappingOutcome;
     mappedCategory: string | null;
+    categoryId: string | null;
     isWeakFit: boolean;
     isAlreadyMapped: boolean;
     justification: string;
+    noMapReason?: string;
+    specificStamp?: string;
     matchedToCategory: string | null;
     matchedToSequenceIndex: number | null;
   }
 ): Promise<string> {
-  const interactionId = generateId();
+  const resolvedInteractionId = interactionId ?? generateId();
   try {
     await ensureSessionDocument(userId, sessionId);
 
@@ -189,10 +236,23 @@ export async function saveInteraction(
       "sessions",
       sessionId,
       "interactions",
-      interactionId
+      resolvedInteractionId
     );
     const interactionDoc: InteractionDocument = {
-      ...interaction,
+      sequenceIndex: interaction.sequenceIndex,
+      question: interaction.question,
+      answer: interaction.answer,
+      inputMethod: interaction.inputMethod,
+      mappingOutcome: interaction.mappingOutcome,
+      mappedCategory: interaction.mappedCategory,
+      categoryId: interaction.categoryId,
+      isWeakFit: interaction.isWeakFit,
+      isAlreadyMapped: interaction.isAlreadyMapped,
+      justification: interaction.justification,
+      noMapReason: (interaction.noMapReason ?? "") as NoMapReason,
+      specificStamp: interaction.specificStamp ?? null,
+      matchedToCategory: interaction.matchedToCategory,
+      matchedToSequenceIndex: interaction.matchedToSequenceIndex,
       timestamp: serverTimestamp() as unknown as Timestamp,
     };
     await setDoc(interactionRef, interactionDoc);
@@ -209,11 +269,18 @@ export async function saveInteraction(
       sessionUpdate.alreadyMappedCount = increment(1);
     }
     await setDoc(sessionRef, sessionUpdate, { merge: true });
+
+    console.log("[Firestore] Interaction saved", {
+      userId,
+      sessionId,
+      interactionId: resolvedInteractionId,
+      sequenceIndex: interaction.sequenceIndex,
+    });
   } catch (err) {
     console.error("[Firestore] Failed to save interaction:", err);
     throw err;
   }
-  return interactionId;
+  return resolvedInteractionId;
 }
 
 //
@@ -225,18 +292,37 @@ export async function savePassportMapping(
   sessionId: string,
   interactionId: string,
   category: string,
-  justification: string
+  categoryId: string,
+  justification: string,
+  specificStamp?: string
 ): Promise<void> {
+  if (!canWriteToFirestore()) return;
   try {
     await ensureSessionDocument(userId, sessionId);
 
-    const categoryId = category.replaceAll(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-    const passportRef = doc(db, "participants", userId, "skillPassport", categoryId);
+    const passportRef = doc(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport",
+      categoryId
+    );
 
-    const mapping = {
+    const mapping: {
+      sessionId: string;
+      interactionId: string;
+      justification: string;
+      specificStamp?: string | null;
+      categoryId?: string | null;
+      timestamp: Timestamp;
+    } = {
       sessionId,
       interactionId,
       justification,
+      specificStamp: specificStamp ?? null,
+      categoryId,
       // Field transforms are not allowed inside arrayUnion payloads.
       timestamp: Timestamp.now(),
     };
@@ -245,6 +331,7 @@ export async function savePassportMapping(
       passportRef,
       {
         category,
+        categoryId,
         firstMappedAt: serverTimestamp(),
         lastMappedAt: serverTimestamp(),
         totalMappings: increment(1),
@@ -265,6 +352,152 @@ export async function savePassportMapping(
   } catch (err) {
     console.error("[Firestore] Failed to save passport mapping:", err);
     throw err;
+  }
+}
+
+/**
+ * Save a stamp unlock to the per-session skillPassport doc and to the
+ * participant-level skillsPassport/summary aggregate. Uses increment for
+ * atomic counter updates.
+ */
+export async function saveStampUnlock(
+  userId: string,
+  sessionId: string,
+  categoryId: string,
+  stampName: string,
+  tier: number = 1,
+  categoryName?: string
+): Promise<void> {
+  try {
+    const passportRef = doc(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport",
+      categoryId
+    );
+
+    const existing = await getDoc(passportRef);
+    const data = existing.data();
+    const hasStamp =
+      data?.unlockedStamps &&
+      typeof data.unlockedStamps === "object" &&
+      stampName in data.unlockedStamps;
+
+    const summaryRef = doc(db, "participants", userId, "skillsPassport", "summary");
+    const summaryDoc = await getDoc(summaryRef);
+    const summaryData = summaryDoc.data();
+    const hasCategorySummary = summaryData?.categorySummaries?.[categoryId] != null;
+
+    // The summary aggregates across sessions, so its increment/first-set decision
+    // must look at the summary doc, not the session-local unlockedStamps.
+    const hasStampInSummary =
+      summaryData?.stamps &&
+      typeof summaryData.stamps === "object" &&
+      stampName in summaryData.stamps;
+
+    const summaryStampEntry = hasStampInSummary
+      ? {
+          timesUnlocked: increment(1),
+          lastUnlockedAt: serverTimestamp(),
+          tier,
+          categoryId,
+          stampName,
+          sessionId,
+          ...(categoryName ? { category: categoryName } : {}),
+        }
+      : {
+          timesUnlocked: 1,
+          firstUnlockedAt: serverTimestamp(),
+          lastUnlockedAt: serverTimestamp(),
+          tier,
+          categoryId,
+          stampName,
+          sessionId,
+          ...(categoryName ? { category: categoryName } : {}),
+        };
+
+    const batch = writeBatch(db);
+    batch.set(
+      passportRef,
+      {
+        categoryId,
+        unlockedStamps: {
+          [stampName]: hasStamp
+            ? { timesUnlocked: increment(1), lastUnlockedAt: serverTimestamp(), tier, categoryId }
+            : {
+                timesUnlocked: 1,
+                firstUnlockedAt: serverTimestamp(),
+                lastUnlockedAt: serverTimestamp(),
+                tier,
+                categoryId,
+              },
+        },
+      },
+      { merge: true }
+    );
+    batch.set(
+      summaryRef,
+      {
+        stamps: {
+          [stampName]: summaryStampEntry,
+        },
+      },
+      { merge: true }
+    );
+    if (categoryName) {
+      batch.set(
+        summaryRef,
+        {
+          categorySummaries: {
+            [categoryId]: {
+              category: categoryName,
+              categoryId,
+              totalMappings: increment(1),
+              lastMappedAt: serverTimestamp(),
+              ...(hasCategorySummary ? {} : { firstMappedAt: serverTimestamp() }),
+            },
+          },
+        },
+        { merge: true }
+      );
+    }
+    await batch.commit();
+  } catch (err) {
+    console.error("[Firestore] Failed to save stamp unlock:", err);
+    throw err;
+  }
+}
+
+export async function fetchPassportMappings(
+  userId: string,
+  sessionId: string
+): Promise<{ category: string; categoryId: string; firstMappedAt: Date; totalMappings: number }[]> {
+  try {
+    const passportRef = collection(
+      db,
+      "participants",
+      userId,
+      "sessions",
+      sessionId,
+      "skillPassport"
+    );
+    const snapshot = await getDocs(passportRef);
+
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        category: (data.category as string) ?? doc.id,
+        categoryId: (data.categoryId as string) ?? doc.id,
+        firstMappedAt: data.firstMappedAt?.toDate?.() ?? new Date(),
+        totalMappings: (data.totalMappings as number) ?? 1,
+      };
+    });
+  } catch (err) {
+    console.error("[Firestore] Failed to fetch passport mappings:", err);
+    return [];
   }
 }
 

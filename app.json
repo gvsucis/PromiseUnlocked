@@ -1,8 +1,10 @@
 {
   "expo": {
     "name": "promiseUnlocked",
-    "slug": "promiseunlocked",
+    "slug": "promise-unlock-app",
+    "scheme": "promiseunlocked",
     "version": "1.0.0",
+    "owner": "gvsu-blue-nucleus",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,12 +16,20 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to camera to take photos of your academic transcript.",
         "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select images of your academic transcript.",
         "NSMicrophoneUsageDescription": "We use the mic to transcribe your speech on device.",
-        "NSSpeechRecognitionUsageDescription": "We use speech recognition to transcribe audio on device."
+        "NSSpeechRecognitionUsageDescription": "We use speech recognition to transcribe audio on device.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.26141705792-gbbbkovfgpsdqtlhbkfv0ebuvuibhoj3"
+            ]
+          }
+        ]
       },
-      "bundleIdentifier": "com.anonymous.TranscriptAnalyzer"
+      "bundleIdentifier": "edu.gvsu.bluenucleus.pu"
     },
     "android": {
       "adaptiveIcon": {
@@ -32,12 +42,24 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "com.anonymous.TranscriptAnalyzer"
+      "package": "edu.gvsu.bluenucleus.pu",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "com.googleusercontent.apps.26141705792-ulrjshvjas4g8akq5n466dpc9n5c5tu9"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -51,18 +73,26 @@
           "cameraPermission": "The app accesses your camera to let you share photos with your friends."
         }
       ],
-
       "expo-web-browser",
-      "expo-build-properties"
+      "expo-build-properties",
+      "expo-audio",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.26141705792-gbbbkovfgpsdqtlhbkfv0ebuvuibhoj3"
+        }
+      ]
     ],
     "extra": {
       "eas": {
-        "projectId": "6ecf846e-45ab-42ed-b633-febe4811c82f"
+        "projectId": "62341192-c723-4426-aeb9-7f9186e2accb"
       }
     },
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": "1.1.0",
     "updates": {
-      "url": "https://u.expo.dev/6ecf846e-45ab-42ed-b633-febe4811c82f"
+      "url": "https://u.expo.dev/62341192-c723-4426-aeb9-7f9186e2accb",
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
     }
   }
 }
