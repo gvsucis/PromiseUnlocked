@@ -556,28 +556,6 @@ export default function ProfileScreen() {
 
             <Text style={styles.meta}>{profile?.email ?? "yourname@email.com"}</Text>
             <Text style={styles.meta}>{highSchool}</Text>
-
-            {profile?.schoolAddress?.trim() ? (
-              <Text style={styles.meta}>{profile.schoolAddress}</Text>
-            ) : null}
-
-            {profile?.pageUrl && (
-              <TouchableOpacity
-                onPress={() => {
-                  const pageUrl = profile?.pageUrl ?? "";
-                  void Linking.openURL(pageUrl.startsWith("http") ? pageUrl : `https://${pageUrl}`);
-                }}
-                style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}
-              >
-                <Ionicons
-                  name="link-outline"
-                  size={14}
-                  color={colors.accent.sky}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={[styles.meta, { color: colors.accent.sky }]}>Portfolio</Text>
-              </TouchableOpacity>
-            )}
           </TouchableOpacity>
 
           <View style={styles.statsPillRow}>
@@ -978,7 +956,7 @@ const styles = StyleSheet.create({
   identitySection: {
     alignItems: "center",
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.lg,
   },
   studentName: { ...typography.screenTitle, fontSize: 20 },
   meta: { fontSize: 14, color: colors.text.secondary, marginTop: 2 },
