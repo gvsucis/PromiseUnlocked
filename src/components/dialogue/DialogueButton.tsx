@@ -1,5 +1,5 @@
 import React from "react";
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useDialogue } from "../../context/DialogueProvider";
 import { colors } from "../../styles/global";
@@ -25,17 +25,21 @@ export function DialogueButton(props: DialogueButtonProps) {
   if (props.variant === "addDetail") {
     return (
       <TouchableOpacity
-        style={styles.generateButton}
+        style={styles.attachButton}
         onPress={() => d.startAddDetailQuestion(props.stamp, props.region)}
         disabled={busy}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
-        {busy ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
-          <MaterialIcons name="auto-awesome" size={20} color="#fff" />
-        )}
-        <Text style={styles.generateButtonText}>{busy ? "Loading..." : "Add Detail"}</Text>
+        <View style={styles.attachIconBadge}>
+          {busy ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <MaterialIcons name="add" size={22} color="#fff" />
+          )}
+        </View>
+        <View style={styles.attachTextGroup}>
+          <Text style={styles.attachButtonText}>{busy ? "Analyzing..." : "Add Detail"}</Text>
+        </View>
       </TouchableOpacity>
     );
   }
@@ -102,4 +106,45 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   generateButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  attachButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+
+    position: "relative",
+
+    backgroundColor: colors.accent.magenta,
+    borderRadius: 16,
+    paddingVertical: 22,
+    marginTop: 24,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+
+    width: 280,
+  },
+  attachIconBadge: {
+    position: "absolute",
+    left: 12,
+
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
+
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  attachTextGroup: {
+    alignItems: "center",
+  },
+  attachButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+  },
 });

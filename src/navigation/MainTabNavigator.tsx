@@ -30,28 +30,28 @@ const TAB_CONFIG = [
   {
     name: "Profile",
     component: ProfileScreen,
-    icon: "person-outline",
+    icon: "person",
     label: "Profile",
     size: 32,
   },
   {
     name: "Chat",
     component: ChatScreen,
-    icon: "add-circle-outline",
+    icon: "add-circle",
     label: "Chat",
-    size: 48,
+    size: 72,
   },
   {
     name: "Passport",
     component: PassportScreen,
-    icon: "explore",
+    icon: "map",
     label: "Passport",
     size: 32,
   },
   {
     name: "Help",
     component: HelpScreen,
-    icon: "error-outline",
+    icon: "error",
     label: "Help",
     size: 32,
   },
@@ -65,6 +65,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         const config = TAB_CONFIG[index];
         const isFocused = state.index === index;
         const dialogue = useDialogue();
+        const isChat = config.name === "Chat";
 
         const onPress = () => {
           if (config.name === "Chat") {
@@ -91,13 +92,23 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             activeOpacity={0.7}
             style={styles.tabItem}
           >
-            <View style={styles.iconWrap}>
-              <MaterialIcons
-                name={config.icon as any}
-                size={config.size ?? 32}
-                color={isFocused ? colors.accent.yellow : colors.accent.magenta}
-              />
-            </View>
+            {isChat ? (
+              <View style={styles.chatCircle}>
+                <MaterialIcons
+                  name={config.icon as any}
+                  size={config.size ?? 32}
+                  color={colors.accent.magenta}
+                />
+              </View>
+            ) : (
+              <View style={styles.iconWrap}>
+                <MaterialIcons
+                  name={config.icon as any}
+                  size={config.size ?? 32}
+                  color={isFocused ? colors.accent.yellow : colors.accent.magenta}
+                />
+              </View>
+            )}
           </TouchableOpacity>
         );
       })}
@@ -148,6 +159,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     position: "relative",
   },
+  chatCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.background.base,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "absolute",
+    top: -18,
+  },
   comingSoonBadge: {
     position: "absolute",
     top: -4,
@@ -157,7 +178,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 1,
   },
-  // FIXME: POC floating buttons — remove when proper header/context solution is in place
   floatingButtons: {
     position: "absolute",
     top: 52,

@@ -6,7 +6,6 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { CATEGORY_TAXONOMY, TOTAL_CATEGORIES } from "../services/categoryTaxonomyService";
-import { fetchProfile, buildLocalProfile, type UserProfile } from "../services/profileService";
 import { useDialogue } from "../context/DialogueProvider";
 import { DialogueButton } from "../components/dialogue/DialogueButton";
 import { useAuth } from "../context/AuthContext";
@@ -25,18 +24,12 @@ export default function DialogueDashboardScreen() {
   const { session } = useAuth();
   const d = useDialogue();
   const insets = useSafeAreaInsets();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
       d.refreshData();
-      fetchProfile()
-        .then(setProfile)
-        .catch(() => setProfile(buildLocalProfile()));
     }, [d.refreshData])
   );
-
-  const selectedPvaName = profile?.selectedPvaName ?? null;
 
   React.useLayoutEffect(() => {
     navigation.getParent()?.setOptions({
@@ -55,22 +48,13 @@ export default function DialogueDashboardScreen() {
   };
 
   const completionPercentage = Math.round((d.mappedCategories.length / TOTAL_CATEGORIES) * 100);
-  const { totalStampsUnlocked, totalXp, regionsExplored } = React.useMemo(() => {
+
+  const totalStampsUnlocked = React.useMemo(() => {
     let stamps = 0;
-    let xp = 0;
-    let regions = 0;
     for (const mc of d.mappedCategories) {
-      const list = mc.unlockedStamps;
-      const count = Array.isArray(list) ? list.length : 0;
-      stamps += count;
-      if (Array.isArray(list)) {
-        for (const st of list) {
-          xp += (st.tier ?? 1) * 5;
-        }
-      }
-      if (count > 0) regions++;
+      stamps += Array.isArray(mc.unlockedStamps) ? mc.unlockedStamps.length : 0;
     }
-    return { totalStampsUnlocked: stamps, totalXp: xp, regionsExplored: regions };
+    return stamps;
   }, [d.mappedCategories]);
 
   const upgradableStamp = React.useMemo(() => {
@@ -95,7 +79,6 @@ export default function DialogueDashboardScreen() {
         .filter((mc) => (mc.unlockedStamps?.length ?? 0) > 0)
         .map((mc) => mc.category)
     );
-    // Use a stable, deterministic ordering instead of Math.random()
     return CATEGORY_TAXONOMY.filter((cat) => !exploredSet.has(cat.category))
       .sort((a, b) => a.category.localeCompare(b.category))
       .slice(0, 3);
@@ -133,24 +116,8 @@ export default function DialogueDashboardScreen() {
           <Card.Content>
             <View style={styles.progressHeader}>
               <MaterialIcons name="trending-up" size={24} color={colors.accent.sky} />
-              <Text style={styles.nextStepsTitle}>Your Progress</Text>
-            </View>
-            <View style={styles.statsRow}>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>✈️</Text>
-                <Text style={styles.statLabel}>{selectedPvaName ?? "My PVA Style"}</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{totalStampsUnlocked}</Text>
-                <Text style={styles.statLabel}>Stamps Earned</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{totalXp}</Text>
-                <Text style={styles.statLabel}>Total XP</Text>
-              </View>
-            </View>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${completionPercentage}%` }]} />
+              <Text style={styles.nextStepsTitle}>Answer Questions to Unlock Skills Stamps</Text>
+              {/*FIXME UGLY TITLE*/}
             </View>
             <DialogueButton variant="dashboard" />
           </Card.Content>

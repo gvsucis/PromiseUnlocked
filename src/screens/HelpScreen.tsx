@@ -24,7 +24,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/ui/text";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
-import { useDialogue } from "../context/DialogueContext";
 import { ImagePickerService } from "../services/imagePickerService";
 import { uploadMultipleImages } from "../services/uploadService";
 
@@ -39,7 +38,6 @@ export default function HelpScreen() {
   const insets = useSafeAreaInsets();
 
   const { session } = useAuth();
-  const { reset } = useDialogue();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
   const handleLogout = () => {
@@ -150,13 +148,15 @@ export default function HelpScreen() {
             </View>
           </View>
 
-          <View style={styles.headerBlock}>
-            <Text style={styles.subtitle}>
+          <View style={styles.formCard}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="bug-report" size={20} color={colors.accent.coral} />
+              <Text style={styles.sectionHeaderTitle}>What went wrong?</Text>
+            </View>
+            <Text style={styles.sectionHeaderSubtitle}>
               Help us improve the app by sharing bugs or unexpected behavior.
             </Text>
-          </View>
 
-          <View style={styles.formCard}>
             <Text style={styles.label}>Where did you notice the issue?</Text>
 
             <View style={styles.optionContainer}>
@@ -227,12 +227,6 @@ export default function HelpScreen() {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.background.subtle,
-  },
-
-  bannerContainer: {
-    marginHorizontal: -spacing.md,
-    alignItems: "center",
-    marginBottom: spacing.lg,
   },
   bannerClip: {
     width: "100%",
@@ -412,5 +406,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.subtle,
     marginTop: spacing.sm,
+  },
+
+  bannerContainer: {
+    marginHorizontal: -spacing.md,
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  sectionHeaderTitle: {
+    ...typography.cardTitle,
+  },
+  sectionHeaderSubtitle: {
+    ...typography.bodyMuted,
+    marginBottom: spacing.md,
   },
 });
