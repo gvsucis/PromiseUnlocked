@@ -5,6 +5,9 @@ export const palette = {
   PU_Magenta: "#A52C87",
   PU_Brown: "#603D20",
   PU_Coral: "#FF8674",
+  PU_Coral_Light: "#FFB3A6",
+  PU_Coral_Lighter: "#FFE2DC",
+  PU_Coral_Dark: "#F06552",
   PU_Sky: "#5BC2E7",
   PU_Sky_Light: "#a8dff3",
   PU_Sky_Lighter: "#d6f0fa",
@@ -62,6 +65,9 @@ export const colors = {
     skyLight: palette.PU_Sky_Light,
     skyLighter: palette.PU_Sky_Lighter,
     skyDark: palette.PU_Sky_Dark,
+    coralLight: palette.PU_Coral_Light,
+    coralLighter: palette.PU_Coral_Lighter,
+    coralDark: palette.PU_Coral_Dark,
   },
 
   status: {

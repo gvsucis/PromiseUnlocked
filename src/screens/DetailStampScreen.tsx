@@ -143,8 +143,6 @@ export default function StampDetailScreen() {
             )}
           </View>
 
-          <Text style={styles.headerTitle}>Stamp Detail</Text>
-
           <View style={styles.arrowContainer}>
             {nextStamp && (
               <TouchableOpacity onPress={goToNextStamp}>
@@ -167,12 +165,12 @@ export default function StampDetailScreen() {
 
           <Text style={styles.subtitle}>{region}</Text>
 
-          {unlockInfo && (
+          {/*{unlockInfo && (
             <View style={styles.unlockedBadge}>
               <MaterialIcons name="lock-open" size={16} color="#FFFFFF" />
               <Text style={styles.unlockedBadgeText}>Unlocked ×{unlockInfo.timesUnlocked}</Text>
             </View>
-          )}
+          )}*/}
         </View>
 
         <View style={styles.sectionHeader}>
@@ -297,6 +295,7 @@ const styles = StyleSheet.create({
 
   sectionHeader: {
     marginBottom: 12,
+    marginLeft: 8,
   },
 
   sectionTitle: {
@@ -308,6 +307,7 @@ const styles = StyleSheet.create({
   justificationCard: {
     flexDirection: "row",
     alignItems: "flex-start",
+    paddingHorizontal: 8,
   },
 
   justificationAccent: {
@@ -324,13 +324,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text.primary,
     lineHeight: 22,
+    paddingRight: 8,
   },
 
   justificationSeparator: {
     height: 1,
     backgroundColor: colors.background.card,
     marginVertical: 12,
-    marginLeft: 15,
+    marginHorizontal: 12,
   },
 
   justificationEmpty: {

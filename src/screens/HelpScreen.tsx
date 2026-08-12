@@ -24,11 +24,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/ui/text";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
-import { useDialogue } from "../context/DialogueContext";
 import { ImagePickerService } from "../services/imagePickerService";
 import { uploadMultipleImages } from "../services/uploadService";
 
 const MAX_IMAGES = 3;
+const HEADER_HEIGHT = 130;
 
 export default function HelpScreen() {
   const [location, setLocation] = useState("");
@@ -38,7 +38,6 @@ export default function HelpScreen() {
   const insets = useSafeAreaInsets();
 
   const { session } = useAuth();
-  const { reset } = useDialogue();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
   const handleLogout = () => {
@@ -122,7 +121,12 @@ export default function HelpScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={[globalStyles.screen, { paddingTop: insets.top }]}>
+      <View
+        style={[
+          globalStyles.screen,
+          { paddingTop: insets.top, backgroundColor: colors.accent.sky },
+        ]}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -132,22 +136,27 @@ export default function HelpScreen() {
               <MaterialIcons
                 name={session.mode === "authenticated" ? "logout" : "person"}
                 size={24}
-                color={colors.status.error}
+                color={colors.text.inverse}
               />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.headerBlock}>
-            <View style={styles.headerRow}>
-              <MaterialIcons name="error" size={32} color={colors.accent.coral} />
-              <Text style={styles.title}>Report an Issue</Text>
+          <View style={styles.bannerContainer}>
+            <View style={styles.bannerClip}>
+              <View style={styles.banner} />
+              <Text style={styles.bannerTitle}>Report an Issue</Text>
             </View>
-            <Text style={styles.subtitle}>
-              Help us improve the app by sharing bugs or unexpected behavior.
-            </Text>
           </View>
 
           <View style={styles.formCard}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="bug-report" size={20} color={colors.accent.coral} />
+              <Text style={styles.sectionHeaderTitle}>What went wrong?</Text>
+            </View>
+            <Text style={styles.sectionHeaderSubtitle}>
+              Help us improve the app by sharing bugs or unexpected behavior.
+            </Text>
+
             <Text style={styles.label}>Where did you notice the issue?</Text>
 
             <View style={styles.optionContainer}>
@@ -218,6 +227,26 @@ export default function HelpScreen() {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.background.subtle,
+  },
+  bannerClip: {
+    width: "100%",
+    height: HEADER_HEIGHT,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  banner: {
+    width: 900,
+    height: 900,
+    borderRadius: 450,
+    backgroundColor: colors.accent.sky,
+    position: "absolute",
+    top: -900 + HEADER_HEIGHT,
+  },
+  bannerTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: colors.text.inverse,
   },
 
   title: {
@@ -341,7 +370,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background.subtle,
     paddingBottom: spacing.xl,
     flexGrow: 1,
-    justifyContent: "center",
   },
 
   headerBlock: {
@@ -378,5 +406,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.subtle,
     marginTop: spacing.sm,
+  },
+
+  bannerContainer: {
+    marginHorizontal: -spacing.md,
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  sectionHeaderTitle: {
+    ...typography.cardTitle,
+  },
+  sectionHeaderSubtitle: {
+    ...typography.bodyMuted,
+    marginBottom: spacing.md,
   },
 });

@@ -23,7 +23,7 @@ export default function StampBadge({
   const tierCfg = TIER_CONFIG[tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG[DEFAULT_TIER];
 
   if (error) {
-    const circleSize = size === "detail" ? 110 : 86;
+    const circleSize = size === "detail" ? 121 : 95;
     return (
       <View
         style={[
@@ -81,27 +81,27 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   wrapperList: {
-    width: 94,
-    height: 94,
+    width: 103,
+    height: 103,
   },
   wrapperDetail: {
-    width: 120,
-    height: 120,
+    width: 132,
+    height: 132,
   },
   base: {
     position: "absolute",
     borderRadius: 999,
   },
   baseList: {
-    width: 60,
-    height: 60,
-    top: 17,
-    left: 17,
+    width: 66,
+    height: 66,
+    top: 14,
+    left: 14,
   },
   baseDetail: {
-    width: 76,
-    height: 76,
-    top: 22,
-    left: 22,
+    width: 84,
+    height: 84,
+    top: 18,
+    left: 18,
   },
 });
