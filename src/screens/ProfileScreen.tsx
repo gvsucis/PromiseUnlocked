@@ -698,57 +698,60 @@ export default function ProfileScreen() {
             </View>
 
             <View style={[styles.tile, styles.tileFull]}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.cardTitle}>Moments & Artifacts</Text>
+              <View style={[styles.sectionHeader, { alignItems: "flex-start" }]}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.cardTitle}>Uploads</Text>
+                  <Text style={styles.cardSubtitle}>
+                    Upload your essays, transcripts, or any document — we'll personalize your
+                    questions to your experiences.
+                  </Text>
+                </View>
                 {uploadingArtifact && <ActivityIndicator size="small" color={colors.accent.sky} />}
               </View>
+
               {processingCount > 0 && (
                 <Text style={styles.processingHint}>
-                  We're reviewing your document{processingCount > 1 ? "s" : ""}. This may take a
-                  minute.
+                  Reviewing your document{processingCount > 1 ? "s" : ""} — this may take a minute.
                 </Text>
               )}
               {artifacts.length === 0 && (
                 <Text style={styles.artifactEmpty}>
-                  Upload essays, citations, or transcripts to build your experience profile.
+                  No documents yet. Tap "Add" to get started.
                 </Text>
               )}
+
               <View style={styles.artifactGrid}>
-                {artifacts.map((item) => (
-                  <View key={item.id} style={styles.artifactCard}>
-                    <TouchableOpacity
-                      style={styles.artifactCardPreview}
-                      onPress={() => setPreviewArtifact(item)}
-                    >
-                      <FileTypeIcon contentType={item.contentType} />
-                      {item.embeddingsStatus === "ready" && (
-                        <MaterialIcons
-                          name="check-circle"
-                          size={14}
-                          color={colors.status.success}
-                          style={styles.artifactCardBadge}
-                        />
-                      )}
-                      {item.embeddingsStatus === "processing" && (
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.accent.sky}
-                          style={styles.artifactCardBadge}
-                        />
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.artifactCardRemove}
-                      onPress={() => handleDeleteArtifact(item.id, item.fileName)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="close-circle" size={18} color="#FF6B6B" />
-                    </TouchableOpacity>
-                    <Text style={styles.artifactCardName} numberOfLines={2}>
-                      {item.fileName}
-                    </Text>
-                  </View>
-                ))}
+                {artifacts.map((item) => {
+                  const isProcessing = item.embeddingsStatus === "processing";
+                  return (
+                    <View key={item.id} style={styles.artifactCard}>
+                      <TouchableOpacity
+                        style={[
+                          styles.artifactCardPreview,
+                          isProcessing && styles.artifactCardPreviewPending,
+                        ]}
+                        onPress={() => setPreviewArtifact(item)}
+                        disabled={isProcessing}
+                      >
+                        {isProcessing ? (
+                          <ActivityIndicator size="small" color={colors.text.muted} />
+                        ) : (
+                          <FileTypeIcon contentType={item.contentType} />
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.artifactCardRemove}
+                        onPress={() => handleDeleteArtifact(item.id, item.fileName)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="close-circle" size={18} color="#FF6B6B" />
+                      </TouchableOpacity>
+                      <Text style={styles.artifactCardName} numberOfLines={2}>
+                        {item.fileName}
+                      </Text>
+                    </View>
+                  );
+                })}
                 <TouchableOpacity
                   style={styles.artifactCard}
                   onPress={handleSelectFile}
@@ -763,24 +766,85 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              style={[styles.tile, styles.tileHalf, styles.ctaTile]}
-              onPress={() => navigation.navigate("EditProfile")}
-              activeOpacity={0.85}
-            >
-              <View style={styles.ctaTileIconWrap}>
-                <MaterialIcons name="badge" size={20} color={colors.text.inverse} />
-              </View>
-              <Text style={styles.ctaTileTitle}>Demographic Info</Text>
-              <Text style={styles.ctaTileSubtitle}>
-                {hasDemographics ? "All set — review anytime" : "A few quick details left"}
-              </Text>
-              {!hasDemographics && (
-                <View style={styles.ctaTileBadge}>
-                  <Text style={styles.ctaTileBadgeText}>+ 10 XP</Text>
+            {(() => {
+              const address = (profile as any)?.address as
+                | {
+                    street?: string;
+                    city?: string;
+                    state?: string;
+                    postalCode?: string;
+                    country?: string;
+                  }
+                | undefined;
+
+              const formatDob = (dobStr?: string | null) => {
+                if (!dobStr) return null;
+                const date = new Date(dobStr + "T00:00:00");
+                if (Number.isNaN(date.getTime())) return null;
+                return date.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                });
+              };
+
+              const formatLabel = (value?: string | null) =>
+                value
+                  ? value
+                      .split("-")
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(" ")
+                  : null;
+
+              const cityState = [address?.city, address?.state].filter(Boolean).join(", ");
+
+              const rows: { label: string; value: string | null }[] = [
+                { label: "Date of Birth", value: formatDob((profile as any)?.dateOfBirth) },
+                { label: "Gender", value: formatLabel((profile as any)?.gender) },
+                { label: "Ethnicity", value: formatLabel((profile as any)?.ethnicity) },
+                { label: "Phone", value: (profile as any)?.phone || null },
+                { label: "Location", value: cityState || null },
+              ];
+
+              return (
+                <View style={[styles.tile, styles.tileFull, styles.demoTile]}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.cardTitle}>Demographic Info</Text>
+                    {!hasDemographics && (
+                      <View style={styles.ctaTileBadgeInline}>
+                        <Text style={styles.ctaTileBadgeInlineText}>+ 10 XP</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.demoRows}>
+                    {rows.map((row) => (
+                      <View key={row.label} style={styles.demoRow}>
+                        <Text style={styles.demoRowLabel}>{row.label}</Text>
+                        <Text style={row.value ? styles.demoRowValue : styles.demoRowValueEmpty}>
+                          {row.value ?? "Not provided"}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.demoEditButton}
+                    onPress={() => navigation.navigate("EditProfile")}
+                    activeOpacity={0.85}
+                  >
+                    <MaterialIcons
+                      name={hasDemographics ? "edit" : "add"}
+                      size={16}
+                      color={colors.accent.sky}
+                    />
+                    <Text style={styles.demoEditButtonText}>
+                      {hasDemographics ? "Edit Info" : "Add Info"}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              )}
-            </TouchableOpacity>
+              );
+            })()}
           </View>
 
           <Modal
@@ -1016,6 +1080,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     position: "relative",
   },
+  artifactCardPreviewPending: {
+    backgroundColor: colors.background.subtle,
+    opacity: 0.6,
+  },
   artifactCardPreview: {
     width: 64,
     height: 64,
@@ -1026,17 +1094,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.subtle,
   },
-  artifactCardBadge: {
+  artifactCardBadgeLeft: {
     position: "absolute",
     top: -4,
-    right: -4,
+    left: -4,
     backgroundColor: colors.background.card,
     borderRadius: 7,
   },
   artifactCardRemove: {
     position: "absolute",
-    top: -8,
-    right: -8,
+    top: -4,
+    right: -4,
     zIndex: 1,
   },
   artifactCardName: {
@@ -1458,5 +1526,55 @@ const styles = StyleSheet.create({
     marginTop: -6,
     fontSize: 13,
     color: colors.text.secondary,
+  },
+  demoTile: {},
+  demoRows: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  demoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  demoRowLabel: {
+    fontSize: 13,
+    color: colors.text.secondary,
+  },
+  demoRowValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text.primary,
+  },
+  demoRowValueEmpty: {
+    fontSize: 14,
+    color: colors.text.muted,
+    fontStyle: "italic",
+  },
+  demoEditButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.accent.sky,
+    borderRadius: radius.md ?? 12,
+    paddingVertical: 12,
+  },
+  demoEditButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.accent.sky,
+  },
+  ctaTileBadgeInline: {
+    backgroundColor: colors.background.tinted,
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  ctaTileBadgeInlineText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.accent.sky,
   },
 });
