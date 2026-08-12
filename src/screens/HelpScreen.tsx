@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     top: -900 + HEADER_HEIGHT,
   },
   bannerTitle: {
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: "800",
     color: colors.text.inverse,
   },

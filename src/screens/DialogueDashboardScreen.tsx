@@ -112,6 +112,16 @@ export default function DialogueDashboardScreen() {
             </View>
           </View>
 
+          <Card style={styles.nextStepsCard}>
+            <Card.Content>
+              <View style={styles.progressHeader}>
+                <MaterialIcons name="trending-up" size={24} color={colors.accent.sky} />
+                <Text style={styles.nextStepsTitle}>Chat to Unlock Stamps</Text>
+              </View>
+              <DialogueButton variant="dashboard" />
+            </Card.Content>
+          </Card>
+
           {upgradableStamp && (
             <Card style={styles.nextStepsCard}>
               <Card.Content>

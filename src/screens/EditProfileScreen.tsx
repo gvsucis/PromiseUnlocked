@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   Alert,
   ScrollView,
@@ -39,7 +39,6 @@ type EditProfileFormState = {
   postalCode: string;
   country: string;
   schoolName: string;
-  schoolAddress: string;
 };
 
 function buildUpdatePayload(formState: EditProfileFormState) {
@@ -52,7 +51,6 @@ function buildUpdatePayload(formState: EditProfileFormState) {
     ethnicity: formState.ethnicity || undefined,
     phone: formState.phone || undefined,
     schoolName: formState.schoolName || undefined,
-    schoolAddress: formState.schoolAddress || undefined,
     dateOfBirth: formState.dob ? formState.dob.toISOString().split("T")[0] : undefined,
     address:
       formState.street ||
@@ -169,7 +167,6 @@ function useProfileForm() {
   const [postalCode, setPostalCode] = useState("");
   const [country, setCountry] = useState("");
   const [schoolName, setSchoolName] = useState("");
-  const [schoolAddress, setSchoolAddress] = useState("");
   const [saving, setSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -192,7 +189,6 @@ function useProfileForm() {
           setPostalCode(profile.address?.postalCode ?? "");
           setCountry(profile.address?.country ?? "");
           setSchoolName(profile.schoolName ?? "");
-          setSchoolAddress(profile.schoolAddress ?? "");
         })
         .catch((error) => {
           console.warn("[EditProfile] Failed to fetch profile:", error);
@@ -228,6 +224,22 @@ function useProfileForm() {
 
   const stateOptions = [...states.map((s) => ({ label: s.name, value: s.abbreviation }))];
 
+  const requiredProgress = useMemo(() => {
+    const checks = [
+      !!dob,
+      !!gender,
+      !!ethnicity,
+      phone.trim().length > 0,
+      street.trim().length > 0,
+      city.trim().length > 0,
+      !!state,
+      postalCode.trim().length === 5,
+      country.trim().length > 0,
+      schoolName.trim().length > 0,
+    ];
+    return { completed: checks.filter(Boolean).length, total: checks.length };
+  }, [dob, gender, ethnicity, phone, street, city, state, postalCode, country, schoolName]);
+
   async function saveProfile(): Promise<boolean> {
     const formState: EditProfileFormState = {
       dob,
@@ -244,7 +256,6 @@ function useProfileForm() {
       postalCode,
       country,
       schoolName,
-      schoolAddress,
     };
 
     const validationError = validateProfileForm(formState);
@@ -310,13 +321,12 @@ function useProfileForm() {
     setCountry,
     schoolName,
     setSchoolName,
-    schoolAddress,
-    setSchoolAddress,
     saving,
     isLoading,
     genderOptions,
     ethnicityOptions,
     stateOptions,
+    requiredProgress,
     saveProfile,
   };
 }
@@ -357,13 +367,12 @@ export default function EditProfileScreen() {
     setCountry,
     schoolName,
     setSchoolName,
-    schoolAddress,
-    setSchoolAddress,
     saving,
     isLoading,
     genderOptions,
     ethnicityOptions,
     stateOptions,
+    requiredProgress,
     saveProfile,
   } = useProfileForm();
 
@@ -398,6 +407,9 @@ export default function EditProfileScreen() {
               <MaterialIcons name="person" size={40} color={colors.accent.skyDark} />
               <Text style={styles.title}>Personal Information</Text>
               <Text style={styles.subtitle}>Update your personal information</Text>
+              <Text style={styles.progressLine}>
+                {requiredProgress.completed} of {requiredProgress.total} required fields complete
+              </Text>
             </View>
 
             {/* Personal Info */}
@@ -405,7 +417,7 @@ export default function EditProfileScreen() {
               <Text style={styles.sectionTitle}>PERSONAL INFO</Text>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>Date of birth</Label>
+                <Label style={styles.label}>Date of birth *</Label>
                 <TouchableOpacity
                   style={styles.pickerWrapper}
                   onPress={() => setShowDobPicker(true)}
@@ -431,7 +443,7 @@ export default function EditProfileScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>Full Name</Label>
+                <Label style={styles.label}>Full Name *</Label>
                 <View style={styles.inputWrapper}>
                   <Input
                     placeholder="Your full name"
@@ -445,7 +457,7 @@ export default function EditProfileScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>Gender</Label>
+                <Label style={styles.label}>Gender *</Label>
                 <PickerField
                   value={gender}
                   placeholder="Select gender"
@@ -456,7 +468,7 @@ export default function EditProfileScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>Ethnicity</Label>
+                <Label style={styles.label}>Ethnicity *</Label>
                 <PickerField
                   value={ethnicity}
                   placeholder="Select ethnicity"
@@ -472,7 +484,7 @@ export default function EditProfileScreen() {
               <Text style={styles.sectionTitle}>CONTACT</Text>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>Phone</Label>
+                <Label style={styles.label}>Phone *</Label>
                 <View style={styles.inputWrapper}>
                   <Input
                     placeholder="555-555-5555"
@@ -486,7 +498,7 @@ export default function EditProfileScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>Portfolio / Profile URL</Label>
+                <Label style={styles.label}>Portfolio / Profile URL (Optional)</Label>
                 <View style={styles.inputWrapper}>
                   <Input
                     placeholder="linkedin.com/in/username or personal website"
@@ -506,7 +518,7 @@ export default function EditProfileScreen() {
               <Text style={styles.sectionTitle}>ADDRESS</Text>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>Street address</Label>
+                <Label style={styles.label}>Street address *</Label>
                 <View style={styles.inputWrapper}>
                   <Input
                     placeholder="123 Main St"
@@ -520,7 +532,7 @@ export default function EditProfileScreen() {
 
               <View style={styles.fieldRow}>
                 <View style={styles.fieldHalf}>
-                  <Label style={styles.label}>City</Label>
+                  <Label style={styles.label}>City *</Label>
                   <View style={styles.inputWrapper}>
                     <Input
                       placeholder="City"
@@ -533,7 +545,7 @@ export default function EditProfileScreen() {
                 </View>
 
                 <View style={styles.fieldHalf}>
-                  <Label style={styles.label}>State</Label>
+                  <Label style={styles.label}>State *</Label>
                   <PickerField
                     value={state}
                     placeholder="Select state"
@@ -545,7 +557,7 @@ export default function EditProfileScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>ZIP code</Label>
+                <Label style={styles.label}>ZIP code *</Label>
                 <View style={styles.inputWrapper}>
                   <Input
                     placeholder="49512"
@@ -560,7 +572,7 @@ export default function EditProfileScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>Country</Label>
+                <Label style={styles.label}>Country *</Label>
                 <View style={styles.inputWrapper}>
                   <Input
                     placeholder="United States"
@@ -579,24 +591,12 @@ export default function EditProfileScreen() {
               <Text style={styles.sectionTitle}>SCHOOL</Text>
 
               <View style={styles.fieldGroup}>
-                <Label style={styles.label}>High school</Label>
+                <Label style={styles.label}>High school *</Label>
                 <View style={styles.inputWrapper}>
                   <Input
                     placeholder="Hometown High School"
                     value={schoolName}
                     onChangeText={setSchoolName}
-                    className="h-10 px-0 text-sm bg-white border-0"
-                    style={styles.flex1}
-                  />
-                </View>
-              </View>
-              <View style={styles.fieldGroup}>
-                <Label style={styles.label}>School address</Label>
-                <View style={styles.inputWrapper}>
-                  <Input
-                    placeholder="123 Education Ave"
-                    value={schoolAddress}
-                    onChangeText={setSchoolAddress}
                     className="h-10 px-0 text-sm bg-white border-0"
                     style={styles.flex1}
                   />
@@ -708,6 +708,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text.secondary,
     marginTop: 5,
+  },
+  progressLine: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.accent.sky,
+    marginTop: 6,
   },
   scrollView: {
     flex: 1,
