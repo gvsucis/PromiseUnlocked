@@ -15,6 +15,7 @@ import skillsRouter from "@/api/skills";
 import usersRouter from "@/api/users";
 import helpRouter from "@/api/helpRoutes";
 import artifactsRouter from "@/api/artifacts";
+import xpRouter from "@/api/xp";
 import { authenticateToken } from "@/middleware/auth";
 import { createRateLimitMiddleware } from "@/middleware/rateLimit";
 import { InteractionsController } from "@/controllers/InteractionsController";
@@ -43,8 +44,7 @@ const allowedOrigins = rawCorsOrigin
 
 app.use(cors({ origin: allowedOrigins }));
 
-// Raw-body middleware for multipart uploads — runs BEFORE any async middleware
-// so body-parser captures the stream before it settles (Cloud Run / GFE quirk).
+// Must run before any async middleware so busboy keeps the stream (Cloud Run quirk).
 app.use(express.raw({ type: "multipart/form-data", limit: "10mb" }));
 
 app.use("/pva-catalog", pvaCatalogRouter);
@@ -65,6 +65,7 @@ app.use("/users", publicRateLimit, usersRouter);
 app.use("/chat", authenticateToken, protectedRateLimit, chatRoutes, proofRoutes);
 app.use("/participants", protectedRateLimit, participantsRouter);
 app.use("/participants/me/stamps", authenticateToken, protectedRateLimit, stampsRouter);
+app.use("/participants/me/xp", authenticateToken, protectedRateLimit, xpRouter);
 app.post(
   "/participants/me/interactions",
   authenticateToken,

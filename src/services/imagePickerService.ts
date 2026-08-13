@@ -39,10 +39,7 @@ export class ImagePickerService {
           imageUri: jpegUri,
         };
       } else {
-        return {
-          success: false,
-          error: "No image selected",
-        };
+        return { success: false };
       }
     } catch (error) {
       console.error("Error picking image from gallery:", error);
