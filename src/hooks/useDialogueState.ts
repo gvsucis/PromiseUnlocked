@@ -39,137 +39,15 @@ import {
   clearDialogueState,
 } from "../services/dialogueStateStorage";
 import { useProofWorkflow } from "./useProofWorkflow";
+import type {
+  UIState,
+  DialogueState,
+  DialogueMapResult,
+  StampUnlockInfo,
+  StampTierUpgrade,
+} from "../types/hooks";
 
-export type UIState =
-  | "idle"
-  | "answering"
-  | "loading"
-  | "complete"
-  | "weak-fit"
-  | "voice-recording";
-
-export interface DialogueState {
-  // State
-  continueAfterStampTierUpgrade: () => void;
-  mappedCategories: MappedCategory[];
-  interactions: ConversationInteraction[];
-  uiState: UIState;
-  currentPrompt: string;
-  userAnswer: string;
-  loadingMessage: string;
-  error: string;
-  prefetchedQuestion: string | null;
-  isPrefetching: boolean;
-  loading: boolean;
-  weakFitJustification: string;
-  contentWarning: boolean;
-  savedQuestion: string;
-  savedAnswer: string;
-  pdfContextText: string;
-  showConfetti: boolean;
-  newStampUnlock: {
-    stamp: string;
-    category: string;
-    categoryId: string;
-    tier: number;
-    sensitive: boolean;
-  } | null;
-  stampTierUpgrade: {
-    stamp: string;
-    category: string;
-    categoryId: string;
-    previousTier: number;
-    newTier: number;
-  } | null;
-  clearStampTierUpgrade: () => void;
-  addDetailReview: { justification: string } | null;
-  clearAddDetailReview: () => void;
-  showCrisisSupport: boolean;
-  dismissCrisisSupport: () => void;
-  showSensitiveIntro: boolean;
-  dismissSensitiveIntro: () => void;
-  pendingProofRequest: {
-    question: string;
-    answer: string;
-    interactionId: string;
-    category: string;
-    categoryId?: string;
-    stampName?: string;
-    artifactUploadReason?: string;
-    proofTier?: number;
-  } | null;
-  pendingProofNotification: {
-    artifactUploadReason: string;
-    stampName: string;
-    proofTier: number;
-    category: string;
-  } | null;
-
-  // Setters needed by screen for controlled inputs and UI transitions
-  setUserAnswer: React.Dispatch<React.SetStateAction<string>>;
-  setUiState: React.Dispatch<React.SetStateAction<UIState>>;
-  setCurrentPrompt: React.Dispatch<React.SetStateAction<string>>;
-  setError: React.Dispatch<React.SetStateAction<string>>;
-  setLoadingMessage: React.Dispatch<React.SetStateAction<string>>;
-
-  // Business logic
-  loadData: () => Promise<void>;
-  resetData: () => Promise<void>;
-  mapAnswerToCategory: (
-    question: string,
-    answer: string,
-    targetRegion?: string,
-    checkSensitive?: boolean,
-    evidenceTier?: number,
-    isAddDetail?: boolean
-  ) => Promise<DialogueMapResult>;
-  handleStartButtonPress: () => Promise<void>;
-  handleForceNewQuestion: () => Promise<void>;
-  handleTextInputPress: () => void;
-  handleVoiceInputPress: () => void;
-  prepareImageQuestion: () => boolean;
-  handleSubmitAnswer: () => void;
-  handleWeakFitTryAgain: () => void;
-  handleWeakFitNewQuestion: (region?: string) => Promise<void>;
-  handleSkipQuestion: (region?: string) => Promise<void>;
-  handleNewTopic: (region?: string) => Promise<void>;
-  dismissAnswerModal: () => void;
-  clearPendingProofRequest: () => void;
-  clearStampUnlock: () => void;
-  continueAfterStampUnlock: () => void;
-  clearProofNotification: () => void;
-  activateProofFromNotification: () => void;
-  clearDeferredState: () => void;
-  triggerContentWarning: (message?: string) => void;
-}
-
-export type DialogueMapResult =
-  | {
-      mapped: true;
-      category: string;
-      interactionId: string;
-      stampUnlock?: {
-        stamp: string;
-        category: string;
-        categoryId: string;
-        tier: number;
-      };
-      distressSignal?: boolean;
-      sensitiveExperience?: boolean;
-    }
-  | {
-      mapped: false;
-      category: string | null;
-      interactionId: string;
-      distressSignal?: boolean;
-      stampTierUpgrade?: {
-        stamp: string;
-        category: string;
-        categoryId: string;
-        previousTier: number;
-        newTier: number;
-      };
-    };
+export type { UIState, DialogueState, DialogueMapResult } from "../types/hooks";
 
 /** Total unique stamps unlocked across all mapped categories. */
 function countUnlockedStamps(categories: MappedCategory[]): number {
@@ -195,24 +73,12 @@ export function useDialogueState(): DialogueState {
   const [savedQuestion, setSavedQuestion] = useState("");
   const [savedAnswer, setSavedAnswer] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
-  const [newStampUnlock, setNewStampUnlock] = useState<{
-    stamp: string;
-    category: string;
-    categoryId: string;
-    tier: number;
-    sensitive: boolean;
-  } | null>(null);
+  const [newStampUnlock, setNewStampUnlock] = useState<StampUnlockInfo | null>(null);
   const [showCrisisSupport, setShowCrisisSupport] = useState(false);
   const [showSensitiveIntro, setShowSensitiveIntro] = useState(false);
   const [deferredNextQuestion, setDeferredNextQuestion] = useState<string | null>(null);
   const [deferredCheckCompletion, setDeferredCheckCompletion] = useState(false);
-  const [stampTierUpgrade, setStampTierUpgrade] = useState<{
-    stamp: string;
-    category: string;
-    categoryId: string;
-    previousTier: number;
-    newTier: number;
-  } | null>(null);
+  const [stampTierUpgrade, setStampTierUpgrade] = useState<StampTierUpgrade | null>(null);
   const [addDetailReview, setAddDetailReview] = useState<{ justification: string } | null>(null);
 
   const totalUniqueStamps = useMemo(
@@ -1126,11 +992,7 @@ export function useDialogueState(): DialogueState {
     setUiState("weak-fit");
   };
 
-  // Regenerate the next question: brief idle beat, then an abortable Gemini
-  // call whose result is prefetched. Callers reset their own state and pass context.
-  // `region`, when provided, keeps the regeneration scoped to that region's
-  // taxonomy instead of falling back to the full taxonomy — this is what keeps
-  // "skip" inside a region/addDetail flow from silently going generic.
+  // Regenerate and prefetch the next question (abortable); `region` scopes the taxonomy.
   const synthesizeAndPrefetch = async (
     context?: Parameters<typeof GeminiService.synthesizeNextQuestion>[3],
     region?: string
@@ -1183,10 +1045,7 @@ export function useDialogueState(): DialogueState {
     );
   };
 
-  // Skip: regenerate with an "avoid this" signal so the model returns something
-  // genuinely different rather than a rephrasing. `region` keeps skip scoped to
-  // whichever of the 4 entry flows (home / navbar+ / region / addDetail) is
-  // currently active — the caller (DialogueProvider) supplies this from flowContext.
+  // Skip: re-roll with an "avoid this" signal; `region` keeps it scoped to the active flow.
   const handleSkipQuestion = async (region?: string) => {
     await synthesizeAndPrefetch(
       {

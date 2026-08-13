@@ -7,7 +7,6 @@ import extractJson from "../utils/JsonExtract";
 import {
   DialogueInteraction,
   GeminiApiResponse,
-  GeminiError,
   GeminiResult,
   MapAnswerResponse,
   MappedCategory,
@@ -16,203 +15,34 @@ import {
 } from "../types/gemini";
 import { Alert } from "react-native";
 import { getStampUnlockSummary } from "./categoryStorageService";
+import {
+  withConcurrencyControl,
+  retryWithBackoff,
+  normalizeError,
+  isRateLimitError,
+  sanitizeUrl,
+} from "../utils/httpRetry";
+import {
+  isRecord,
+  toOptionalString,
+  toRequiredString,
+  parseJsonFromGeneratedText,
+} from "../utils/jsonUtils";
+import { normalizeQuestion, isQuestionStrong } from "../utils/questionText";
 
 export class GeminiService {
   private static readonly MODEL_NAME = CONFIG.TEXT_MODEL;
-  // gemini-2.5-flash is a thinking model: for short, deterministic outputs the
-  // internal reasoning can consume the whole token budget and truncate the
-  // response (finishReason MAX_TOKENS). Disable thinking on those calls. Longer
-  // analysis/extraction calls keep thinking, where it can improve quality.
+  // gemini-3.5-flash is a thinking model; disable thinking on short/deterministic
+  // calls so internal reasoning doesn't consume the whole token budget.
   private static readonly DISABLE_THINKING = { thinkingBudget: 0 } as const;
   private static readonly MAX_VISION_IMAGE_BYTES = 450 * 1024;
   private static readonly VISION_WIDTH_STEPS = [900, 768, 640, 512] as const;
   private static readonly VISION_QUALITY_STEPS = [0.65, 0.55, 0.45, 0.35] as const;
 
-  private static readonly requestQueue: Array<{
-    resolve: (value: GeminiResult<GeminiApiResponse>) => void;
-    reject: (error: unknown) => void;
-    fn: () => Promise<GeminiResult<GeminiApiResponse>>;
-  }> = [];
-  private static isProcessing = false;
-
-  private static processQueue(): void {
-    if (this.isProcessing || this.requestQueue.length === 0) return;
-    this.isProcessing = true;
-    const { resolve, reject, fn } = this.requestQueue.shift()!;
-    fn()
-      .then(resolve)
-      .catch(reject)
-      .finally(() => {
-        this.isProcessing = false;
-        this.processQueue();
-      });
-  }
-
-  private static enqueueRequest(
-    fn: () => Promise<GeminiResult<GeminiApiResponse>>
-  ): Promise<GeminiResult<GeminiApiResponse>> {
-    return new Promise((resolve, reject) => {
-      this.requestQueue.push({ resolve, reject, fn });
-      if (!this.isProcessing) {
-        this.processQueue();
-      }
-    });
-  }
-
   private static buildApiUrl(): string {
     const baseUrl = CONFIG.GEMINI_API_URL.replace(/\/+$/, "");
     const apiKey = encodeURIComponent(getGeminiApiKey());
     return `${baseUrl}/${this.MODEL_NAME}:generateContent?key=${apiKey}`;
-  }
-
-  private static sanitizeUrl(url: string): string {
-    return url.replaceAll(/key=[^&]*/g, "key=***");
-  }
-
-  // Shared rate-limit backoff budget, keyed by the AbortSignal that flows
-  // through one logical operation (e.g. a single dialogue answer: map ->
-  // synthesize -> strict retry). Without this, each chained requestGemini call
-  // runs its own multi-attempt backoff, so a sustained 429 could stack ~60s of
-  // waiting before failing. The first retry to need it establishes a deadline;
-  // every chained call sharing the signal then draws down the same budget.
-  private static readonly retryDeadlines = new WeakMap<AbortSignal, number>();
-  private static readonly TOTAL_RETRY_BUDGET_MS = 20000;
-
-  private static retryDeadlineFor(signal?: AbortSignal): number {
-    if (!signal) return Number.POSITIVE_INFINITY;
-    const existing = this.retryDeadlines.get(signal);
-    if (existing !== undefined) return existing;
-    const deadline = Date.now() + this.TOTAL_RETRY_BUDGET_MS;
-    this.retryDeadlines.set(signal, deadline);
-    return deadline;
-  }
-
-  private static async retryWithBackoff<T>(
-    fn: () => Promise<T>,
-    maxRetries: number = 2,
-    initialDelay: number = 2000,
-    signal?: AbortSignal
-  ): Promise<T> {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      if (signal?.aborted) {
-        throw new Error("Request cancelled");
-      }
-      try {
-        return await fn();
-      } catch (error) {
-        lastError = error;
-        if (this.isCancellation(error)) throw error;
-        const delay = this.computeRetryDelay(error, attempt, initialDelay);
-        if (delay < 0) throw error;
-        // Stop stacking backoff once this operation's shared budget is spent.
-        if (Date.now() + delay > this.retryDeadlineFor(signal)) {
-          throw error;
-        }
-        console.log(
-          `Rate limit/service busy. Retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-    throw lastError;
-  }
-
-  private static isCancellation(error: unknown): boolean {
-    return (
-      axios.isCancel(error) || (error instanceof Error && error.message === "Request cancelled")
-    );
-  }
-
-  private static computeRetryDelay(error: unknown, attempt: number, initialDelay: number): number {
-    if (!axios.isAxiosError(error)) return -1;
-
-    const status = error.response?.status;
-    const isRetryable = status === 429 || status === 503;
-    if (!isRetryable) return -1;
-
-    const retryAfterHeader = error.response?.headers?.["retry-after"];
-    const retryAfterSeconds = Number(retryAfterHeader);
-    const baseDelay =
-      Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-        ? retryAfterSeconds * 1000
-        : initialDelay * Math.pow(2, attempt);
-    const jitter = this.getRetryDelayJitter(500);
-    return baseDelay + jitter;
-  }
-
-  private static getRetryDelayJitter(maxJitter: number): number {
-    return Math.floor(Math.random() * maxJitter);
-  }
-
-  private static isRateLimitError(error: unknown): boolean {
-    if (!axios.isAxiosError(error)) return false;
-
-    const status = error.response?.status;
-    if (status === 429) return true;
-
-    const bodyText = JSON.stringify(error.response?.data ?? "").toLowerCase();
-    const message = String(error.message ?? "").toLowerCase();
-    const tooManyRequestsMarker = ["too", "many", "requests"].join("");
-
-    return (
-      bodyText.includes(tooManyRequestsMarker) ||
-      bodyText.includes("resource_exhausted") ||
-      bodyText.includes("quota") ||
-      message.includes(tooManyRequestsMarker) ||
-      message.includes("resource_exhausted")
-    );
-  }
-
-  private static normalizeError(error: unknown): GeminiError {
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status;
-      const retryAfterHeader = error.response?.headers?.["retry-after"];
-      const retryAfterSeconds = Number(retryAfterHeader);
-      const retryAfterMs =
-        Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-          ? retryAfterSeconds * 1000
-          : undefined;
-
-      if (this.isRateLimitError(error) || status === 429 || status === 503) {
-        return {
-          code: "RATE_LIMIT",
-          message: "System busy at the moment. Please try again later.",
-          retryable: true,
-          retryAfterMs,
-        };
-      }
-
-      if (status === 401 || status === 403) {
-        return {
-          code: "AUTH",
-          message: "API key invalid or missing. Check your configuration.",
-          retryable: false,
-        };
-      }
-
-      if (error.request && !error.response) {
-        return {
-          code: "NETWORK",
-          message: "Network error. Please check your internet connection.",
-          retryable: true,
-        };
-      }
-
-      return {
-        code: "API",
-        message: `API Error: ${status ?? "unknown"}${
-          error.response?.data ? ` - ${JSON.stringify(error.response.data)}` : ""
-        }`,
-        retryable: false,
-      };
-    }
-
-    return {
-      code: "UNKNOWN",
-      message: error instanceof Error ? error.message : "Unexpected error",
-      retryable: false,
-    };
   }
 
   private static async requestGemini(
@@ -230,7 +60,7 @@ export class GeminiService {
     const doRequest = async () => {
       try {
         const apiUrl = this.buildApiUrl();
-        const response = await this.retryWithBackoff(
+        const response = await retryWithBackoff(
           () =>
             axios.post<GeminiApiResponse>(apiUrl, requestBody, {
               headers: { "Content-Type": "application/json" },
@@ -244,11 +74,11 @@ export class GeminiService {
 
         return { ok: true, data: response.data };
       } catch (error) {
-        return { ok: false, error: this.normalizeError(error) };
+        return { ok: false, error: normalizeError(error) };
       }
     };
 
-    return this.enqueueRequest(doRequest);
+    return withConcurrencyControl("gemini-request", doRequest, 3);
   }
 
   private static extractGeneratedText(
@@ -257,49 +87,21 @@ export class GeminiService {
     return responseData?.candidates?.[0]?.content?.parts?.[0]?.text;
   }
 
-  private static isRecord(value: unknown): value is Record<string, unknown> {
-    return !!value && typeof value === "object" && !Array.isArray(value);
-  }
-
-  private static toOptionalString(value: unknown): string | undefined {
-    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
-      return undefined;
-    }
-
-    const normalized = String(value).trim();
-    return normalized.length > 0 ? normalized : undefined;
-  }
-
-  private static toRequiredString(value: unknown): string {
-    return this.toOptionalString(value) ?? "";
-  }
-
-  private static parseJsonFromGeneratedText<T>(text: string): T | null {
-    const jsonString = extractJson(text);
-    if (!jsonString) return null;
-
-    try {
-      return JSON.parse(jsonString) as T;
-    } catch {
-      return null;
-    }
-  }
-
   private static parseTranscriptAnalysisPayload(text: string): TranscriptAnalysis | null {
-    const parsed = this.parseJsonFromGeneratedText<Record<string, unknown>>(text);
+    const parsed = parseJsonFromGeneratedText<Record<string, unknown>>(text);
     if (!parsed || !Array.isArray(parsed.courses)) {
       return null;
     }
 
     const courses = parsed.courses
-      .filter((course): course is Record<string, unknown> => this.isRecord(course))
+      .filter((course): course is Record<string, unknown> => isRecord(course))
       .map((course) => ({
-        code: this.toRequiredString(course.code),
-        name: this.toRequiredString(course.name),
-        grade: this.toRequiredString(course.grade),
-        credits: this.toRequiredString(course.credits),
-        semester: this.toOptionalString(course.semester),
-        year: this.toOptionalString(course.year),
+        code: toRequiredString(course.code),
+        name: toRequiredString(course.name),
+        grade: toRequiredString(course.grade),
+        credits: toRequiredString(course.credits),
+        semester: toOptionalString(course.semester),
+        year: toOptionalString(course.year),
       }))
       .filter(
         (course) =>
@@ -315,12 +117,12 @@ export class GeminiService {
 
     return {
       courses,
-      gpa: this.toOptionalString(parsed.gpa),
-      totalCredits: this.toOptionalString(parsed.totalCredits),
-      institution: this.toOptionalString(parsed.institution),
-      studentName: this.toOptionalString(parsed.studentName),
-      degree: this.toOptionalString(parsed.degree),
-      graduationDate: this.toOptionalString(parsed.graduationDate),
+      gpa: toOptionalString(parsed.gpa),
+      totalCredits: toOptionalString(parsed.totalCredits),
+      institution: toOptionalString(parsed.institution),
+      studentName: toOptionalString(parsed.studentName),
+      degree: toOptionalString(parsed.degree),
+      graduationDate: toOptionalString(parsed.graduationDate),
     };
   }
 
@@ -401,7 +203,7 @@ export class GeminiService {
         rawResponse: text,
       };
     } catch (error) {
-      const errorMessage = this.isRateLimitError(error)
+      const errorMessage = isRateLimitError(error)
         ? "System busy at the moment. Please try again later."
         : "Analysis failed";
 
@@ -449,16 +251,15 @@ export class GeminiService {
 Question to answer: "${questionContext ?? "What are you typically doing when you lose track of time?"}"
 
 Instructions:
-1. First, check the image for inappropriate content: nudity, sexual content, graphic violence, gore, drugs/drug paraphernalia, weapons used to threaten or harm, hate symbols, or anything unsafe or inappropriate for a student skill-building app. If ANY of these are present, set "inappropriate" to true and set "answer" to an empty string — do not describe or reference the content further.
+1. First, check the image for inappropriate content: nudity, sexual content, graphic violence, gore, drugs/drug paraphernalia, weapons used to threaten or harm, hate symbols, or anything unsafe or inappropriate for a student skill-building app. If ANY of these are present, set "inappropriate" to true and set "description" to an empty string — do not describe or reference the content further.
 2. If the image is appropriate, infer the likely activity shown in the image.
-3. Write a concise first-person answer the user can submit (2-3 sentences).
-4. Keep it specific, natural, and grounded in what is visible.
-5. Mention concrete skills/strengths implied by the activity.
-6. Do not include disclaimers, markdown, bullet points, or references to "the image".
-7. Judge whether the image is GENUINE VISUAL EVIDENCE that the user actually did/engaged in the activity relevant to the question. Set "supportsClaim" to true ONLY if the image clearly depicts that specific activity or its concrete output/context and would stand as real evidence of it. Set it to false for generic, staged, unrelated, or low-content images (e.g. a blank wall, an unrelated selfie, a stock-looking photo, text screenshots).
-8. If "supportsClaim" is true, set "evidenceTier": 3 for ordinary genuine supporting evidence, or 4 ONLY for exceptional, verifiable-caliber evidence visible in the image (an award/certificate, competition, professional or high-level setting). If "supportsClaim" is false, set "evidenceTier" to 3 (it is ignored).
+3. Describe the image factually and specifically: the visible subject, setting, objects, any text, and colors. Ground the description in what is actually visible.
+4. Do not invent an activity the image does not show, and do not write a first-person narrative or an answer the user could submit.
+5. Do not include disclaimers, markdown, bullet points, or references to "the image".
+6. Judge whether the image is GENUINE VISUAL EVIDENCE that the user actually did/engaged in the activity relevant to the question. Set "supportsClaim" to true ONLY if the image clearly depicts that specific activity or its concrete output/context and would stand as real evidence of it. Set it to false for generic, staged, unrelated, or low-content images (e.g. a blank wall, an unrelated selfie, a stock-looking photo, text screenshots).
+7. If "supportsClaim" is true, set "evidenceTier": 3 for ordinary genuine supporting evidence, or 4 ONLY for exceptional, verifiable-caliber evidence visible in the image (an award/certificate, competition, professional or high-level setting). If "supportsClaim" is false, set "evidenceTier" to 3 (it is ignored).
 
-Return JSON only, matching this shape: { "inappropriate": boolean, "answer": string, "supportsClaim": boolean, "evidenceTier": number }`,
+Return JSON only, matching this shape: { "inappropriate": boolean, "description": string, "supportsClaim": boolean, "evidenceTier": number }`,
               },
               { inline_data: { mime_type: "image/jpeg", data: base64Image } },
             ],
@@ -473,11 +274,11 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
             type: "object",
             properties: {
               inappropriate: { type: "boolean" },
-              answer: { type: "string" },
+              description: { type: "string" },
               supportsClaim: { type: "boolean" },
               evidenceTier: { type: "number" },
             },
-            required: ["inappropriate", "answer", "supportsClaim", "evidenceTier"],
+            required: ["inappropriate", "description", "supportsClaim", "evidenceTier"],
           },
         },
       };
@@ -506,7 +307,7 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
       const parsed = jsonString
         ? (JSON.parse(jsonString) as {
             inappropriate?: boolean;
-            answer?: string;
+            description?: string;
             supportsClaim?: boolean;
             evidenceTier?: number;
           })
@@ -527,7 +328,7 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
       return {
         success: true,
         inappropriate: false,
-        rawResponse: (parsed.answer ?? "").trim(),
+        rawResponse: (parsed.description ?? "").trim(),
         supportsClaim,
         evidenceTier,
       };
@@ -575,7 +376,7 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
       const transcript = this.extractGeneratedText(result.data)?.trim() ?? "";
       return { success: true, transcript };
     } catch (error) {
-      const errorMessage = this.isRateLimitError(error)
+      const errorMessage = isRateLimitError(error)
         ? "System busy at the moment. Please try again later."
         : "Transcription failed";
       return { success: false, error: errorMessage };
@@ -652,7 +453,6 @@ Return JSON only, matching this shape: { "inappropriate": boolean, "answer": str
     const regionHint = options?.targetRegion
       ? `\n13. The user is exploring the "${options.targetRegion}" region. If the answer fits this category, prefer mapping to "${options.targetRegion}" over other categories.`
       : "";
-    // geminiService.ts — replace the targetCategoryId/stampUnlockSummary block
 
     const categoriesWithIds = mappedCategories.filter(
       (c): c is MappedCategory & { categoryId: string } => !!c.categoryId
@@ -677,9 +477,9 @@ Rules:
 2. Only map to a real category if the fit is obvious and rigorous. When genuinely uncertain, prefer NO_MAP_WEAK_FIT rather than forcing a category.
 3. Prefer unmapped categories, but if the answer genuinely matches an already-mapped category, you may still select it (its counter will increment). Never force a weak match just because it's unmapped.
 4. Use 'NO_MAP_WEAK_FIT' only when the answer itself is generic filler, too vague to point to any category, gibberish, or spam — not merely because it didn't address the question. A detailed, substantive answer about something real should be mapped even if it ignores the question entirely.
-5. If the answer contains abusive, offensive, or inappropriate language, or is gibberish/spam/unrelated to any category, you MUST use 'NO_MAP_WEAK_FIT' with justification EXACTLY starting with 'INAPPROPRIATE_CONTENT:' and set noMapReason to "inappropriate_content". Set nextQuestion to null. Do NOT use the answer text in follow-up questions. See rule 17 if distressSignal also applies — only one of these should govern the turn.
+      5. If the answer contains abusive, offensive, or inappropriate language, or is gibberish/spam/unrelated to any category, you MUST use 'NO_MAP_WEAK_FIT' with justification EXACTLY starting with 'INAPPROPRIATE_CONTENT:' and set noMapReason to "inappropriate_content". Set nextQuestion to null. Do NOT use the answer text in follow-up questions. This also applies to answers that express discriminatory treatment of others based on protected characteristics (race, ethnicity, gender, age, disability, religion, sexual orientation, national origin, or immigration status) — even when the language is calm, neutral, or framed as leadership, teamwork, or effective management. Do NOT map such an answer to any category and do NOT ask a follow-up question that validates or builds on the discriminatory premise; refuse via INAPPROPRIATE_CONTENT with nextQuestion null. See rule 17 if distressSignal also applies — only one of these should govern the turn.
 6. If a category appears multiple times in the mapped category list, treat that repeat count as supporting evidence of strength, but do not override a weak or unrelated answer.
-7. Justification must state the concrete evidence from the answer and how it maps to the stamp; at most 40 words. Never quote the rules or mention the taxonomy. When mapping succeeds, omit noMapReason entirely.
+7. Justification must state the concrete evidence from the answer and how it maps to the stamp; at most 45 words. If the answer cites an attached image via an "[Image evidence — attached image shows: ...]" block, incorporate the concrete visible details from that description (subject, colors, objects, setting) into the justification as described evidence. Never quote the rules or mention the taxonomy. When mapping succeeds, omit noMapReason entirely.
 8. Generate a thoughful follow-up question. If the last 2-3 interaction have centered on the same category or skill area, deliberately broaden the scope - ask about a related but different dimension of the user's experience. Otherwise, you may continue naturally from their answer. The goal is holistic exploraltion across categories, not exhaustive depth on one. , or set nextQuestion to null if no useful follow-up exists. Keep the question in the register of activities, projects, responsibilities, and choices. Never ask the user to locate feelings or sensations in their body, rate distress/pain, describe physical or emotional symptoms, or do body-scanning/mindfulness-style reflection. Do not introduce mental health, trauma, family conflict, finances, romantic relationships, religion, or immigration status as topics — only engage with those if the user's own answer already raised them, and even then stay on the skill/experience angle rather than the personal one. Keep the tone warm and conversational — ask with genuine curiosity about what the experience meant or what they learned, not about granular mechanics. Favor open-ended reflection over narrow factual questions. Keep the response SHORT and scannable — this is a chat app and long text reads as boring. The acknowledgment is ONE brief sentence (typically 5-15 words) reacting to what they shared. The question is a SINGLE clear sentence (typically 15-25 words) that stands alone and asks directly — no preamble, no setup sentence about the user's background, no lead-in; ask immediately. You may reference one concrete detail from their answer inside the question, but never re-narrate their story first. Ask exactly ONE question per turn — never join two questions with 'and' or 'or'. If two angles come to mind, pick the stronger one and save the other for a future turn. Vary your phrasing and structure from turn to turn so questions never feel repetitive or templated. Open your reply with a short, genuine acknowledgment of what the user just shared — a real reaction or light empathetic remark that references something they actually said (e.g. "That hackathon sounds intense!" or "Wow — I'd love to hear how that felt."). Never use canned praise like "That's awesome!" or "Nice work!", and vary it each turn so it never repeats. Make the student feel heard and curious to share more — the acknowledgment is the doorway, and the question is the invitation to keep telling their story. Keep it to a brief phrase, end it with a period so the question follows as its own sentence, and only omit it when adding one would feel forced. Never make the acknowledgment itself a question.
 9. Evaluate if the user's answer is detailed, rich, and more than a single sentence. If it is a "great response" that could be strengthened with visual proof (like an image artifact), set suggestArtifactUpload to true and provide a brief artifactUploadReason (e.g., "A photo of your project would strengthen this claim"). Otherwise, set suggestArtifactUpload to false.
 10. Pick the single most specific stamp name from the category's "Available Stamps" list. Set specificStamp only if the answer clearly and directly indicates that exact stamp. If no specific stamp is evident, set specificStamp to null — do not guess or default.
@@ -761,7 +561,6 @@ Tier rubric:
         console.warn("⚠️ Gemini response finished with MAX_TOKENS – JSON may be truncated.");
       }
 
-      // Extract JSON from response (handles incomplete/truncated JSON)
       const jsonString = extractJson(rawText);
       if (!jsonString) {
         const salvaged = this.salvageTruncatedMapAnswerResponse(rawText);
@@ -793,10 +592,10 @@ Tier rubric:
           statusText: error.response?.statusText,
           data: error.response?.data,
           message: error.message,
-          url: this.sanitizeUrl(this.buildApiUrl()),
+          url: sanitizeUrl(this.buildApiUrl()),
         });
 
-        if (this.isRateLimitError(error)) {
+        if (isRateLimitError(error)) {
           throw new Error("System busy at the moment. Please try again later.");
         }
       }
@@ -837,8 +636,8 @@ Tier rubric:
       return parsed;
     }
 
-    parsed.nextQuestion = this.normalizeQuestion(parsed.nextQuestion);
-    if (this.isQuestionStrong(parsed.nextQuestion)) {
+    parsed.nextQuestion = normalizeQuestion(parsed.nextQuestion);
+    if (isQuestionStrong(parsed.nextQuestion)) {
       return parsed;
     }
 
@@ -939,7 +738,7 @@ Tier rubric:
       return "Image is too large to analyze. Please choose a smaller image or use the Small size option.";
     }
 
-    if (this.isRateLimitError(error)) {
+    if (isRateLimitError(error)) {
       return "System busy at the moment. Please try again later.";
     }
 
@@ -958,38 +757,6 @@ Tier rubric:
     return "Failed to analyze image";
   }
 
-  private static normalizeQuestion(question: string): string {
-    let normalized = String(question).trim();
-    while (normalized.startsWith('"')) {
-      normalized = normalized.slice(1);
-    }
-    while (normalized.endsWith('"')) {
-      normalized = normalized.slice(0, -1);
-    }
-    normalized = normalized.trim();
-    normalized = normalized.replaceAll(/\s+/g, " ");
-
-    if (!normalized.endsWith("?")) {
-      while (normalized.endsWith(".") || normalized.endsWith("!")) {
-        normalized = normalized.slice(0, -1);
-      }
-      normalized = `${normalized}?`;
-    }
-
-    return normalized;
-  }
-
-  private static isQuestionStrong(question: string): boolean {
-    const normalized = question.trim();
-    if (!normalized.endsWith("?")) return false;
-    const words = normalized
-      .replaceAll(/[?!.,]/g, "")
-      .split(/\s+/)
-      .filter(Boolean);
-    if (words.length < 8) return false;
-    return /\b(what|how|why|where|when|who|which)\b/i.test(normalized);
-  }
-
   private static buildSynthesisPrompt(
     history: string,
     taxonomyString: string,
@@ -998,8 +765,7 @@ Tier rubric:
     context?: QuestionSynthesisContext,
     targetRegion?: string
   ): string {
-    // In "New Topic" mode we deliberately drop the latest turn so the question
-    // pivots to a new dimension instead of continuing the current thread.
+    // "New Topic"/region mode drops the latest turn so the question pivots away from the current thread.
     const isRegionExplore = !!targetRegion && !context?.newTopic;
 
     const latestTurnBlock =
@@ -1012,9 +778,7 @@ Tier rubric:
     const regionBlock = targetRegion
       ? `\nTARGET REGION: ${targetRegion} — focus the question on this specific area.\n`
       : "";
-    // The user rejected this question via "Skip". Tell the model explicitly so
-    // it regenerates something genuinely different instead of returning a
-    // near-identical phrasing.
+    // The user skipped this question — tell the model so it regenerates something different.
     const avoidQuestionBlock = context?.avoidQuestion
       ? `\nAVOID: The user just skipped this question — do NOT repeat it or merely rephrase it. Ask about a clearly different angle:\n"${context.avoidQuestion}"\n`
       : "";
@@ -1037,9 +801,7 @@ Tier rubric:
       leadInstruction = `Based on all our interactions so far, the taxonomy (including the NO_OP category as a mapping option), and the categories mapped to me so far, synthesize a clear, specific new question. If the last 2-3 turns explored the same category, shift to a related but different dimension rather than drilling deeper. You may use what the user just shared as a natural bridge, but pivot to a fresh angle and might help tease out which additional categories might map to me. The question must end with a "?".${strictClause} Prioritize the latest answer and recent conversation history. If embedding response history is present, use it only as secondary background context and do not let it override the latest answer or introduce a new unrelated topic.${userCenterClause}${engagementClause}`;
     }
 
-    // "New Topic" mode deliberately pivots away from the existing thread, so we
-    // withhold the full Q/A HISTORY (which would anchor the model back to it)
-    // and steer purely from the mapped categories + embedding background.
+    // "New Topic" mode withholds full history to avoid re-anchoring on the old thread.
     const historyBlock = context?.newTopic || isRegionExplore ? "" : `HISTORY:\n${history}\n\n`;
 
     return `${leadInstruction}
@@ -1096,10 +858,9 @@ RESPOND ONLY with the text of the new question. Open the reply with a short, gen
     _text: string,
     finishReason?: string
   ): boolean {
-    // Retry only when the question is weak or the response was truncated
-    // (MAX_TOKENS); a long-but-complete question is fine as-is.
+    // Retry only on weak questions or truncated (MAX_TOKENS) responses.
     const isIncomplete = finishReason === "MAX_TOKENS";
-    return !this.isQuestionStrong(question) || isIncomplete;
+    return !isQuestionStrong(question) || isIncomplete;
   }
 
   private static throwSynthesisError(error: unknown): never {
@@ -1160,7 +921,7 @@ RESPOND ONLY with the text of the new question. Open the reply with a short, gen
         console.warn("Gemini response finished with MAX_TOKENS – question may be truncated.");
       }
 
-      let question = this.normalizeQuestion(text);
+      let question = normalizeQuestion(text);
 
       if (this.shouldRetryQuestionStrict(question, text, finishReason)) {
         console.log("Question is incomplete or weak, retrying with stricter settings");
@@ -1177,7 +938,7 @@ RESPOND ONLY with the text of the new question. Open the reply with a short, gen
         const { text: strictText } = this.readQuestionResponse(strictResponse);
 
         if (strictText && strictText.length < 250) {
-          question = this.normalizeQuestion(strictText);
+          question = normalizeQuestion(strictText);
         }
       }
 

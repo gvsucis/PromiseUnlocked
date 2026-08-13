@@ -59,12 +59,14 @@ export async function uploadArtifact(
     artifactCache.invalidate();
     return { success: true, data: body.data ?? body };
   } catch (err) {
-    const message =
-      err instanceof Error
-        ? err.name === "AbortError"
-          ? "Upload timed out — check your connection"
-          : err.message
-        : "Upload failed";
+    let message = "Upload failed";
+    if (err instanceof Error) {
+      if (err.name === "AbortError") {
+        message = "Upload timed out — check your connection";
+      } else {
+        message = err.message;
+      }
+    }
     return { success: false, error: message };
   } finally {
     clearTimeout(timeout);
