@@ -14,7 +14,8 @@
     "serve": "firebase emulators:start --only functions,firestore,auth",
     "deploy": "npm run build && firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "seed:superadmin": "tsx src/seed-superadmin.ts"
+    "seed:superadmin": "tsx src/seed-superadmin.ts",
+    "split:names": "tsx src/split-names-migration.ts"
   },
   "keywords": [],
   "author": "",

@@ -14,6 +14,7 @@ import type { AppAuthSession } from "../../types/auth";
 import type { UserDocument } from "../../types/firestore";
 import { fetchMyStamps, deriveMappedCategories } from "../stampSyncService";
 import { setScopedStorageUid } from "../storageScopeService";
+import { combineFullName } from "../../utils/format";
 
 const AUTH_SESSION_STORAGE_KEY = "@app_auth_session";
 
@@ -41,22 +42,20 @@ async function setSignedOutSession(): Promise<AppAuthSession> {
 async function handleAuthenticatedUser(user: User): Promise<AppAuthSession> {
   const nextSession = buildSession(user);
 
-  // Restore passport mappings from Firestore to AsyncStorage before emitting
-  // the session, so screens (Passport, DialogueDashboard) see the data on mount.
+  // Warm the local passport cache from Firestore before emitting the session.
   if (user.uid !== lastHydratedUid) {
     lastHydratedUid = user.uid;
     setScopedStorageUid(user.uid);
     await hydratePassportMappings(user.uid);
   }
 
-  // Push any local-only stamps to Firestore so authenticated data survives
-  // device wipes.
+  // Back local-only stamps up so authenticated data survives device wipes.
   void backfillLocalStampsToFirestore(user.uid).catch(() => {});
 
   emitSession(nextSession);
   await persistSession(nextSession);
 
-  // Keep auth transitions snappy by not blocking on remote sync work.
+  // Don't block on remote sync work.
   void syncUserDocument(user).catch((error) => {
     console.warn("[AuthSession] Failed to sync user document:", error);
   });
@@ -148,9 +147,7 @@ async function backfillLocalStampsToFirestore(uid: string): Promise<void> {
     const entries = await getJSONFromStorage<Record<string, unknown>[]>(mappedCategoriesKey, []);
     if (entries.length === 0) return;
 
-    // Only back local stamps into an existing in_progress session. Never mint a
-    // new session here — that would resurrect a completed passport the user has
-    // already moved on from.
+    // Only back into an existing in_progress session; never mint a new one.
     const sessionId = await getInProgressSession(uid);
     if (!sessionId) {
       if (__DEV__) console.log("[AuthSession] Skipping backfill — no in_progress session");
@@ -364,17 +361,39 @@ export async function signInWithEmail(email: string, password: string) {
   return signInWithEmailAndPassword(auth, email.trim(), password);
 }
 
-export async function signUpWithEmail(email: string, password: string, displayName?: string) {
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  firstName?: string,
+  lastName?: string
+) {
   await waitForAuthReady();
 
   const normalizedEmail = email.trim();
 
   const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
 
-  if (displayName) {
-    await updateProfile(userCredential.user, { displayName });
-    void syncUserDocument(userCredential.user).catch(() => {});
+  const fullName = combineFullName(firstName ?? "", lastName ?? "");
+  if (fullName) {
+    await updateProfile(userCredential.user, { displayName: fullName });
   }
+
+  // Persist split first/last at signup; merge stops later syncs clobbering them.
+  if (firstName?.trim() || lastName?.trim()) {
+    const userRef = doc(db, "participants", userCredential.user.uid);
+    await setDoc(
+      userRef,
+      {
+        firstName: firstName?.trim() || null,
+        lastName: lastName?.trim() || null,
+        fullName: fullName || null,
+        displayName: fullName || null,
+      },
+      { merge: true }
+    );
+  }
+
+  void syncUserDocument(userCredential.user).catch(() => {});
 
   return userCredential;
 }
