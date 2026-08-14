@@ -338,15 +338,6 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     }
   }, [currentPrompt, showQuestionInputModal, handleStartButtonPress]);
 
-  // --- Entry point C (navbar + button) ---
-  const forceNewQuestion = useCallback(async () => {
-    setFlowContext({ mode: "default" });
-    modalIntentionallyOpenedRef.current = true;
-    modalDismissedByBackdropRef.current = false;
-    suppressModalReopenRef.current = false;
-    await handleForceNewQuestion();
-  }, [handleForceNewQuestion]);
-
   const reopenPendingQuestion = useCallback(() => {
     if (currentPrompt && !showQuestionInputModal) {
       modalIntentionallyOpenedRef.current = true;
@@ -354,6 +345,19 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       setShowQuestionInputModal(true);
     }
   }, [currentPrompt, showQuestionInputModal]);
+
+  // --- Entry point C (navbar + button) ---
+  const forceNewQuestion = useCallback(async () => {
+    setFlowContext({ mode: "default" });
+    modalIntentionallyOpenedRef.current = true;
+    modalDismissedByBackdropRef.current = false;
+    suppressModalReopenRef.current = false;
+    if (currentPrompt && !showQuestionInputModal) {
+      reopenPendingQuestion();
+    } else {
+      await handleForceNewQuestion();
+    }
+  }, [currentPrompt, showQuestionInputModal, reopenPendingQuestion, handleForceNewQuestion]);
 
   // Just presents a question in the modal — no longer owns any flow-context
   // decisions. Callers set flowContext themselves before calling this.
