@@ -70,9 +70,16 @@ export function stripNoMapPrefix(justification?: string): string {
   return hit ? justification.slice(hit.prefix.length).trim() : justification.trim();
 }
 
-export function normalizeJustification(justification?: string, maxLength = 300): string {
+export function normalizeJustification(justification?: string, maxLength = 500): string {
   const text = stripNoMapPrefix(justification);
-  return text.length > maxLength ? text.slice(0, maxLength) : text;
+  if (text.length <= maxLength) return text;
+
+  // Cut at the last word boundary within the cap so a long justification
+  // never ends mid-word, and append an ellipsis to signal the cut.
+  const capped = text.slice(0, maxLength);
+  const lastSpace = capped.lastIndexOf(" ");
+  const trimmed = lastSpace > 0 ? capped.slice(0, lastSpace) : capped;
+  return `${trimmed.trimEnd()}…`;
 }
 
 export interface MapAnswerResponse {

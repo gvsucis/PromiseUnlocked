@@ -5,6 +5,7 @@
  */
 
 import { SKILLS_TAXONOMY } from "../config/skillsTaxonomy";
+import { STAMP_TAXONOMY } from "../config/stampTaxonomy";
 import type { NoMapReason } from "../types/gemini";
 
 export interface CategoryDefinition {
@@ -182,11 +183,93 @@ export function getCategoryIdFromName(name: string): string {
 }
 
 /**
+ * Reverse index: every stamp / family / canonical category name → its
+ * CategoryDefinition. Gemini sometimes answers with a concrete stamp name or a
+ * natural label ("Leadership", "Organized a Community Project") instead of the
+ * exact 11-category name; this lets those resolve to the correct category
+ * instead of silently falling into the "INVALID CATEGORY (RETRY)" path.
+ */
+const STAMP_TO_CATEGORY: Map<string, CategoryDefinition> = (() => {
+  const index = new Map<string, CategoryDefinition>();
+  const add = (key: string, def: CategoryDefinition) => {
+    const normalized = key.trim().toLowerCase();
+    if (normalized) index.set(normalized, def);
+  };
+
+  for (const def of CATEGORY_TAXONOMY) {
+    add(def.category, def);
+    for (const stamp of def.stamps
+      .split(" - ")
+      .map((s) => s.trim())
+      .filter(Boolean)) {
+      add(stamp, def);
+    }
+  }
+
+  for (const [categoryName, families] of Object.entries(STAMP_TAXONOMY)) {
+    const def = ALL_CATEGORIES.find((c) => c.category === categoryName);
+    if (!def) continue;
+    for (const family of families) {
+      add(family.stampCategory, def);
+      for (const detail of family.detailedStamps ?? []) {
+        add(detail.name, def);
+        add(`${family.stampCategory}: ${detail.name}`, def);
+      }
+    }
+  }
+
+  // Curated natural-language labels the model might use instead of a taxonomy
+  // name. Keep these conservative — a wrong resolution is worse than a retry.
+  const NATURAL_LABELS: Array<[string, string]> = [
+    ["Leadership", "Human Skills (Durable)"],
+    ["Team Leadership", "Human Skills (Durable)"],
+    ["Delegation", "Human Skills (Durable)"],
+    ["Mentoring", "Human Skills (Durable)"],
+    ["Mentorship", "Human Skills (Durable)"],
+    ["Conflict Resolution", "Human Skills (Durable)"],
+    ["Collaboration", "Human Skills (Durable)"],
+    ["Teamwork", "Human Skills (Durable)"],
+    ["Communication", "Creative Expression & Communication"],
+    ["Public Speaking", "Creative Expression & Communication"],
+    ["Presenting", "Creative Expression & Communication"],
+    ["Writing", "Creative Expression & Communication"],
+    ["Problem Solving", "Problem-Solving & Systems Thinking"],
+    ["Critical Thinking", "Problem-Solving & Systems Thinking"],
+    ["Organization", "Problem-Solving & Systems Thinking"],
+    ["Planning", "Problem-Solving & Systems Thinking"],
+    ["Project Management", "Problem-Solving & Systems Thinking"],
+    ["Time Management", "Problem-Solving & Systems Thinking"],
+    ["Work", "Work & Entrepreneurial Experience"],
+    ["Entrepreneurship", "Work & Entrepreneurial Experience"],
+    ["Part-Time Job", "Work & Entrepreneurial Experience"],
+    ["Coding", "Digital & Tech Fluency"],
+    ["Programming", "Digital & Tech Fluency"],
+    ["Technology", "Digital & Tech Fluency"],
+  ];
+
+  for (const [label, categoryName] of NATURAL_LABELS) {
+    const def = ALL_CATEGORIES.find((c) => c.category === categoryName);
+    if (def) add(label, def);
+  }
+
+  return index;
+})();
+
+/**
  * Check if a category name is valid (case-insensitive partial match)
  * Returns the matched CategoryDefinition with its stable ID.
  */
 export function findValidCategory(categoryName: string): CategoryDefinition | null {
-  const normalized = categoryName.trim().toLowerCase();
+  const trimmed = categoryName.trim();
+  const normalized = trimmed.toLowerCase();
+  if (!normalized) return null;
+  const exact = ALL_CATEGORIES.find((t) => t.category.trim().toLowerCase() === normalized);
+  if (exact) return exact;
+
+  // Resolve concrete stamp/family/natural names back to their category.
+  const byStamp = STAMP_TO_CATEGORY.get(normalized);
+  if (byStamp) return byStamp;
+
   return (
     ALL_CATEGORIES.find(
       (t) =>

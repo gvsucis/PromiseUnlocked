@@ -417,6 +417,18 @@ export function useDialogueState(): DialogueState {
       const noMapReason = result.noMapReason || noMapReasonFromPrefix(justification) || "";
       const strippedJustification = normalizeJustification(justification);
 
+      const validCategory = findValidCategory(rawCategory);
+
+      if (__DEV__) {
+        console.log("[MapAnswer] raw decision:", {
+          rawCategory,
+          resolvedCategory: validCategory?.category ?? null,
+          noMapReason,
+          specificStamp: result.specificStamp ?? null,
+          initialTier: result.initialTier ?? null,
+        });
+      }
+
       // A verified supporting image lifts the stamp straight to its evidence tier
       // (never below what the answer itself earned, capped at 4).
       const effectiveInitialTier =
@@ -435,7 +447,6 @@ export function useDialogueState(): DialogueState {
         return { mapped: false as const, category: null, interactionId: "", distressSignal };
       }
 
-      const validCategory = findValidCategory(rawCategory);
       const categoryNameToCheck = validCategory ? validCategory.category : rawCategory;
       const categoryIdToCheck = validCategory ? validCategory.id : rawCategory;
 
