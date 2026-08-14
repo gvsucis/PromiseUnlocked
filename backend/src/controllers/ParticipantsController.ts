@@ -21,6 +21,7 @@ import {
   normalizeSearchTerm,
   sortParticipantsByCreatedAt,
 } from "@/utils/participantSearch";
+import { combineFullName } from "@/utils/nameSplit";
 
 const buildProfileFromRecord = (
   userRecord: admin.auth.UserRecord,
@@ -58,9 +59,8 @@ const fetchOrCreateProfile = async (uid: string): Promise<ParticipantProfile> =>
   return profile;
 };
 
-// Attach the PVA display name alongside selectedPvaId so clients can render it
-// without a second catalog request.
-const withSelectedPvaName = async (participant: unknown): Promise<unknown> => {
+// Attach the PVA display name so clients avoid a second catalog request.
+  const withSelectedPvaName = async (participant: unknown): Promise<unknown> => {
   const rec = participant as { selectedPvaId?: unknown };
   if (typeof rec.selectedPvaId !== "string" || !rec.selectedPvaId) return participant;
   const name = await getPvaName(rec.selectedPvaId);
@@ -168,6 +168,8 @@ export class ParticipantsController {
       photoURL,
       pageUrl,
       fullName,
+      firstName,
+      lastName,
       schoolName,
       schoolAddress,
       phone,
@@ -182,31 +184,56 @@ export class ParticipantsController {
     try {
       const currentProfile = await fetchOrCreateProfile(requester.uid);
 
-      const src = rawAddress ?? currentProfile.address;
-      const address = src
-        ? ({
-            street: src.street ?? null,
-            city: src.city ?? null,
-            state: src.state ?? null,
-            postalCode: src.postalCode ?? null,
-            country: src.country ?? null,
-          } as Address)
-        : null;
+      const getNextValue = (
+        incoming: string | null | undefined,
+        current: string | null | undefined
+      ): string | null => {
+        if (incoming === undefined) return current ?? null;
+        if (incoming === null || incoming === "") return null;
+        return incoming;
+      };
+
+      let address: Address | null = null;
+      if (rawAddress === undefined) {
+        address = currentProfile.address ?? null;
+      } else if (rawAddress === null) {
+        address = null;
+      } else {
+        const curAddr = currentProfile.address ?? {};
+        address = {
+          street: getNextValue(rawAddress.street, curAddr.street ?? null),
+          city: getNextValue(rawAddress.city, curAddr.city ?? null),
+          state: getNextValue(rawAddress.state, curAddr.state ?? null),
+          postalCode: getNextValue(rawAddress.postalCode, curAddr.postalCode ?? null),
+          country: getNextValue(rawAddress.country, curAddr.country ?? null),
+        };
+      }
+
+      // Re-compose fullName from parts so it stays authoritative; fall back to raw.
+      const nextFirstName = getNextValue(firstName, currentProfile.firstName);
+      const nextLastName = getNextValue(lastName, currentProfile.lastName);
+      const composedFullName = combineFullName(nextFirstName ?? "", nextLastName ?? "");
+      const nextFullName =
+        firstName !== undefined || lastName !== undefined
+          ? composedFullName || null
+          : getNextValue(fullName, currentProfile.fullName);
 
       const nextProfile: ParticipantProfile = {
         uid: currentProfile.uid,
-        email: email ?? currentProfile.email,
-        fullName: fullName ?? currentProfile.fullName ?? null,
-        photoURL: photoURL ?? currentProfile.photoURL ?? null,
-        pageUrl: pageUrl ?? currentProfile.pageUrl ?? null,
-        schoolName: schoolName ?? currentProfile.schoolName ?? null,
-        schoolAddress: schoolAddress ?? currentProfile.schoolAddress ?? null,
-        phone: phone ?? currentProfile.phone ?? null,
-        dateOfBirth: dateOfBirth ?? currentProfile.dateOfBirth ?? null,
-        gender: gender ?? currentProfile.gender ?? null,
-        ethnicity: ethnicity ?? currentProfile.ethnicity ?? null,
+        email: getNextValue(email, currentProfile.email) ?? currentProfile.email,
+        fullName: nextFullName,
+        firstName: nextFirstName,
+        lastName: nextLastName,
+        photoURL: getNextValue(photoURL, currentProfile.photoURL),
+        pageUrl: getNextValue(pageUrl, currentProfile.pageUrl),
+        schoolName: getNextValue(schoolName, currentProfile.schoolName),
+        schoolAddress: getNextValue(schoolAddress, currentProfile.schoolAddress),
+        phone: getNextValue(phone, currentProfile.phone),
+        dateOfBirth: getNextValue(dateOfBirth, currentProfile.dateOfBirth),
+        gender: getNextValue(gender, currentProfile.gender),
+        ethnicity: getNextValue(ethnicity, currentProfile.ethnicity),
         address,
-        selectedPvaId: selectedPvaId ?? currentProfile.selectedPvaId ?? null,
+        selectedPvaId: getNextValue(selectedPvaId, currentProfile.selectedPvaId),
         metadata: { ...currentProfile.metadata, ...incomingMetadata },
         updatedAt: Date.now(),
         lastActiveAt: Date.now(),
@@ -220,7 +247,7 @@ export class ParticipantsController {
           authUpdates[key] = value;
         }
       };
-      setIfChanged("displayName", fullName, currentProfile.fullName);
+      setIfChanged("displayName", nextFullName, currentProfile.fullName);
       setIfChanged("email", email, currentProfile.email);
       setIfChanged("photoURL", photoURL, currentProfile.photoURL);
 

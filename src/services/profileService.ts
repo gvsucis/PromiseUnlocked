@@ -4,57 +4,9 @@ import { apiFetch } from "./apiClient";
 import { uploadImage, type UploadResult } from "./uploadService";
 import { clearPvaContextCache, invalidatePvaCatalogCache } from "./profileEmbeddingService";
 import { ttlCache } from "../utils/ttlCache";
+import { UserProfile } from "../types/profile";
 
 const profileCache = ttlCache<UserProfile>(30_000);
-
-export interface UserProfile {
-  uid: string;
-  email: string | null;
-  displayName?: string | null;
-  photoURL?: string | null;
-  createdAt: number;
-  updatedAt: number;
-  fullName?: string | null;
-  schoolName?: string | null;
-  schoolAddress?: string | null;
-  phone?: string | null;
-  address?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    postalCode?: string;
-    country?: string;
-  } | null;
-  dateOfBirth?: string | null;
-  gender?: string | null;
-  ethnicity?: string | null;
-  pageUrl?: string | null;
-  selectedPvaId?: string | null;
-  selectedPvaName?: string | null;
-  metadata: Record<string, unknown>;
-}
-
-export interface ProfileUpdatePayload {
-  email?: string;
-  displayName?: string;
-  photoURL?: string;
-  pageUrl?: string;
-  fullName?: string;
-  schoolName?: string;
-  schoolAddress?: string;
-  phone?: string;
-  dateOfBirth?: string;
-  gender?: string;
-  ethnicity?: string;
-  selectedPvaId?: string | null;
-  address?: {
-    street?: string;
-    city?: string;
-    state?: string;
-    postalCode?: string;
-    country?: string;
-  };
-}
 
 export function buildLocalProfile(overrides: Partial<UserProfile> = {}): UserProfile {
   const user = auth.currentUser;
@@ -67,7 +19,9 @@ export function buildLocalProfile(overrides: Partial<UserProfile> = {}): UserPro
     photoURL: overrides.photoURL ?? user?.photoURL ?? null,
     createdAt: overrides.createdAt ?? Date.now(),
     updatedAt: overrides.updatedAt ?? Date.now(),
-    fullName: overrides.displayName ?? null,
+    fullName: overrides.fullName ?? overrides.displayName ?? null,
+    firstName: overrides.firstName ?? null,
+    lastName: overrides.lastName ?? null,
     schoolName: overrides.schoolName ?? null,
     schoolAddress: overrides.schoolAddress ?? null,
     phone: overrides.phone ?? null,

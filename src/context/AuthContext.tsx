@@ -13,7 +13,12 @@ export interface AuthContextValue {
   session: AppAuthSession;
   isReady: boolean;
   signInWithEmail: (email: string, password: string) => Promise<unknown>;
-  signUpWithEmail: (email: string, password: string, displayName?: string) => Promise<unknown>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    firstName?: string,
+    lastName?: string
+  ) => Promise<unknown>;
   resetPassword: (email: string) => Promise<void>;
 }
 

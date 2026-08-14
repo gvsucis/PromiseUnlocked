@@ -103,6 +103,8 @@ export function normalizeUser(
     displayName: data?.displayName ?? null,
     photoURL: data?.photoURL ?? null,
     fullName: data?.fullName ?? null,
+    firstName: data?.firstName ?? null,
+    lastName: data?.lastName ?? null,
     phone: data?.phone ?? null,
     address: data?.address ?? null,
     dateOfBirth: data?.dateOfBirth ?? null,

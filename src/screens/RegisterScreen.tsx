@@ -27,7 +27,8 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function RegisterScreen({ navigation }: Props) {
   const { signUpWithEmail } = useAuth();
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -39,7 +40,8 @@ export default function RegisterScreen({ navigation }: Props) {
     onSuccess: () => navigation.replace("MainTabs" as const, undefined as never),
   });
 
-  const nameValid = fullName.trim().length >= 2;
+  const firstNameValid = firstName.trim().length > 0;
+  const lastNameValid = lastName.trim().length > 0;
   const emailValid = useMemo(() => EMAIL_REGEX.test(email.trim()), [email]);
   const passwordLongEnough = useMemo(() => password.length >= 6, [password]);
   const passwordsMatch = useMemo(
@@ -47,18 +49,21 @@ export default function RegisterScreen({ navigation }: Props) {
     [password, confirmPassword]
   );
 
-  const hasNameError = fullName.length > 0 && !nameValid;
+  const hasFirstNameError = firstName.length > 0 && !firstNameValid;
+  const hasLastNameError = lastName.length > 0 && !lastNameValid;
   const hasEmailError = email.length > 0 && !emailValid;
   const hasPasswordError = password.length > 0 && !passwordLongEnough;
   const hasConfirmError = confirmPassword.length > 0 && !passwordsMatch;
-  const formValid = nameValid && emailValid && passwordLongEnough && passwordsMatch && agreed;
+  const formValid =
+    firstNameValid && lastNameValid && emailValid && passwordLongEnough && passwordsMatch && agreed;
   const isAnyLoading = loading || googleLoading;
 
   const handleSignUp = async () => {
     if (!agreed) return Alert.alert("Terms Required", "You must agree to the Terms of Service.");
-    if (!fullName || !email || !password || !confirmPassword)
+    if (!firstName || !lastName || !email || !password || !confirmPassword)
       return Alert.alert("Missing Info", "Please fill in all fields.");
-    if (!nameValid) return Alert.alert("Invalid Name", "Name must be at least 2 characters.");
+    if (!firstNameValid || !lastNameValid)
+      return Alert.alert("Invalid Name", "Please enter your first and last name.");
     if (!emailValid) return Alert.alert("Invalid Email", "Please enter a valid email address.");
     if (!passwordLongEnough)
       return Alert.alert("Weak Password", "Password must be at least 6 characters.");
@@ -66,7 +71,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
     try {
       setLoading(true);
-      await signUpWithEmail(email, password, fullName.trim());
+      await signUpWithEmail(email, password, firstName.trim(), lastName.trim());
       await waitForAuthenticated();
       navigation.replace("MainTabs" as const, undefined as never);
     } catch (error: unknown) {
@@ -109,20 +114,39 @@ export default function RegisterScreen({ navigation }: Props) {
             />
             <Card.Content>
               <View style={styles.cardContentWrap}>
-                {/* Full Name */}
-                <TextInput
-                  mode="flat"
-                  label="Full Name"
-                  value={fullName}
-                  onChangeText={setFullName}
-                  autoCapitalize="words"
-                  style={styles.input}
-                  error={hasNameError}
-                  theme={{ colors: { onSurfaceVariant: "#fff" } }}
-                />
-                <HelperText type="error" visible={hasNameError} style={styles.helper}>
-                  Name must be at least 2 characters
-                </HelperText>
+                {/* Names */}
+                <View style={styles.nameRow}>
+                  <View style={styles.nameField}>
+                    <TextInput
+                      mode="flat"
+                      label="First Name"
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      autoCapitalize="words"
+                      style={styles.input}
+                      error={hasFirstNameError}
+                      theme={{ colors: { onSurfaceVariant: "#fff" } }}
+                    />
+                    <HelperText type="error" visible={hasFirstNameError} style={styles.helper}>
+                      Required
+                    </HelperText>
+                  </View>
+                  <View style={styles.nameField}>
+                    <TextInput
+                      mode="flat"
+                      label="Last Name"
+                      value={lastName}
+                      onChangeText={setLastName}
+                      autoCapitalize="words"
+                      style={styles.input}
+                      error={hasLastNameError}
+                      theme={{ colors: { onSurfaceVariant: "#fff" } }}
+                    />
+                    <HelperText type="error" visible={hasLastNameError} style={styles.helper}>
+                      Required
+                    </HelperText>
+                  </View>
+                </View>
 
                 {/* Email */}
                 <TextInput
@@ -288,6 +312,8 @@ const styles = StyleSheet.create({
   cardSubtitle: { color: "rgba(255,255,255,0.85)", textAlign: "center" },
   input: { backgroundColor: "transparent", marginBottom: 4 },
   helper: { color: "#ffb4b4", marginTop: -8, marginBottom: 8 },
+  nameRow: { flexDirection: "row", gap: 8 },
+  nameField: { flex: 1 },
   checkboxRow: {
     flexDirection: "row",
     alignItems: "flex-start",

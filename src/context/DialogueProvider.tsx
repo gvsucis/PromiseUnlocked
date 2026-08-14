@@ -28,6 +28,9 @@ export const dialogueResetTarget = { current: null as null | (() => void) };
 const VOICE_RECORDING_MAX_SECONDS = 120;
 const MIN_VOICE_RECORDING_SECONDS = 2;
 
+const frameImageEvidence = (description: string) =>
+  `[Image evidence — attached image shows: ${description}]`;
+
 type StampUpgradeInfo = {
   stamp: string;
   category: string;
@@ -335,15 +338,6 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
     }
   }, [currentPrompt, showQuestionInputModal, handleStartButtonPress]);
 
-  // --- Entry point C (navbar + button) ---
-  const forceNewQuestion = useCallback(async () => {
-    setFlowContext({ mode: "default" });
-    modalIntentionallyOpenedRef.current = true;
-    modalDismissedByBackdropRef.current = false;
-    suppressModalReopenRef.current = false;
-    await handleForceNewQuestion();
-  }, [handleForceNewQuestion]);
-
   const reopenPendingQuestion = useCallback(() => {
     if (currentPrompt && !showQuestionInputModal) {
       modalIntentionallyOpenedRef.current = true;
@@ -351,6 +345,19 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       setShowQuestionInputModal(true);
     }
   }, [currentPrompt, showQuestionInputModal]);
+
+  // --- Entry point C (navbar + button) ---
+  const forceNewQuestion = useCallback(async () => {
+    setFlowContext({ mode: "default" });
+    modalIntentionallyOpenedRef.current = true;
+    modalDismissedByBackdropRef.current = false;
+    suppressModalReopenRef.current = false;
+    if (currentPrompt && !showQuestionInputModal) {
+      reopenPendingQuestion();
+    } else {
+      await handleForceNewQuestion();
+    }
+  }, [currentPrompt, showQuestionInputModal, reopenPendingQuestion, handleForceNewQuestion]);
 
   // Just presents a question in the modal — no longer owns any flow-context
   // decisions. Callers set flowContext themselves before calling this.
@@ -576,8 +583,12 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
         return;
       }
 
-      const imageContext = analysisResult.rawResponse ?? "";
-      const mergedAnswer = text + (imageContext ? `\n\n[Image context: ${imageContext}]` : "");
+      const imageContext = analysisResult.rawResponse?.trim() ?? "";
+      const mergedAnswer = imageContext
+        ? text.trim()
+          ? `${text.trim()}\n\n${frameImageEvidence(imageContext)}`
+          : frameImageEvidence(imageContext)
+        : text.trim();
       setIsAnalyzingImage(false);
       // A verified supporting image IS the evidence: it grants the stamp its tier
       // directly, so we neither arm it for a proof prompt nor ask for a separate one.
@@ -882,7 +893,7 @@ export function DialogueProvider({ children }: Readonly<{ children: React.ReactN
       if (!analysisResult.rawResponse) {
         throw new Error("Failed to analyze image");
       }
-      const answer = analysisResult.rawResponse;
+      const answer = frameImageEvidence(analysisResult.rawResponse);
       setSelectedImage(null);
       clearAutoProof();
       // A verified image is the evidence itself — grant the stamp its tier directly.

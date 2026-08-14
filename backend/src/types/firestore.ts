@@ -16,6 +16,8 @@ export interface UserProfile {
   createdAt: number;
   updatedAt: number;
   fullName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   address?: Address | null;
   dateOfBirth?: string | null;
   gender?: string | null;

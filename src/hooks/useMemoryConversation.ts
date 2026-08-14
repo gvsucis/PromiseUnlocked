@@ -2,86 +2,23 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { auth } from "../config/firebase";
 import { CONFIG } from "../config/env";
 import { useAuth } from "../context/AuthContext";
+import type {
+  FactConflict,
+  MemoryContext,
+  ConversationTurnResult,
+  UseMemoryConversationReturn,
+  ProcessTurnParams,
+  ResolveConflictParams,
+} from "../types/hooks";
 
-export interface UserFact {
-  id: string;
-  factType: string;
-  factValue: string;
-  factStatement: string;
-  category?: string;
-  confidence: "high" | "medium" | "low";
-  status: "verified" | "pending" | "conflicting" | "corrected";
-  extractedAt: number;
-  verificationCount: number;
-}
-
-export interface FactConflict {
-  id: string;
-  existingFactStatement: string;
-  existingFactValue: string;
-  newValue: string;
-  conflictType: "contradiction" | "refinement" | "clarification";
-  severity: "high" | "medium" | "low";
-  status: "pending" | "resolved" | "ignored";
-}
-
-export interface SkillsGap {
-  category: string;
-  skill: string;
-  importance: "required" | "recommended" | "optional";
-  isVerified: boolean;
-  suggestedQuestions: string[];
-  priority: number;
-}
-
-export interface MemoryContext {
-  relevantFacts: UserFact[];
-  recentFacts: UserFact[];
-  hasConflicts: boolean;
-  categoriesMapped: string[];
-  categoriesRemaining: string[];
-  skillGapsCount: number;
-}
-
-export interface ConversationTurnResult {
-  action: "ask_question" | "clarify_conflict" | "complete";
-  nextQuestion?: string;
-  targetCategory?: string;
-  targetSkill?: string;
-  clarificationPrompt?: string;
-  conflicts?: FactConflict[];
-  memoryContext: MemoryContext;
-  reasoning: string;
-}
-
-export interface UseMemoryConversationReturn {
-  isProcessing: boolean;
-  error: string | null;
-  memoryContext: MemoryContext | null;
-  pendingConflicts: FactConflict[];
-
-  processTurn: (params: {
-    sessionId: string;
-    interactionId: string;
-    currentQuestion: string;
-    userResponse: string;
-    inputMethod?: "text" | "voice" | "image";
-    categoriesMapped: string[];
-  }) => Promise<ConversationTurnResult>;
-
-  resolveConflict: (params: {
-    conflictId: string;
-    resolution: "update" | "reject" | "merge";
-    correctedValue?: string;
-    note?: string;
-  }) => Promise<boolean>;
-
-  fetchPendingConflicts: () => Promise<FactConflict[]>;
-  fetchMemoryContext: (sessionId: string) => Promise<MemoryContext | null>;
-
-  clearError: () => void;
-  resetMemory: () => void;
-}
+export type {
+  UserFact,
+  FactConflict,
+  SkillsGap,
+  MemoryContext,
+  ConversationTurnResult,
+  UseMemoryConversationReturn,
+} from "../types/hooks";
 
 async function getAuthToken(): Promise<string | null> {
   return auth.currentUser?.getIdToken() ?? null;
@@ -114,14 +51,7 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
       userResponse,
       inputMethod = "text",
       categoriesMapped,
-    }: {
-      sessionId: string;
-      interactionId: string;
-      currentQuestion: string;
-      userResponse: string;
-      inputMethod?: "text" | "voice" | "image";
-      categoriesMapped: string[];
-    }): Promise<ConversationTurnResult> => {
+    }: ProcessTurnParams): Promise<ConversationTurnResult> => {
       if (!isAuthenticated) {
         throw new Error("User not authenticated");
       }
@@ -181,12 +111,7 @@ export function useMemoryConversation(): UseMemoryConversationReturn {
       resolution,
       correctedValue,
       note,
-    }: {
-      conflictId: string;
-      resolution: "update" | "reject" | "merge";
-      correctedValue?: string;
-      note?: string;
-    }): Promise<boolean> => {
+    }: ResolveConflictParams): Promise<boolean> => {
       if (!isAuthenticated) {
         throw new Error("User not authenticated");
       }

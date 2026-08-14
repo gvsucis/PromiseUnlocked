@@ -13,11 +13,10 @@ import {
   Modal,
   Pressable,
   Animated,
-  Linking,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Text } from "@/components/ui/text";
-import { CommonActions, useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { colors, typography, spacing, radius, globalStyles } from "../styles/global";
@@ -29,8 +28,8 @@ import {
   uploadProfilePicture,
   selectPva,
   buildLocalProfile,
-  type UserProfile,
 } from "../services/profileService";
+import type { UserProfile } from "../types/profile";
 import { listPvaCatalog, type PvaCatalogItem } from "../services/profileEmbeddingService";
 import { ImagePickerService } from "../services/imagePickerService";
 import { signOut } from "firebase/auth";
@@ -46,6 +45,12 @@ import * as DocumentPicker from "expo-document-picker";
 import ArtifactPreviewModal from "../components/ArtifactPreviewModal";
 import { SegmentedArc } from "@shipt/segmented-arc-for-react-native";
 import { useDialogue } from "../context/DialogueProvider";
+import {
+  getXpSummary,
+  claimXpEvent,
+  type XpSummary,
+  type XpEventType,
+} from "../services/xpService";
 
 function FileTypeIcon({
   contentType,
@@ -109,6 +114,7 @@ export default function ProfileScreen() {
   const [uploadingArtifact, setUploadingArtifact] = useState(false);
   const [previewArtifact, setPreviewArtifact] = useState<ArtifactItem | null>(null);
   const [processingCount, setProcessingCount] = useState(0);
+  const [serverXp, setServerXp] = useState<XpSummary | null>(null);
   const [toast, setToast] = useState<{ message: string } | null>(null);
   const toastAnim = useRef(new Animated.Value(-100)).current;
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -118,17 +124,13 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState("");
   const [editingBio, setEditingBio] = useState(false);
 
-  // Tracks the last-saved bio so we know whether there's anything to discard.
   const originalBioRef = useRef("");
-  // Mirrors "editingBio && bio !== originalBioRef.current" into a ref so
-  // navigation listeners (which close over stale state otherwise) can read
-  // the latest value.
   const hasUnsavedBioRef = useRef(false);
   React.useEffect(() => {
     hasUnsavedBioRef.current = editingBio && bio !== originalBioRef.current;
   }, [editingBio, bio]);
 
-  const { totalStampsUnlocked, totalXp } = useMemo(() => {
+  const { totalStampsUnlocked, totalXp: localTotalXp } = useMemo(() => {
     let stamps = 0;
     let xp = 0;
     for (const mc of d.mappedCategories) {
@@ -143,6 +145,39 @@ export default function ProfileScreen() {
     }
     return { totalStampsUnlocked: stamps, totalXp: xp };
   }, [d.mappedCategories]);
+
+  // Stamp tiers only grow; bonus XP is server-only, so max() is safe.
+  const totalXp = serverXp
+    ? Math.max(localTotalXp, serverXp.stampXp) + serverXp.bonusXp
+    : localTotalXp;
+
+  const refreshServerXp = useCallback(async (force = false) => {
+    try {
+      const xp = await getXpSummary(force);
+      if (xp) setServerXp(xp);
+    } catch {
+      /* offline fallback covers this */
+    }
+  }, []);
+
+  // Claim each one-time bonus at most once; re-arm on failure so it can retry.
+  const claimedBonusEventsRef = useRef<Set<XpEventType>>(new Set());
+
+  const claimBonusXp = useCallback(
+    (eventType: XpEventType) => {
+      if (claimedBonusEventsRef.current.has(eventType)) return;
+      claimedBonusEventsRef.current.add(eventType);
+      claimXpEvent(eventType)
+        .then(({ awarded }) => {
+          if (awarded) void refreshServerXp(true);
+          else claimedBonusEventsRef.current.delete(eventType);
+        })
+        .catch(() => claimedBonusEventsRef.current.delete(eventType));
+    },
+    [refreshServerXp]
+  );
+
+  useFocusEffect(useCallback(() => void refreshServerXp(), [refreshServerXp]));
 
   React.useEffect(() => {
     return () => {
@@ -213,8 +248,7 @@ export default function ProfileScreen() {
     }, [])
   );
 
-  // Warn before this screen is removed from its stack (sign out, back nav,
-  // etc.) if there's an unsaved bio edit sitting around.
+  // Block leaving with an unsaved bio edit.
   React.useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
       if (!hasUnsavedBioRef.current) return;
@@ -266,7 +300,7 @@ export default function ProfileScreen() {
     [pvaCatalog, searchQuery]
   );
 
-  const handleSaveBio = async () => {
+  const handleSaveBio = useCallback(async () => {
     if (!profile) return;
     setSavingBio(true);
     try {
@@ -282,12 +316,12 @@ export default function ProfileScreen() {
     } finally {
       setSavingBio(false);
     }
-  };
+  }, [profile, bio]);
 
-  const handleDiscardBio = () => {
+  const handleDiscardBio = useCallback(() => {
     setBio(originalBioRef.current);
     setEditingBio(false);
-  };
+  }, []);
 
   const handleEditPhoto = () => {
     Alert.alert("Update Profile Photo", "Choose how to add your photo.", [
@@ -330,31 +364,27 @@ export default function ProfileScreen() {
     const result = useCamera
       ? await ImagePickerService.takePhotoWithCamera(true, [1, 1])
       : await ImagePickerService.pickImageFromGalleryWithOptions(true, [1, 1]);
+    if (!result.success) {
+      if (result.error) Alert.alert("Error", result.error);
+      return;
+    }
 
-    if (result.success && result.imageUri) {
-      setLocalPhotoUri(result.imageUri);
+    if (!result.imageUri) return;
 
-      try {
-        const uploadResult = await uploadProfilePicture(result.imageUri);
-
-        if (!uploadResult.success) {
-          throw new Error(uploadResult.error);
-        }
-
-        const refreshedProfile = await fetchProfile();
-        setProfile(refreshedProfile);
-
-        setLocalPhotoUri(null);
-      } catch (error) {
-        console.warn("Failed to upload profile photo:", error);
-        setLocalPhotoUri(null);
-        Alert.alert(
-          "Upload Failed",
-          "We couldn't upload your photo. Please check your connection and try again."
-        );
-      }
-    } else if (result.error) {
-      Alert.alert("Error", result.error);
+    setLocalPhotoUri(result.imageUri);
+    try {
+      const uploadResult = await uploadProfilePicture(result.imageUri);
+      if (!uploadResult.success) throw new Error(uploadResult.error);
+      const refreshedProfile = await fetchProfile();
+      setProfile(refreshedProfile);
+      setLocalPhotoUri(null);
+    } catch (error) {
+      console.warn("Failed to upload profile photo:", error);
+      setLocalPhotoUri(null);
+      Alert.alert(
+        "Upload Failed",
+        "We couldn't upload your photo. Please check your connection and try again."
+      );
     }
   };
 
@@ -377,6 +407,18 @@ export default function ProfileScreen() {
 
   const progressPercent = Math.round(
     (checklist.filter((i) => i.complete).length / checklist.length) * 100
+  );
+
+  const profileComplete = checklist.every((i) => i.complete);
+
+  React.useEffect(() => {
+    if (profileComplete) claimBonusXp("profile_completion");
+  }, [profileComplete, claimBonusXp]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (profileComplete) claimBonusXp("profile_completion");
+    }, [profileComplete, claimBonusXp])
   );
 
   const arcSegments = checklist.map((item) => ({
@@ -432,16 +474,15 @@ export default function ProfileScreen() {
       }
       const updated = await listArtifacts();
       setArtifacts(updated);
-      const processing = updated.filter((a) => a.embeddingsStatus === "processing").length;
-      setProcessingCount(processing);
-      if (processing === 0) return;
+      claimBonusXp("artifact_upload");
+      const processingArtifacts = updated.filter((a) => a.embeddingsStatus === "processing");
+      setProcessingCount(processingArtifacts.length);
+      if (processingArtifacts.length === 0) return;
 
       if (pollTimer.current) clearInterval(pollTimer.current);
       let attempts = 0;
       const maxAttempts = 30;
-      let prevProcessingIds = new Set(
-        updated.filter((a) => a.embeddingsStatus === "processing").map((a) => a.id)
-      );
+      let prevProcessingIds = new Set(processingArtifacts.map((a) => a.id));
 
       pollTimer.current = setInterval(async () => {
         attempts++;
@@ -605,7 +646,7 @@ export default function ProfileScreen() {
             >
               <View style={styles.sectionHeader}>
                 <Text style={styles.cardTitle}>About Me</Text>
-                {editingBio ? (
+                {editingBio && (
                   <View style={{ flexDirection: "row", gap: 16 }}>
                     <TouchableOpacity onPress={handleDiscardBio} disabled={savingBio}>
                       <Text style={styles.cancelText}>Cancel</Text>
@@ -618,11 +659,10 @@ export default function ProfileScreen() {
                       )}
                     </TouchableOpacity>
                   </View>
-                ) : (
-                  <Text style={styles.linkText}>Edit</Text>
                 )}
+                {!editingBio && <Text style={styles.linkText}>Edit</Text>}
               </View>
-              {editingBio ? (
+              {editingBio && (
                 <TextInput
                   value={bio}
                   onChangeText={setBio}
@@ -632,7 +672,8 @@ export default function ProfileScreen() {
                   placeholder="Share your goals, interests, and what makes you, you."
                   placeholderTextColor={colors.text.muted}
                 />
-              ) : (
+              )}
+              {!editingBio && (
                 <Text style={bio ? styles.bio : styles.bioPlaceholder}>
                   {bio || "Tap to add a short bio about your goals and interests."}
                 </Text>
