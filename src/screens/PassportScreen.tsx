@@ -14,7 +14,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DEFAULT_TIER } from "../config/stampConstants";
+import { DEFAULT_TIER, ALL_STAMPS_REGION } from "../config/stampConstants";
 
 type PassportNavigationProp = StackNavigationProp<RootStackParamList, "Passport">;
 
@@ -172,19 +172,36 @@ export default function PassportScreen() {
           />
         </View>
 
+        <TouchableOpacity
+          style={[styles.regionItem, styles.allStampsItem]}
+          onPress={() =>
+            navigation.navigate("Stamps", { region: ALL_STAMPS_REGION, categoryId: "" })
+          }
+        >
+          <Text style={styles.regionTextUnlocked}>My Stamps</Text>
+        </TouchableOpacity>
+
         <Text style={styles.sectionTitle}>Explore Regions</Text>
-        <View style={styles.list}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={232}
+          decelerationRate="fast"
+          style={styles.listScroll}
+          contentContainerStyle={styles.list}
+        >
           {REGIONS.map((region) => {
-            const unlocked = regionUnlocks[region] ?? [];
-            const isUnlocked = unlocked.length > 0;
+            const isUnlocked = (regionUnlocks[region] ?? []).length > 0;
             return (
               <TouchableOpacity
                 key={region}
                 style={[styles.regionItem, isUnlocked && styles.regionItemUnlocked]}
-                onPress={() => {
-                  const catId = getCategoryIdFromName(region);
-                  navigation.navigate("Stamps", { region, categoryId: catId });
-                }}
+                onPress={() =>
+                  navigation.navigate("Stamps", {
+                    region,
+                    categoryId: getCategoryIdFromName(region),
+                  })
+                }
               >
                 <Text style={isUnlocked ? styles.regionTextUnlocked : styles.regionTextLocked}>
                   {region}
@@ -192,7 +209,7 @@ export default function PassportScreen() {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
       </ScrollView>
     </View>
   );
@@ -279,12 +296,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
+  listScroll: {
+    marginHorizontal: -16,
+  },
+
   list: {
     gap: 12,
+    paddingHorizontal: 16,
+  },
+
+  allStampsItem: {
+    width: "100%",
+    minHeight: 100,
+    marginBottom: 18,
   },
 
   regionItem: {
-    width: "100%",
+    width: 220,
     minHeight: 250,
     backgroundColor: colors.background.card,
     borderRadius: 20,
@@ -292,7 +320,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border.medium,
     shadowColor: colors.accent.sky,
