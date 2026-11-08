@@ -3,20 +3,21 @@ import {
   View,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   Pressable,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from "react-native";
-import { Button, Card, Divider, TextInput, HelperText, Text } from "react-native-paper";
+import { Button, TextInput, HelperText, Text } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../hooks/useGoogleSignIn";
 import { waitForAuthenticated } from "../services/auth/authSessionService";
+import { colors, typography, spacing, radius } from "../styles/global";
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, "Register">;
 type Props = Readonly<{
@@ -34,6 +35,9 @@ export default function RegisterScreen({ navigation }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
   const { handleGoogleSignIn, googleLoading } = useGoogleSignIn({
     onSuccess: () => navigation.replace("MainTabs" as const, undefined as never),
@@ -86,239 +90,335 @@ export default function RegisterScreen({ navigation }: Props) {
     }
   };
 
+  const inputTheme = {
+    roundness: radius.md,
+    colors: { primary: colors.brand.dark, onSurfaceVariant: colors.text.secondary },
+  };
+
+  const eyeIcon = (
+    <TextInput.Icon
+      icon={showPassword ? "eye-off-outline" : "eye-outline"}
+      onPress={() => setShowPassword((s) => !s)}
+    />
+  );
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <LinearGradient colors={["#667eea", "#764ba2"]} style={styles.container}>
+      <View style={styles.screen}>
+        {/* Decorative color blobs (sized relative to screen width) */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View
+            style={[
+              styles.blob,
+              {
+                width: width * 0.62,
+                height: width * 0.62,
+                borderRadius: width * 0.31,
+                top: -width * 0.24,
+                left: -width * 0.2,
+                backgroundColor: colors.accent.coralLighter,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.blob,
+              {
+                width: width * 0.4,
+                height: width * 0.4,
+                borderRadius: width * 0.2,
+                top: -width * 0.08,
+                right: -width * 0.14,
+                backgroundColor: colors.accent.skyLight,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.blob,
+              {
+                width: width * 0.22,
+                height: width * 0.22,
+                borderRadius: width * 0.11,
+                top: width * 0.42,
+                right: -width * 0.06,
+                backgroundColor: colors.accent.coralLight,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.blob,
+              {
+                width: width * 0.14,
+                height: width * 0.14,
+                borderRadius: width * 0.07,
+                top: width * 0.62,
+                left: -width * 0.04,
+                backgroundColor: colors.accent.yellow,
+                opacity: 0.3,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.blob,
+              {
+                width: width * 0.1,
+                height: width * 0.1,
+                borderRadius: width * 0.05,
+                bottom: width * 0.3,
+                left: width * 0.08,
+                backgroundColor: colors.accent.magenta,
+                opacity: 0.2,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.blob,
+              {
+                width: width * 0.5,
+                height: width * 0.5,
+                borderRadius: width * 0.25,
+                bottom: -width * 0.22,
+                right: -width * 0.16,
+                backgroundColor: colors.accent.teal,
+                opacity: 0.2,
+              },
+            ]}
+          />
+        </View>
+
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.hero}>
-            <MaterialIcons name="person-add" size={36} color="#fff" />
-          </View>
-          <Card style={styles.card}>
-            <Card.Title
-              title="Create account"
-              subtitle="Your future starts here"
-              titleStyle={styles.cardTitle}
-              subtitleStyle={styles.cardSubtitle}
-            />
-            <Card.Content>
-              <View style={styles.cardContentWrap}>
-                {/* Full Name */}
-                <TextInput
-                  mode="flat"
-                  label="Full Name"
-                  value={fullName}
-                  onChangeText={setFullName}
-                  autoCapitalize="words"
-                  style={styles.input}
-                  error={hasNameError}
-                  theme={{ colors: { onSurfaceVariant: "#fff" } }}
-                />
-                <HelperText type="error" visible={hasNameError} style={styles.helper}>
-                  Name must be at least 2 characters
-                </HelperText>
+          <View style={styles.content}>
+            <Pressable
+              onPress={() => navigation.navigate("Welcome")}
+              style={styles.backButton}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <MaterialIcons name="arrow-back" size={22} color={colors.text.primary} />
+            </Pressable>
 
-                {/* Email */}
-                <TextInput
-                  mode="flat"
-                  label="Email"
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  style={styles.input}
-                  error={hasEmailError}
-                  theme={{ colors: { onSurfaceVariant: "#fff" } }}
-                />
-                <HelperText type="error" visible={hasEmailError} style={styles.helper}>
-                  Enter a valid email address
-                </HelperText>
+            <View style={styles.main}>
+              <View style={styles.header}>
+                <Text style={styles.title}>Create account</Text>
+                <Text style={styles.subtitle}>Your future starts here.</Text>
+              </View>
 
-                {/* Password */}
-                <TextInput
-                  mode="flat"
-                  label="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  style={styles.input}
-                  error={hasPasswordError}
-                  right={
-                    <TextInput.Icon
-                      icon={showPassword ? "eye-off" : "eye"}
-                      color="rgba(255,255,255,0.7)"
-                      onPress={() => setShowPassword((s) => !s)}
-                    />
-                  }
-                  theme={{ colors: { onSurfaceVariant: "#fff" } }}
-                />
-                <HelperText type="error" visible={hasPasswordError} style={styles.helper}>
-                  Password must be at least 6 characters
-                </HelperText>
+              <View style={styles.form}>
+                <View>
+                  <TextInput
+                    mode="outlined"
+                    label="Full name"
+                    value={fullName}
+                    onChangeText={setFullName}
+                    autoCapitalize="words"
+                    left={<TextInput.Icon icon="account-outline" />}
+                    style={styles.input}
+                    outlineColor={colors.border.subtle}
+                    activeOutlineColor={colors.brand.dark}
+                    textColor={colors.text.primary}
+                    error={hasNameError}
+                    theme={inputTheme}
+                  />
+                  {hasNameError && (
+                    <HelperText type="error" style={styles.helper}>
+                      Name must be at least 2 characters
+                    </HelperText>
+                  )}
+                </View>
 
-                <TextInput
-                  mode="flat"
-                  label="Confirm Password"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showPassword}
-                  style={styles.input}
-                  error={hasConfirmError}
-                  right={
-                    <TextInput.Icon
-                      icon={showPassword ? "eye-off" : "eye"}
-                      color="rgba(255,255,255,0.7)"
-                      onPress={() => setShowPassword((s) => !s)}
-                    />
-                  }
-                  theme={{ colors: { onSurfaceVariant: "#fff" } }}
-                />
-                <HelperText type="error" visible={hasConfirmError} style={styles.helper}>
-                  Passwords do not match
-                </HelperText>
+                <View>
+                  <TextInput
+                    mode="outlined"
+                    label="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    left={<TextInput.Icon icon="email-outline" />}
+                    style={styles.input}
+                    outlineColor={colors.border.subtle}
+                    activeOutlineColor={colors.brand.dark}
+                    textColor={colors.text.primary}
+                    error={hasEmailError}
+                    theme={inputTheme}
+                  />
+                  {hasEmailError && (
+                    <HelperText type="error" style={styles.helper}>
+                      Enter a valid email address
+                    </HelperText>
+                  )}
+                </View>
 
-                {/* Terms checkbox */}
+                <View>
+                  <TextInput
+                    mode="outlined"
+                    label="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    left={<TextInput.Icon icon="lock-outline" />}
+                    right={eyeIcon}
+                    style={styles.input}
+                    outlineColor={colors.border.subtle}
+                    activeOutlineColor={colors.brand.dark}
+                    textColor={colors.text.primary}
+                    error={hasPasswordError}
+                    theme={inputTheme}
+                  />
+                  {hasPasswordError && (
+                    <HelperText type="error" style={styles.helper}>
+                      Password must be at least 6 characters
+                    </HelperText>
+                  )}
+                </View>
+
+                <View>
+                  <TextInput
+                    mode="outlined"
+                    label="Confirm password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    left={<TextInput.Icon icon="lock-check-outline" />}
+                    right={eyeIcon}
+                    style={styles.input}
+                    outlineColor={colors.border.subtle}
+                    activeOutlineColor={colors.brand.dark}
+                    textColor={colors.text.primary}
+                    error={hasConfirmError}
+                    theme={inputTheme}
+                  />
+                  {hasConfirmError && (
+                    <HelperText type="error" style={styles.helper}>
+                      Passwords do not match
+                    </HelperText>
+                  )}
+                </View>
+
                 <Pressable
                   style={styles.checkboxRow}
                   onPress={() => setAgreed((a) => !a)}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: agreed }}
                 >
-                  <View style={styles.checkboxControl}>
-                    <MaterialIcons
-                      name={agreed ? "check-box" : "check-box-outline-blank"}
-                      size={20}
-                      color={agreed ? "#ebe4cf" : "#FFFFFF"}
-                    />
-                  </View>
-                  <View style={styles.termsTextWrap}>
-                    <Text style={styles.termsLabel}>
-                      I agree to the <Text style={styles.termsLink}>Terms</Text> &{" "}
-                      <Text style={styles.termsLink}>Privacy Policy</Text>
-                    </Text>
-                  </View>
+                  <MaterialIcons
+                    name={agreed ? "check-box" : "check-box-outline-blank"}
+                    size={22}
+                    color={agreed ? colors.brand.dark : colors.text.secondary}
+                  />
+                  <Text style={styles.termsLabel}>
+                    I agree to the <Text style={styles.termsLink}>Terms</Text> &{" "}
+                    <Text style={styles.termsLink}>Privacy Policy</Text>
+                  </Text>
                 </Pressable>
 
-                <Divider style={styles.divider} />
-
-                {/* Submit */}
                 <Button
                   mode="contained"
-                  style={[styles.primary, styles.pill]}
-                  contentStyle={styles.primaryContent}
-                  labelStyle={styles.primaryLabel}
+                  buttonColor={colors.brand.dark}
+                  textColor="#fff"
+                  style={styles.pill}
+                  contentStyle={styles.buttonContent}
+                  labelStyle={styles.buttonLabel}
+                  loading={loading}
                   disabled={!formValid || isAnyLoading}
                   onPress={handleSignUp}
                 >
-                  {loading ? <ActivityIndicator color="#fff" size="small" /> : "Create Account"}
+                  Create account
                 </Button>
 
-                <Divider style={styles.divider} />
+                <View style={styles.orRow}>
+                  <View style={styles.orLine} />
+                  <Text style={styles.orText}>or</Text>
+                  <View style={styles.orLine} />
+                </View>
 
                 <Button
                   mode="outlined"
                   icon="google"
-                  style={[styles.outlined, styles.pill]}
-                  contentStyle={styles.primaryContent}
-                  labelStyle={styles.outlinedLabel}
+                  textColor={colors.text.primary}
+                  style={[styles.pill, styles.outlined]}
+                  contentStyle={styles.buttonContent}
+                  labelStyle={styles.buttonLabel}
+                  loading={googleLoading}
                   disabled={isAnyLoading}
                   onPress={handleGoogleSignIn}
                 >
-                  {googleLoading ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    "Sign in with Google"
-                  )}
+                  Continue with Google
                 </Button>
-
-                <Divider style={styles.divider} />
-
-                <View style={styles.linkGroup}>
-                  <Button
-                    onPress={() => navigation.navigate("Welcome")}
-                    labelStyle={styles.linkLabel}
-                    style={styles.linkButton}
-                  >
-                    Back to welcome
-                  </Button>
-
-                  <Button
-                    onPress={() => navigation.navigate("Login")}
-                    labelStyle={styles.linkLabel}
-                    style={styles.linkButton}
-                  >
-                    Already have an account? Sign in
-                  </Button>
-                </View>
               </View>
-            </Card.Content>
-          </Card>
+            </View>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Already have an account?</Text>
+              <Pressable onPress={() => navigation.navigate("Login")} hitSlop={8}>
+                <Text style={styles.link}>Sign in</Text>
+              </Pressable>
+            </View>
+          </View>
         </ScrollView>
-      </LinearGradient>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  flex: { flex: 1 },
+  screen: { flex: 1, backgroundColor: colors.background.base },
+  blob: { position: "absolute" },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 24,
+    paddingHorizontal: spacing.lg,
   },
-  hero: { alignItems: "center", marginBottom: 16 },
-  card: {
-    width: "90%",
-    maxWidth: 420,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderColor: "rgba(255,255,255,0.25)",
-    borderWidth: 1,
-    borderRadius: 16,
-    textAlign: "center",
-  },
-  cardContentWrap: { overflow: "hidden", borderRadius: 16, paddingHorizontal: 12 },
-  cardTitle: { color: "#fff", textAlign: "center" },
-  cardSubtitle: { color: "rgba(255,255,255,0.85)", textAlign: "center" },
-  input: { backgroundColor: "transparent", marginBottom: 4 },
-  helper: { color: "#ffb4b4", marginTop: -8, marginBottom: 8 },
-  checkboxRow: {
-    flexDirection: "row",
+  content: { width: "100%", maxWidth: 440, flexGrow: 1 },
+  backButton: {
+    width: 44,
+    height: 44,
     alignItems: "flex-start",
-    marginVertical: 4,
-    paddingVertical: 2,
-  },
-  checkboxControl: {
-    width: 20,
-    height: 20,
-    alignItems: "center",
     justifyContent: "center",
-    marginRight: 6,
-    marginTop: 2,
   },
-  termsTextWrap: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start" },
-  termsLabel: { color: "rgba(255,255,255,0.92)", fontSize: 12, lineHeight: 18 },
-  termsLink: {
-    color: "#FFE082",
-    fontSize: 12,
-    lineHeight: 18,
-    fontWeight: "700",
-    textDecorationLine: "underline",
+  main: { flex: 1, justifyContent: "center", paddingVertical: spacing.lg },
+  header: { marginBottom: spacing.lg },
+  title: { ...typography.screenTitle },
+  subtitle: { fontSize: 15, color: colors.text.secondary, marginTop: 6, lineHeight: 22 },
+  form: { gap: spacing.md },
+  input: { backgroundColor: colors.background.base },
+  helper: { color: colors.status.error, paddingHorizontal: 4, marginTop: 2 },
+  checkboxRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 2 },
+  termsLabel: { flex: 1, color: colors.text.secondary, fontSize: 13, lineHeight: 19 },
+  termsLink: { ...typography.link, fontSize: 13, color: colors.text.accent },
+  link: { ...typography.link, color: colors.text.accent },
+  pill: { borderRadius: radius.full },
+  buttonContent: { height: 52 },
+  buttonLabel: { fontSize: 16, fontWeight: "700" },
+  outlined: { borderColor: colors.border.subtle, backgroundColor: colors.background.base },
+  orRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  orLine: { flex: 1, height: 1, backgroundColor: colors.border.subtle },
+  orText: { color: colors.text.secondary, fontSize: 13 },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: spacing.md,
   },
-  primary: { marginBottom: 8, backgroundColor: "#6C5CE7" },
-  primaryContent: { height: 48 },
-  primaryLabel: { color: "#fff", fontWeight: "600" },
-  pill: { borderRadius: 28 },
-  divider: { marginVertical: 12, backgroundColor: "rgba(255,255,255,0.2)" },
-  outlined: { borderColor: "rgba(255,255,255,0.7)" },
-  outlinedLabel: { color: "#fff", fontWeight: "600" },
-  linkLabel: { color: "#fff", fontSize: 14 },
-  linkButton: { alignSelf: "center" },
-  linkGroup: { alignItems: "center", gap: 4 },
+  footerText: { color: colors.text.secondary, fontSize: 14 },
 });

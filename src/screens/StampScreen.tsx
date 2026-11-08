@@ -6,7 +6,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RootStackParamList } from "../types/navigation";
 import { computeDerivedSkills, REGIONS } from "../config/stampTaxonomy";
-import { DEFAULT_TIER } from "../config/stampConstants";
+import { DEFAULT_TIER, ALL_STAMPS_REGION } from "../config/stampConstants";
 import StampBadge from "../components/stamps/StampBadge";
 import { getCategoryIdFromName } from "../services/categoryTaxonomyService";
 import { useDialogue } from "../context/DialogueProvider";
@@ -34,7 +34,8 @@ type StampNavigationProp = StackNavigationProp<RootStackParamList, "Stamps">;
 export default function StampScreen() {
   const navigation = useNavigation<StampNavigationProp>();
   const route = useRoute<StampRouteProp>();
-  const { region, categoryId } = route.params;
+  const { region } = route.params;
+  const isAll = region === ALL_STAMPS_REGION;
   const currentIndex = REGIONS.indexOf(region);
   const d = useDialogue();
 
@@ -53,8 +54,12 @@ export default function StampScreen() {
     return { unlockedStamps: names, stampTiers: tiers, regionsWithUnlocks };
   }, [d.mappedCategories, region]);
 
-  const prevRegion = findNearestWithUnlocks(REGIONS, currentIndex, -1, regionsWithUnlocks);
-  const nextRegion = findNearestWithUnlocks(REGIONS, currentIndex, 1, regionsWithUnlocks);
+  const prevRegion = isAll
+    ? null
+    : findNearestWithUnlocks(REGIONS, currentIndex, -1, regionsWithUnlocks);
+  const nextRegion = isAll
+    ? null
+    : findNearestWithUnlocks(REGIONS, currentIndex, 1, regionsWithUnlocks);
 
   const goToPreviousRegion = () => {
     if (!prevRegion) return;
@@ -71,12 +76,11 @@ export default function StampScreen() {
     });
   };
 
-  const allStamps = DERIVED_SKILLS[region] ?? [];
-  const unlockedList = allStamps.filter((s) => {
-    if (unlockedStamps.has(s)) return true;
-    const bare = s.split(": ").pop();
-    return bare ? unlockedStamps.has(bare) : false;
-  });
+  const isUnlocked = (s: string) =>
+    unlockedStamps.has(s) || unlockedStamps.has(s.split(": ").pop() ?? "");
+  const unlockedList = (isAll ? REGIONS : [region]).flatMap((r) =>
+    (DERIVED_SKILLS[r] ?? []).filter(isUnlocked).map((stamp) => ({ stamp, region: r }))
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -105,13 +109,19 @@ export default function StampScreen() {
 
         {unlockedList.length > 0 ? (
           <View style={styles.grid}>
-            {unlockedList.map((stamp) => {
+            {unlockedList.map(({ stamp, region: r }) => {
               const tier = stampTiers[stamp] ?? DEFAULT_TIER;
               return (
                 <TouchableOpacity
-                  key={stamp}
+                  key={`${r}-${stamp}`}
                   style={styles.stampItem}
-                  onPress={() => navigation.navigate("StampDetails", { stamp, region, categoryId })}
+                  onPress={() =>
+                    navigation.navigate("StampDetails", {
+                      stamp,
+                      region: r,
+                      categoryId: getCategoryIdFromName(r),
+                    })
+                  }
                 >
                   <View style={styles.stampCircle}>
                     <StampBadge stampName={stamp} tier={tier} size="list" />
@@ -126,12 +136,14 @@ export default function StampScreen() {
             <MaterialIcons name="lock-outline" size={64} color="#9BABCF" />
             <Text style={styles.emptyTitle}>No stamps unlocked yet</Text>
             <Text style={styles.emptySubtitle}>
-              Complete the dialogue to unlock stamps in this region.
+              {isAll
+                ? "Complete a dialogue to earn your first stamp."
+                : "Complete the dialogue to unlock stamps in this region."}
             </Text>
           </View>
         )}
 
-        <DialogueButton variant="region" region={region} />
+        {!isAll && <DialogueButton variant="region" region={region} />}
       </ScrollView>
     </SafeAreaView>
   );

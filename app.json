@@ -81,7 +81,11 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.26141705792-gbbbkovfgpsdqtlhbkfv0ebuvuibhoj3"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-asset",
+      "expo-image",
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {

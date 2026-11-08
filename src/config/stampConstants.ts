@@ -167,3 +167,5 @@ export function slugify(...parts: string[]): string {
     .replaceAll(/[^a-z0-9]+/g, "-")
     .replaceAll(/^-+|-+$/g, "");
 }
+
+export const ALL_STAMPS_REGION = "My Stamps";
