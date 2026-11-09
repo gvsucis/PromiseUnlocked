@@ -3,5 +3,6 @@
   "EX_DEV_CLIENT_NETWORK_INSPECTOR": "true",
   "ios.forceStaticLinking": "[]",
   "apple.privacyManifestAggregationEnabled": "true",
-  "apple.ccacheEnabled": "true"
+  "apple.ccacheEnabled": "true",
+  "ios.deploymentTarget": "16.4"
 }
