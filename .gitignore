@@ -58,3 +58,7 @@ provider.sh
 
 # data backup / rollback records
 skills-passport-backup-*.json
+# Expo
+.expo
+dist/
+web-build/
